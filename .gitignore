@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.vsix
+.dev.vars
+media/codicons/

@@ -1,0 +1,144 @@
+{
+  "name": "readback",
+  "displayName": "Readback",
+  "description": "Hear your AI coding agent's replies in a Speechify voice, with the words highlighted as they are spoken.",
+  "version": "0.2.0",
+  "publisher": "speechify",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.100.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "speechify",
+    "text to speech",
+    "claude code",
+    "read aloud",
+    "accessibility"
+  ],
+  "icon": "media/logo.png",
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "readback",
+          "title": "Readback",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "readback": [
+        {
+          "type": "webview",
+          "id": "readback.player",
+          "name": "Player"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "readback.setApiKey",
+        "title": "Readback: Set Speechify API key"
+      },
+      {
+        "command": "readback.chooseVoice",
+        "title": "Readback: Choose voice"
+      },
+      {
+        "command": "readback.installHook",
+        "title": "Readback: Install the Claude Code hook"
+      },
+      {
+        "command": "readback.uninstallHook",
+        "title": "Readback: Remove the Claude Code hook"
+      },
+      {
+        "command": "readback.readSelection",
+        "title": "Readback: Read selection"
+      },
+      {
+        "command": "readback.stop",
+        "title": "Readback: Stop"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "readback.readSelection",
+          "when": "editorHasSelection",
+          "group": "readback"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Readback",
+      "properties": {
+        "readback.voice": {
+          "type": "string",
+          "default": "harper_32",
+          "description": "Speechify voice id. Use the Choose voice command to pick one your key can render."
+        },
+        "readback.model": {
+          "type": "string",
+          "default": "simba-3.2",
+          "description": "Speechify model."
+        },
+        "readback.speed": {
+          "type": "number",
+          "default": 1,
+          "description": "Playback rate. The player cycles this too."
+        },
+        "readback.summarize": {
+          "type": "string",
+          "enum": ["claude", "off"],
+          "enumDescriptions": [
+            "Condense each reply to a few spoken sentences with claude -p on your own subscription. The full reply stays one click away.",
+            "Read every reply in full."
+          ],
+          "default": "claude",
+          "description": "Whether to condense replies before reading them."
+        },
+        "readback.minChars": {
+          "type": "number",
+          "default": 80,
+          "description": "Replies shorter than this are not read. A bare \"Done.\" is noise."
+        },
+        "readback.maxChars": {
+          "type": "number",
+          "default": 4000,
+          "description": "Replies longer than this are cut at a sentence and end with \"and more\"."
+        },
+        "readback.apiBase": {
+          "type": "string",
+          "default": "https://api.speechify.ai",
+          "description": "Speechify API base URL."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.100.0",
+    "@vscode/codicons": "^0.0.46-24",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}

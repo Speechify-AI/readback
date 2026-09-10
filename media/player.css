@@ -1,0 +1,159 @@
+/* The player borrows the editor's own theme: nothing here names a colour. */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 0 12px 24px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+}
+#bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 0 6px;
+  background: var(--vscode-sideBar-background);
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+}
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.spacer { flex: 1; }
+button {
+  font: inherit;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+button:hover { background: var(--vscode-toolbar-hoverBackground); }
+button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+button.icon { width: 28px; height: 28px; justify-content: center; }
+button.icon .codicon { font-size: 16px; }
+button.primary {
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+button.primary:hover { background: var(--vscode-button-hoverBackground); }
+button.primary .codicon { font-size: 18px; }
+button.pill {
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.85em;
+  max-width: 10em;
+}
+button.pill .codicon { font-size: 12px; }
+button.pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.text {
+  color: var(--vscode-textLink-foreground);
+  padding: 2px 4px;
+  font-size: 0.9em;
+}
+button.action {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  padding: 4px 12px;
+}
+button.action:hover { background: var(--vscode-button-hoverBackground); }
+#progress {
+  height: 2px;
+  margin: 8px 0 4px;
+  background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+  opacity: 0.25;
+  position: relative;
+}
+#progressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+}
+#progress.live { opacity: 1; }
+#progress.live #progressFill { transition: width 120ms linear; }
+#status {
+  min-height: 1.2em;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#empty {
+  margin: 24px 4px;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.5;
+}
+.card {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background);
+}
+.card h2 { margin: 0 0 6px; font-size: 1em; }
+.card p { margin: 0 0 10px; color: var(--vscode-descriptionForeground); line-height: 1.45; }
+.turn {
+  margin: 14px 0 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+}
+.turn-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.turn-head .para.lead {
+  flex: 1;
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--vscode-descriptionForeground);
+}
+.turn-head button.icon { width: 24px; height: 24px; opacity: 0.6; }
+.turn-head button.icon:hover { opacity: 1; }
+.turn.playing .turn-head .para.lead { color: var(--vscode-foreground); }
+.para {
+  margin: 0 0 8px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1.55;
+  cursor: pointer;
+  white-space: pre-wrap;
+}
+.para:hover { background: var(--vscode-list-hoverBackground); }
+.para.current { background: var(--vscode-list-inactiveSelectionBackground); }
+.full { margin-top: 2px; }
+.full > summary {
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+  font-size: 0.9em;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+}
+.full > summary::-webkit-details-marker { display: none; }
+.full > summary .codicon { font-size: 14px; transition: transform 120ms; }
+.full[open] > summary .codicon { transform: rotate(90deg); }
+.full .para { margin-top: 6px; }
+.sent.on { background: var(--vscode-editor-selectionBackground); border-radius: 2px; }
+.word { cursor: pointer; border-radius: 2px; }
+.word.on {
+  color: var(--vscode-editor-background);
+  background: var(--vscode-editor-foreground, var(--vscode-foreground));
+}
