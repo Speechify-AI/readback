@@ -5,6 +5,8 @@ export type Summarize = "claude" | "off";
 
 export interface Settings extends TurnLimits {
   summarize: Summarize;
+  /** Read the notes Claude writes between tool calls as they arrive. */
+  progress: boolean;
   autoplay: boolean;
   voice: string;
   model: string;
@@ -20,6 +22,7 @@ export function readSettings(): Settings {
     speed: cfg.get<number>("speed", 1),
     apiBase: cfg.get<string>("apiBase", "https://api.speechify.ai").replace(/\/+$/, ""),
     summarize: cfg.get<string>("summarize", "claude") === "off" ? "off" : "claude",
+    progress: cfg.get<boolean>("progress", true),
     autoplay: cfg.get<boolean>("autoplay", true),
     minChars: cfg.get<number>("minChars", 80),
     maxChars: cfg.get<number>("maxChars", 4000),

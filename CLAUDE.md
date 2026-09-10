@@ -29,10 +29,24 @@ this repo.
   when the playhead is about to need it plus a two-paragraph look-ahead. A
   turn stopped after one sentence costs one sentence.
 - **The hook decides nothing.** It is POSIX shell plus curl, forwards the
-  raw Stop payload to every listener on the machine, and exits 0 whatever
-  happens. Which window speaks, whether the reply is long enough, what is
+  raw payload of whichever event fired it (Stop, MessageDisplay or
+  PreToolUse) to every listener on the machine, and exits 0 whatever happens. Which window
+  speaks, which event it was, whether the text is long enough, what is
   read: all of that is the extension's call. Keep the hook dumb so it never
   needs updating in step with the extension.
+- **Progress notes are read as they arrive; the finished reply is
+  condensed.** MessageDisplay delivers each assistant message as its lines
+  complete (`delta`, `final`, `message_id`). What follows the message says
+  what it was, by `prompt_id`: PreToolUse means a note written before a
+  tool call, read as it stands; Stop means the reply, condensed as before.
+  `src/live.ts` holds each completed message until one arrives, with a long
+  timer as the fallback only. Never decide by timing alone: Stop came 27 ms
+  after the message headless and 1.5 s in an interactive session, and a
+  1.5 s window read one reply twice. Stop's text is also checked against
+  the last note read, so a reply already heard is not read again. At Stop,
+  `last_assistant_message` wins over anything held. A turn is listed on its
+  first note and grows; the webview is told what was appended and where,
+  never handed a rewritten turn.
 - **Every window hears every turn; a window shows only its own project's.**
   A turn is this window's when the cwd is inside a workspace folder or
   contains one (`src/windows.ts`). No focused-window fallback: a panel full
@@ -47,7 +61,7 @@ this repo.
   same paragraph list. Autoplay stops there; the full reply is one click
   away and costs nothing until played.
 - **Settings merge, never overwrite.** `withHook`/`withoutHook` touch only
-  our Stop entry, recognised by the fixed script path. If the file does not
+  our entries under `HOOK_EVENTS`, recognised by the fixed script path. If the file does not
   parse as JSON we say so and leave it alone.
 - **The key is checked live before it is stored** and lives only in VS
   Code's SecretStorage. It is never written to settings, logs or the webview.
@@ -56,14 +70,21 @@ this repo.
   updates.
 - **Audio plays only in the webview** because VS Code has no other audio
   API. The view is resident (`retainContextWhenHidden`) and revealed once on
-  the first turn so its audio element exists.
+  the first turn so its audio element exists. The browser refuses to start
+  sound until the window has had a click or keypress since the page was
+  made (`NotAllowedError`; Electron `autoplayPolicy: "user-gesture-required"`
+  with `allow="autoplay"` delegated to the webview), and a window reload
+  makes a new page. The player shows a card until then and resumes the
+  refused run on the first click. There is no way round the click; do not
+  pretend there is.
 
 ## Structure
 
 - `src/extension.ts` — activation, commands, the window-selection rule
 - `src/listener.ts` — loopback HTTP listener and the endpoint file
 - `src/claudeSettings.ts` — the hook script text and the settings merge
-- `src/turns.ts` — Stop payload → message → Turn (plainify, paragraphs, lead-in, fullFrom)
+- `src/turns.ts` — text → message decision → Turn (plainify, paragraphs, lead-in, fullFrom)
+- `src/live.ts` — the stream: MessageDisplay, PreToolUse and Stop payloads → progress notes and the finished reply
 - `src/summary.ts` — the condensing run: brief, flags, finding `claude`
 - `src/windows.ts` — the project rule, pure
 - `src/playerView.ts` — the WebviewViewProvider and on-demand rendering

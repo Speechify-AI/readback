@@ -5,6 +5,8 @@ import type { Turn } from "./turns.ts";
 export type HostMessage =
   | { kind: "state"; keyOk: boolean; voice: string; speed: number; autoplay: boolean; hookInstalled: boolean }
   | { kind: "turn"; turn: Turn; autoplay: boolean }
+  /** More paragraphs for a listed turn, starting at index `from`. `fullFrom` is the turn's new value. */
+  | { kind: "append"; turnId: string; from: number; paragraphs: string[]; fullFrom: number | null; autoplay: boolean }
   | { kind: "audio"; turnId: string; index: number; audio: string; marks: Mark[]; durationMs: number }
   | { kind: "error"; turnId: string; index: number; message: string }
   | { kind: "status"; text: string }

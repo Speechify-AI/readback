@@ -2,7 +2,7 @@
   "name": "readback",
   "displayName": "Readback",
   "description": "Hear your AI coding agent's replies in a Speechify voice, with the words highlighted as they are spoken.",
-  "version": "0.2.4",
+  "version": "0.3.3",
   "publisher": "speechify",
   "license": "MIT",
   "repository": {
@@ -109,6 +109,11 @@
           "type": "number",
           "default": 1,
           "description": "Playback rate. The player cycles this too."
+        },
+        "readback.progress": {
+          "type": "boolean",
+          "default": true,
+          "description": "Read the notes Claude writes between tool calls as they arrive. Off: only the finished reply is read."
         },
         "readback.summarize": {
           "type": "string",

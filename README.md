@@ -3,11 +3,12 @@
 Hear your AI coding agent's replies in a Speechify voice, with the words
 highlighted as they are spoken.
 
-Claude Code finishes a turn. Readback condenses the reply to a few spoken
-sentences and reads them back to you in the VS Code sidebar, lighting up
-each word as it is said. The full reply is one click away. Click a word to
-jump to it. Step by sentence. Cycle the speed. Pick any voice your Speechify
-key can render, including your own clone.
+Claude Code works through a task. Readback reads the notes Claude writes
+between tool calls as they land, then condenses the finished reply to a few
+spoken sentences, all in the VS Code sidebar with each word lit as it is
+said. The full reply is one click away. Click a word to jump to it. Step by
+sentence. Cycle the speed. Pick any voice your Speechify key can render,
+including your own clone.
 
 ## Install
 
@@ -25,11 +26,21 @@ You need a Speechify API key. Create one at
 <https://platform.speechify.ai/api-keys>. Readback keeps it in VS Code's
 secret storage and every reply you listen to bills your own workspace.
 
+After a reload, click once anywhere in the VS Code window before you
+expect to hear anything. The browser inside VS Code keeps audio silent
+until then, and the player shows a card until it has played once. Replies
+that arrive before that queue up.
+
 ## How it works
 
-- A `Stop` hook in `~/.claude/settings.json` posts each finished turn to
-  Readback. The hook is ten lines of POSIX shell and curl. It needs no
-  runtime on your PATH and never decides anything itself.
+- Three hooks in `~/.claude/settings.json`, `MessageDisplay`, `PreToolUse`
+  and `Stop`, post each assistant message, each tool call and each finished
+  turn to Readback. The hook is ten lines of POSIX shell and curl. It needs
+  no runtime on your PATH and never decides anything itself.
+- A message followed by a tool call was a note written before it, and
+  Readback reads it as it stands while the tool runs. A message followed by
+  Stop is the finished reply and gets condensed. Turn the notes off with
+  `readback.progress`.
 - Readback condenses the reply with `claude -p` on the smallest model, on
   your own Claude subscription, so it holds no model key. The run loads no
   settings and is marked so the hook ignores it, which is what stops a
@@ -50,7 +61,7 @@ secret storage and every reply you listen to bills your own workspace.
 | --- | --- |
 | Readback: Set Speechify API key | Checks the key against the live API before storing it |
 | Readback: Choose voice | Lists the voices on your key that can render the model. Saved for the open project; set `readback.voice` in user settings for the default |
-| Readback: Install the Claude Code hook | Adds one Stop hook, leaving the rest of the file alone |
+| Readback: Install the Claude Code hook | Adds Stop, MessageDisplay and PreToolUse hooks, leaving the rest of the file alone |
 | Readback: Remove the Claude Code hook | Removes exactly that hook |
 | Readback: Read selection | Reads the editor selection. Also in the editor context menu |
 | Readback: Stop | Stops playback and clears the queue |
@@ -61,6 +72,7 @@ secret storage and every reply you listen to bills your own workspace.
 | --- | --- | --- |
 | `readback.autoplay` | `true` | Play each new reply as it arrives; off lists them and waits for play |
 | `readback.summarize` | `claude` | Condense replies with `claude -p`, or `off` to read them in full |
+| `readback.progress` | `true` | Read the notes Claude writes between tool calls as they arrive |
 | `readback.voice` | `harper_32` | Speechify voice id. Per project when set from the picker |
 | `readback.model` | `simba-3.2` | Speechify model |
 | `readback.speed` | `1` | Playback rate. Per project when cycled from the player |

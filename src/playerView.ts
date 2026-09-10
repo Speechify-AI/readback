@@ -5,6 +5,10 @@
  * The webview pulls: it asks for a paragraph when the playhead is about to
  * need it. The host renders (cache first), and posts the bytes back. A
  * turn nobody plays past its first paragraph costs one paragraph.
+ *
+ * A turn can grow while it is listed: progress notes are appended as Claude
+ * writes them, and the finished reply last. The stored turn is the truth;
+ * the webview is told what was added and where.
  */
 import { Buffer } from "node:buffer";
 import * as vscode from "vscode";
@@ -101,6 +105,29 @@ export class PlayerView implements vscode.WebviewViewProvider {
     this.awaiting.add(turn.id);
     this.log.info(`player not ready; revealing the view for turn ${turn.id.slice(0, 8)}`);
     await vscode.commands.executeCommand(`${PlayerView.viewId}.focus`);
+  }
+
+  /**
+   * More of a turn that is still going: progress notes as they arrive, then
+   * the finished reply. The first `summaryCount` paragraphs are the condensed
+   * reply; what follows them is the full reply, which plays only when asked,
+   * as in `push`. False when the turn is no longer listed, so the caller
+   * starts a new one instead.
+   */
+  append(turnId: string, paragraphs: string[], summaryCount: number): boolean {
+    const turn = this.turns.find((t) => t.id === turnId);
+    if (!turn) return false;
+    if (paragraphs.length === 0) return true;
+    const from = turn.paragraphs.length;
+    if (summaryCount > 0) turn.fullFrom = from + summaryCount;
+    turn.paragraphs.push(...paragraphs);
+    if (this.ready) {
+      this.post({ kind: "append", turnId, from, paragraphs, fullFrom: turn.fullFrom, autoplay: true });
+    } else {
+      // The page gets the whole turn when it loads; make sure it autoplays then.
+      this.awaiting.add(turnId);
+    }
+    return true;
   }
 
   stop(): void {

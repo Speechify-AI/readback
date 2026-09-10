@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeTurn, messageFromStop } from "./turns.ts";
+import { decideMessage, makeTurn, messageFromStop, replyParagraphs } from "./turns.ts";
 
 const limits = { minChars: 20, maxChars: 4000 };
 const at = new Date("2026-09-10T14:32:00");
@@ -20,6 +20,27 @@ describe("messageFromStop", () => {
   it("skips payloads without a message and events that are not Stop", () => {
     expect(messageFromStop({ hook_event_name: "PreToolUse" }, limits).kind).toBe("skip");
     expect(messageFromStop({ hook_event_name: "Stop" }, limits)).toEqual({ kind: "skip", reason: "no-message" });
+  });
+});
+
+describe("decideMessage", () => {
+  it("skips code-only text as empty and short text as too short", () => {
+    expect(decideMessage("", null, limits)).toEqual({ kind: "skip", reason: "empty" });
+    expect(decideMessage("Okay.", "/p", limits)).toEqual({ kind: "skip", reason: "too-short" });
+  });
+
+  it("has no project without a cwd", () => {
+    expect(decideMessage("I'll check the settings file first.", null, limits)).toMatchObject({ kind: "message", project: null });
+  });
+});
+
+describe("replyParagraphs", () => {
+  it("flattens both versions and keeps them apart", () => {
+    expect(replyParagraphs({ markdown: "Fixed it.\n\n- a\n- b", summary: "It was fixed.", limits })).toEqual({
+      summary: ["It was fixed."],
+      full: ["Fixed it.", "a\nb"],
+    });
+    expect(replyParagraphs({ markdown: "Fixed it.", limits }).summary).toEqual([]);
   });
 });
 

@@ -6,6 +6,12 @@
  * listener the hook posts to, the sidebar player, and the commands. The
  * listener starts at activation, not on first use, because a turn can end
  * before anyone opens the view.
+ *
+ * Payloads go through `LiveTurns`, which turns the stream of MessageDisplay,
+ * PreToolUse and Stop events into two kinds of thing: a progress note to
+ * read as it stands, and the finished reply to condense. A turn is listed on
+ * its first note and grows from there, so what Claude says between tool
+ * calls is heard while the tools are still running.
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -23,11 +29,12 @@ import {
 import { readSettings, SECRET_KEY, writeSetting } from "./config.ts";
 import { fileCache } from "./fileCache.ts";
 import { startListener, type Listener } from "./listener.ts";
+import { LiveTurns, type LiveEvent } from "./live.ts";
 import { PlayerView } from "./playerView.ts";
 import type { WebCommand } from "./protocol.ts";
 import { checkKey, listVoices } from "./speechify.ts";
 import { condense, findClaude } from "./summary.ts";
-import { isStopPayload, makeTurn, messageFromStop } from "./turns.ts";
+import { decideMessage, makeTurn, PROGRESS_MIN_CHARS, replyParagraphs, type Message } from "./turns.ts";
 import { relatedToWorkspace } from "./windows.ts";
 
 const home = homedir();
@@ -52,8 +59,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
+  // Turns still going, by session and prompt, to the listed turn they grow.
+  const openTurns = new Map<string, string>();
+  const live = new LiveTurns((event) => onLive(event, player, openTurns, log));
   try {
-    listener = await startListener(endpointsDir, (payload) => onPayload(payload, player, log));
+    listener = await startListener(endpointsDir, (payload) => live.accept(payload));
     log.info(`listening on 127.0.0.1:${listener.port}, endpoint ${listener.endpointFile}`);
   } catch (err) {
     log.error(`listener failed to start: ${String(err)}`);
@@ -125,30 +135,79 @@ function writeHookScript(log: vscode.LogOutputChannel): void {
   }
 }
 
-function onPayload(payload: unknown, player: PlayerView, log: vscode.LogOutputChannel): void {
-  if (!isStopPayload(payload)) return;
+/**
+ * Something the stream assembler decided: a progress note to read now, or
+ * the finished reply. Both are filtered by project first, so another
+ * window's turn never shows here.
+ */
+function onLive(event: LiveEvent, player: PlayerView, open: Map<string, string>, log: vscode.LogOutputChannel): void {
   const settings = readSettings();
-  const decision = messageFromStop(payload, settings);
+  const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  if (!relatedToWorkspace(event.cwd, folders)) {
+    log.debug(`a turn from ${event.cwd ?? "?"} is not this window's project`);
+    return;
+  }
+  if (event.kind === "progress") {
+    if (!settings.progress) return;
+    const decision = decideMessage(event.markdown, event.cwd, { minChars: PROGRESS_MIN_CHARS, maxChars: settings.maxChars });
+    if (decision.kind === "skip") {
+      log.debug(`skipped a progress note: ${decision.reason}`);
+      return;
+    }
+    void progress(event.key, decision, `released by ${event.via} after ${event.heldMs} ms`, player, open, log);
+    return;
+  }
+  const listed = event.key === null ? null : open.get(event.key) ?? null;
+  if (event.key !== null) open.delete(event.key);
+  if (event.heldMs !== null) log.info(`Stop came ${event.heldMs} ms after the last message`);
+  if (event.markdown === null) {
+    log.debug("skipped a payload: no-message");
+    return;
+  }
+  if (event.readAsProgress) {
+    log.info(`turn ${listed?.slice(0, 8) ?? "?"} finished; its reply was already read as a note, nothing appended`);
+    return;
+  }
+  const decision = decideMessage(event.markdown, event.cwd, settings);
   if (decision.kind === "skip") {
     log.debug(`skipped a payload: ${decision.reason}`);
     return;
   }
-  const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-  if (!relatedToWorkspace(decision.cwd, folders)) {
-    log.debug(`a turn from ${decision.cwd ?? "?"} is not this window's project`);
-    return;
-  }
-  void speak(decision, player, log);
+  void speak(decision, listed, player, log);
 }
 
-/** Condense if we can, then hand the turn to the player. */
+/** A note Claude wrote before a tool call: append it to the turn, or start the turn with it. */
+async function progress(
+  key: string,
+  message: Message,
+  how: string,
+  player: PlayerView,
+  open: Map<string, string>,
+  log: vscode.LogOutputChannel,
+): Promise<void> {
+  const settings = readSettings();
+  const listed = open.get(key);
+  const { full } = replyParagraphs({ markdown: message.markdown, limits: settings });
+  if (listed !== undefined && player.append(listed, full, 0)) {
+    log.info(`turn ${listed.slice(0, 8)} grew by ${full.length} progress paragraphs (${how})`);
+    return;
+  }
+  const turn = makeTurn({ markdown: message.markdown, project: message.project, limits: settings });
+  if (!turn) return;
+  open.set(key, turn.id);
+  log.info(`turn from ${turn.project ?? "?"} started with ${turn.paragraphs.length - 1} progress paragraphs (${how})`);
+  await player.push(turn);
+}
+
+/** The finished reply. Condense if we can, then append it to its turn or list it as a new one. */
 async function speak(
-  message: { markdown: string; project: string | null },
+  message: Message,
+  listed: string | null,
   player: PlayerView,
   log: vscode.LogOutputChannel,
 ): Promise<void> {
   const settings = readSettings();
-  let summary: string | null = null;
+  let condensed: string | null = null;
   const claudePath = settings.summarize === "claude" ? findClaude() : null;
   if (settings.summarize === "claude" && claudePath === null) {
     log.warn("summarize is on but no claude binary was found; reading the full reply");
@@ -156,11 +215,18 @@ async function speak(
   if (claudePath) {
     player.status(`Condensing a reply from ${message.project ?? "the agent"}…`);
     const started = Date.now();
-    summary = await condense(message.markdown, { claudePath });
-    log.info(`condense ${summary ? "ok" : "failed"} in ${Date.now() - started} ms`);
-    if (!summary) player.status("");
+    condensed = await condense(message.markdown, { claudePath });
+    log.info(`condense ${condensed ? "ok" : "failed"} in ${Date.now() - started} ms`);
+    if (!condensed) player.status("");
   }
-  const turn = makeTurn({ markdown: message.markdown, summary, project: message.project, limits: settings });
+  if (listed !== null) {
+    const { summary, full } = replyParagraphs({ markdown: message.markdown, summary: condensed, limits: settings });
+    if (player.append(listed, [...summary, ...full], summary.length)) {
+      log.info(`turn ${listed.slice(0, 8)} finished with ${full.length} paragraphs${summary.length > 0 ? " (condensed)" : ""}`);
+      return;
+    }
+  }
+  const turn = makeTurn({ markdown: message.markdown, summary: condensed, project: message.project, limits: settings });
   if (!turn) return;
   log.info(`turn from ${turn.project ?? "?"}, ${turn.paragraphs.length - 1} paragraphs${turn.fullFrom ? " (condensed)" : ""}`);
   await player.push(turn);

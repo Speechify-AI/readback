@@ -1,5 +1,5 @@
 /**
- * Installing the Stop hook into Claude Code's user settings.
+ * Installing Readback's hooks into Claude Code's user settings.
  *
  * Merge, never overwrite: people keep other hooks in this file. Our entry is
  * recognised by its command, which ends in the hook script's fixed path, so
@@ -9,6 +9,16 @@
  */
 
 export const HOOK_SCRIPT_NAME = "hook.sh";
+
+/**
+ * The events the hook is registered for. Stop carries the finished reply.
+ * MessageDisplay carries each assistant message as its lines complete, which
+ * is how the notes Claude writes between tool calls can be read before the
+ * turn ends. PreToolUse is what tells a note from the reply: it follows a
+ * note, Stop follows the reply. All run the same script; the extension
+ * tells them apart.
+ */
+export const HOOK_EVENTS = ["Stop", "MessageDisplay", "PreToolUse"] as const;
 
 interface HookCommand {
   type: string;
@@ -23,7 +33,7 @@ interface HookGroup {
 
 /** The settings object, typed only as far as we touch it. */
 export interface ClaudeSettings {
-  hooks?: { Stop?: unknown; [event: string]: unknown };
+  hooks?: { [event: string]: unknown };
   [key: string]: unknown;
 }
 
@@ -48,61 +58,78 @@ export function isReadbackCommand(command: string, scriptPath: string): boolean 
   return command.includes(scriptPath);
 }
 
-/** The Stop entry Readback wants present. */
+/** The entry Readback wants present under each event. */
 export function hookEntry(scriptPath: string): HookGroup {
   return { hooks: [{ type: "command", command: JSON.stringify(scriptPath), async: true }] };
 }
 
-export function hasHook(settings: ClaudeSettings, scriptPath: string): boolean {
-  const stop = settings.hooks?.Stop;
-  if (!Array.isArray(stop)) return false;
-  return stop.some(
+function groupsHaveHook(groups: unknown, scriptPath: string): boolean {
+  if (!Array.isArray(groups)) return false;
+  return groups.some(
     (group) =>
       isHookGroup(group) &&
       group.hooks.some((h) => isHookCommand(h) && isReadbackCommand(h.command, scriptPath)),
   );
 }
 
-/** A copy of `settings` with our Stop hook present exactly once. */
+/**
+ * True when every event has our entry. An install from before MessageDisplay
+ * was added counts as missing, so the setup card offers the upgrade.
+ */
+export function hasHook(settings: ClaudeSettings, scriptPath: string): boolean {
+  return HOOK_EVENTS.every((event) => groupsHaveHook(settings.hooks?.[event], scriptPath));
+}
+
+/** A copy of `settings` with our entry present exactly once under each event. */
 export function withHook(settings: ClaudeSettings, scriptPath: string): ClaudeSettings {
   if (hasHook(settings, scriptPath)) return settings;
   const hooks = { ...(settings.hooks ?? {}) };
-  const stop = Array.isArray(hooks.Stop) ? [...hooks.Stop] : [];
-  stop.push(hookEntry(scriptPath));
-  hooks.Stop = stop;
+  for (const event of HOOK_EVENTS) {
+    const existing = hooks[event];
+    if (groupsHaveHook(existing, scriptPath)) continue;
+    const groups: unknown[] = Array.isArray(existing) ? [...existing] : [];
+    groups.push(hookEntry(scriptPath));
+    hooks[event] = groups;
+  }
   return { ...settings, hooks };
 }
 
-/** A copy of `settings` with our Stop hook gone and nothing else touched. */
+/** A copy of `settings` with our entries gone and nothing else touched. */
 export function withoutHook(settings: ClaudeSettings, scriptPath: string): ClaudeSettings {
-  const stop = settings.hooks?.Stop;
-  if (!Array.isArray(stop)) return settings;
-  const kept = stop
-    .map((group) => {
-      if (!isHookGroup(group)) return group;
-      const hooks = group.hooks.filter(
-        (h) => !(isHookCommand(h) && isReadbackCommand(h.command, scriptPath)),
-      );
-      return hooks.length === group.hooks.length ? group : { ...group, hooks };
-    })
-    .filter((group) => !isHookGroup(group) || group.hooks.length > 0);
+  if (!settings.hooks) return settings;
   const hooks = { ...settings.hooks };
-  if (kept.length === 0) delete hooks.Stop;
-  else hooks.Stop = kept;
-  return { ...settings, hooks };
+  let changed = false;
+  for (const event of HOOK_EVENTS) {
+    const groups = hooks[event];
+    if (!Array.isArray(groups) || !groupsHaveHook(groups, scriptPath)) continue;
+    changed = true;
+    const kept = groups
+      .map((group: unknown) => {
+        if (!isHookGroup(group)) return group;
+        const inner = group.hooks.filter(
+          (h) => !(isHookCommand(h) && isReadbackCommand(h.command, scriptPath)),
+        );
+        return inner.length === group.hooks.length ? group : { ...group, hooks: inner };
+      })
+      .filter((group: unknown) => !isHookGroup(group) || group.hooks.length > 0);
+    if (kept.length === 0) delete hooks[event];
+    else hooks[event] = kept;
+  }
+  return changed ? { ...settings, hooks } : settings;
 }
 
 /**
  * The hook itself. POSIX sh and curl, nothing else, so it runs on any Mac
- * or Linux box without a runtime on PATH. It forwards the raw Stop payload
- * to every Readback listener on this machine and lets the extension decide
- * what to say: the hook knows nothing about JSON or windows. A listener that
- * refuses the connection is gone, so its endpoint file is removed.
+ * or Linux box without a runtime on PATH. It forwards the raw payload of
+ * whichever event fired it to every Readback listener on this machine and
+ * lets the extension decide what to say: the hook knows nothing about JSON,
+ * events or windows. A listener that refuses the connection is gone, so its
+ * endpoint file is removed.
  */
 export function hookScript(endpointsDir: string): string {
   return `#!/bin/sh
-# Readback: Claude Code Stop hook. Installed by the Readback VS Code
-# extension; edits are overwritten on its next activation.
+# Readback: Claude Code hook (Stop, MessageDisplay, PreToolUse). Installed by
+# the Readback VS Code extension; edits are overwritten on its next activation.
 # Readback condenses replies by running claude itself. That run carries this
 # marker, and a hook that sees it does nothing, so a reply about a reply can
 # never be read.

@@ -7,8 +7,18 @@
  * marks. A new turn starts playing at once unless something is already
  * playing, in which case it queues behind it.
  *
+ * A turn can grow while it is listed. Progress notes Claude writes between
+ * tool calls are appended as they arrive, and the finished reply last. If
+ * the turn is playing, the run simply gets longer; if it has finished, the
+ * new paragraphs play or queue like a new turn would.
+ *
  * A condensed turn carries its full reply after `fullFrom`. A run started
  * before that point stops there; the full reply plays only when asked.
+ *
+ * The browser under VS Code refuses to start sound until the page has been
+ * clicked once (NotAllowedError from `play()`), and a reload makes a new
+ * page. The player says so with a card until the first click, and a click
+ * resumes whatever was refused; turns that arrived meanwhile are queued.
  */
 import { applyHighlight, clearHighlight, markIndexAtTime, paintParagraph, sentenceStarts } from "./reader.js";
 
@@ -34,9 +44,9 @@ const els = {
 };
 
 const state = {
-  turns: new Map(), // id -> { turn, el, paragraphs: [{ el, body, text, entry, painted }] }
+  turns: new Map(), // id -> { turn, el, full, paragraphs: [{ el, body, text, entry, painted }] }
   order: [], // turn ids, newest first
-  queue: [], // turn ids waiting to play, oldest first
+  queue: [], // { turnId, index } waiting to play, oldest first
   requested: new Set(), // "turnId:index" asked of the host
   current: null, // { turnId, index }
   runEnd: 0, // first index the current run will not play
@@ -48,6 +58,11 @@ const state = {
   frame: null,
   keyOk: false,
   hookInstalled: false,
+  // Sound is off until the page has been clicked. Known up front where the
+  // browser says so, and learnt the hard way when play() is refused.
+  needsClick: typeof navigator.userActivation === "object" ? !navigator.userActivation.hasBeenActive : false,
+  refused: false,
+  playedOnce: false,
 };
 
 const audio = new Audio();
@@ -69,13 +84,10 @@ window.addEventListener("message", (event) => {
     case "turn":
       addTurn(msg.turn);
       note(`turn ${msg.turn.id.slice(0, 8)} listed, autoplay ${msg.autoplay && state.autoplay ? "yes" : "no"}`);
-      if (!msg.autoplay) return;
-      if (state.autoplay) enqueue(msg.turn.id);
-      else {
-        state.unheard++;
-        state.turns.get(msg.turn.id).el.classList.add("unheard");
-        if (!state.playing) setStatus(state.unheard === 1 ? "1 new reply, press play" : `${state.unheard} new replies, press play`);
-      }
+      if (msg.autoplay) arrive(msg.turn.id, 0);
+      return;
+    case "append":
+      onAppend(msg);
       return;
     case "audio":
       onAudio(msg);
@@ -117,9 +129,18 @@ function renderSetup() {
   if (!state.hookInstalled) {
     needs.push(card(
       "Let Claude Code talk to Readback",
-      "Adds one Stop hook to ~/.claude/settings.json. Nothing else in the file is touched.",
+      "Adds Stop and MessageDisplay hooks to ~/.claude/settings.json. Nothing else in the file is touched.",
       "Install the hook",
       "installHook",
+    ));
+  }
+  if (state.needsClick || state.refused) {
+    note(`sound card shown (${state.refused ? "play was refused" : "page not yet activated"})`);
+    needs.push(card(
+      "Click once to turn sound on",
+      "After a reload, VS Code keeps audio silent until you have clicked somewhere in this window. Once is enough. Replies that arrive meanwhile queue up and play after the click.",
+      "Turn sound on",
+      null,
     ));
   }
   els.setup.hidden = needs.length === 0;
@@ -136,10 +157,23 @@ function card(title, body, action, command) {
   const b = document.createElement("button");
   b.className = "action";
   b.textContent = action;
-  b.addEventListener("click", () => post({ kind: "command", name: command }));
+  // A card without a command only needs the click itself; the document
+  // listener below turns that into sound.
+  if (command) b.addEventListener("click", () => post({ kind: "command", name: command }));
   el.append(h, p, b);
   return el;
 }
+
+/** The first click in the page: sound is allowed from here on. */
+document.addEventListener("click", () => {
+  if (!state.needsClick && !state.refused) return;
+  const resumeRun = state.refused;
+  state.needsClick = false;
+  state.refused = false;
+  note(`first click in the panel${resumeRun ? ", resuming the refused run" : ""}`);
+  renderSetup();
+  if (resumeRun) resume();
+}, true);
 
 // ---- turns ------------------------------------------------------------------
 
@@ -162,55 +196,107 @@ function addTurn(turn) {
   const el = document.createElement("article");
   el.className = "turn";
   el.dataset.id = turn.id;
+  const t = { turn, el, full: null, paragraphs: [] };
 
   const head = document.createElement("header");
   head.className = "turn-head";
-  const full = turn.fullFrom === null ? null : document.createElement("details");
-  const summaryBody = full ? document.createElement("div") : null;
-
-  const paragraphs = turn.paragraphs.map((text, index) => {
-    const p = document.createElement("div");
-    p.className = index === 0 ? "para lead" : "para";
-    const body = document.createElement("div");
-    body.className = "para-body";
-    body.textContent = text;
-    p.appendChild(body);
-    p.addEventListener("click", (ev) => onParagraphClick(turn.id, index, ev));
-    return { el: p, body, text, entry: null, painted: null };
-  });
-
-  head.appendChild(paragraphs[0].el);
+  const lead = makeParagraph(turn.id, 0, turn.paragraphs[0]);
+  lead.el.classList.add("lead");
+  t.paragraphs.push(lead);
+  head.appendChild(lead.el);
   head.appendChild(iconButton("play", "Play this turn", () => {
     state.queue = [];
     goTo(turn.id, 0, true);
   }));
   el.appendChild(head);
 
-  for (let i = 1; i < paragraphs.length; i++) {
-    if (full && i >= turn.fullFrom) full.appendChild(paragraphs[i].el);
-    else el.appendChild(paragraphs[i].el);
-  }
-  if (full) {
-    full.className = "full";
-    const s = document.createElement("summary");
-    const chevron = document.createElement("i");
-    chevron.className = "codicon codicon-chevron-right";
-    const label = document.createElement("span");
-    label.textContent = "Full reply";
-    const play = iconButton("play", "Read the full reply", () => {
-      full.open = true;
-      state.queue = [];
-      goTo(turn.id, turn.fullFrom, true);
-    });
-    s.append(chevron, label, play);
-    full.prepend(s);
-    el.appendChild(full);
-  }
+  for (let i = 1; i < turn.paragraphs.length; i++) addParagraph(t, i, turn.paragraphs[i]);
 
   els.turns.prepend(el);
   els.empty.hidden = true;
-  state.turns.set(turn.id, { turn, el, paragraphs, full });
+  state.turns.set(turn.id, t);
   state.order.unshift(turn.id);
+}
+
+function makeParagraph(turnId, index, text) {
+  const p = document.createElement("div");
+  p.className = "para";
+  const body = document.createElement("div");
+  body.className = "para-body";
+  body.textContent = text;
+  p.appendChild(body);
+  p.addEventListener("click", (ev) => onParagraphClick(turnId, index, ev));
+  return { el: p, body, text, entry: null, painted: null };
+}
+
+/** Paragraph `index` of a listed turn: in the article, or under "Full reply" once past `fullFrom`. */
+function addParagraph(t, index, text) {
+  const p = makeParagraph(t.turn.id, index, text);
+  t.paragraphs[index] = p;
+  const { fullFrom } = t.turn;
+  if (fullFrom !== null && index >= fullFrom) fullSection(t).appendChild(p.el);
+  else if (t.full) t.el.insertBefore(p.el, t.full);
+  else t.el.appendChild(p.el);
+}
+
+/** The collapsed "Full reply" section, made on first use. */
+function fullSection(t) {
+  if (t.full) return t.full;
+  const full = document.createElement("details");
+  full.className = "full";
+  const s = document.createElement("summary");
+  const chevron = document.createElement("i");
+  chevron.className = "codicon codicon-chevron-right";
+  const label = document.createElement("span");
+  label.textContent = "Full reply";
+  const play = iconButton("play", "Read the full reply", () => {
+    full.open = true;
+    state.queue = [];
+    goTo(t.turn.id, t.turn.fullFrom, true);
+  });
+  s.append(chevron, label, play);
+  full.appendChild(s);
+  t.el.appendChild(full);
+  t.full = full;
+  return full;
+}
+
+/** More paragraphs for a listed turn. */
+function onAppend(msg) {
+  const t = state.turns.get(msg.turnId);
+  if (!t) return;
+  if (msg.from !== t.turn.paragraphs.length) {
+    note(`append to ${msg.turnId.slice(0, 8)} at ${msg.from} but ${t.turn.paragraphs.length} listed; ignored`);
+    return;
+  }
+  t.turn.fullFrom = msg.fullFrom;
+  msg.paragraphs.forEach((text, i) => {
+    t.turn.paragraphs.push(text);
+    addParagraph(t, msg.from + i, text);
+  });
+  note(`turn ${msg.turnId.slice(0, 8)} grew by ${msg.paragraphs.length}${msg.fullFrom !== null ? " (condensed)" : ""}`);
+  if (state.current && state.current.turnId === msg.turnId) {
+    // The run in progress gets longer; it still stops before the full reply.
+    state.runEnd = runEndFor(t.turn, state.current.index);
+    lookAhead(msg.turnId, state.current.index + 1);
+    return;
+  }
+  if (msg.autoplay) arrive(msg.turnId, msg.from);
+}
+
+/** A turn, or more of one, has arrived: play it, queue it, or count it as unheard. */
+function arrive(turnId, index) {
+  const t = state.turns.get(turnId);
+  if (!t) return;
+  if (state.autoplay) {
+    enqueue(turnId, index);
+    return;
+  }
+  if (!t.el.classList.contains("unheard")) {
+    state.unheard++;
+    t.el.classList.add("unheard");
+  }
+  if (!state.playing) setStatus(state.unheard === 1 ? "1 new reply, press play" : `${state.unheard} new replies, press play`);
 }
 
 function onParagraphClick(turnId, index, ev) {
@@ -228,13 +314,20 @@ function onParagraphClick(turnId, index, ev) {
 
 // ---- playback ---------------------------------------------------------------
 
-function enqueue(turnId) {
+function enqueue(turnId, index) {
   if (state.playing || state.current) {
-    state.queue.push(turnId);
+    // One entry per turn. A queued turn that grows plays through its new
+    // paragraphs from the entry it already has; a second entry would replay them.
+    const queued = state.queue.find((q) => q.turnId === turnId);
+    if (queued) {
+      queued.index = Math.min(queued.index, index);
+      return;
+    }
+    state.queue.push({ turnId, index });
     setStatus(`${state.queue.length} queued`);
     return;
   }
-  goTo(turnId, 0, true);
+  goTo(turnId, index, true);
 }
 
 function need(turnId, index) {
@@ -321,18 +414,35 @@ async function play(p, autoplay) {
     setPlaying(true);
     setStatus(nowPlaying());
     watch();
+    if (!state.playedOnce) {
+      state.playedOnce = true;
+      note("first play() of this page succeeded");
+    }
+    if (state.needsClick) {
+      // A click elsewhere in the window was enough; the card was not needed.
+      state.needsClick = false;
+      renderSetup();
+    }
   } catch (err) {
-    note(`play() refused: ${err && err.name ? err.name : err}`);
+    const name = err && err.name ? err.name : String(err);
+    note(`play() refused: ${name}${name === "NotAllowedError" ? " (no click in the window yet)" : ""}`);
     setPlaying(false);
-    setStatus("Press play to start");
+    if (name === "NotAllowedError") {
+      state.refused = true;
+      renderSetup();
+      setStatus("Click anywhere in this window to hear it");
+    } else {
+      setStatus("Press play to start");
+    }
   }
 }
 
 function nowPlaying() {
   const t = state.current && state.turns.get(state.current.turnId);
   if (!t) return "";
-  const where = state.current.index >= (t.turn.fullFrom ?? Infinity) ? "full reply" : "summary";
-  return `Playing ${where}${t.turn.project ? `, ${t.turn.project}` : ""}`;
+  const { fullFrom, project } = t.turn;
+  const what = fullFrom !== null && state.current.index >= fullFrom ? "the full reply" : "";
+  return ["Playing", what, project ? (what ? `, ${project}` : project) : ""].join(" ").replace(" ,", ",").trim();
 }
 
 function next() {
@@ -346,7 +456,7 @@ function finishTurn() {
   setPlaying(false);
   setProgress(0, false);
   const upcoming = state.queue.shift();
-  if (upcoming) goTo(upcoming, 0, true);
+  if (upcoming) goTo(upcoming.turnId, upcoming.index, true);
   else setStatus("");
 }
 
@@ -384,6 +494,12 @@ function toggle() {
     if (latest) goTo(latest, 0, true);
     return;
   }
+  resume();
+}
+
+/** Carry on with the current paragraph, whether paused or never started. */
+function resume() {
+  if (!state.current || state.playing) return;
   audio.play().then(() => {
     setPlaying(true);
     setStatus(nowPlaying());
