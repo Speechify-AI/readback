@@ -63,7 +63,7 @@ secret storage and every reply you listen to bills your own workspace.
 | `readback.summarize` | `claude` | Condense replies with `claude -p`, or `off` to read them in full |
 | `readback.voice` | `harper_32` | Speechify voice id. Per project when set from the picker |
 | `readback.model` | `simba-3.2` | Speechify model |
-| `readback.speed` | `1` | Playback rate, also cycled from the player |
+| `readback.speed` | `1` | Playback rate. Per project when cycled from the player |
 | `readback.minChars` | `80` | Replies shorter than this are skipped |
 | `readback.maxChars` | `4000` | Longer replies are cut at a sentence and end with "and more" |
 

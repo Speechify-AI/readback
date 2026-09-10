@@ -2,7 +2,7 @@
   "name": "readback",
   "displayName": "Readback",
   "description": "Hear your AI coding agent's replies in a Speechify voice, with the words highlighted as they are spoken.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "speechify",
   "license": "MIT",
   "private": true,

@@ -65,7 +65,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
           this.log.info(`player: ${raw.text}`);
           return;
         case "speed":
-          void writeSetting("speed", raw.rate);
+          void writeSetting("speed", raw.rate, "project");
           return;
         case "autoplay":
           void writeSetting("autoplay", raw.on);

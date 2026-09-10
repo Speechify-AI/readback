@@ -56,12 +56,12 @@ human to run one after installing the hook.
 ```sh
 cd tools/readback
 npm run package
-code --install-extension readback-0.2.3.vsix
+code --install-extension readback-0.2.4.vsix
 ```
 
 On this Mac `code` on PATH is Cursor's shim; the VS Code binary is
 `/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code`.
-Version 0.2.3 is installed in both as of 2026-09-10. History: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings).
+Version 0.2.4 is installed in both as of 2026-09-10. History: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too.
 
 Reload VS Code, open the Readback view in the activity bar, set the key,
 install the hook, then run a Claude Code turn in the integrated terminal.

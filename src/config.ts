@@ -30,9 +30,9 @@ export type SettingScope = "user" | "project";
 
 /**
  * Write a setting. "project" lands in the workspace's own settings when one
- * is open, so a voice chosen there stays with that project; "user" is the
- * default for every project. Speed and autoplay are habits, not project
- * traits, so they are always user-level.
+ * is open, so a voice or speed chosen there stays with that project; "user"
+ * is the default for every project. Autoplay is a habit, not a project
+ * trait, so it stays user-level.
  */
 export async function writeSetting(
   key: "voice" | "speed" | "autoplay",
