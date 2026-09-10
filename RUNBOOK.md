@@ -12,7 +12,7 @@ human to run one after installing the hook.
 | --- | --- |
 | Repo | <https://github.com/Speechify-AI/readback> (moved out of the internal monorepo 2026-09-10) |
 | License | MIT |
-| Publisher id in the manifest | `speechify` (placeholder until the Marketplace publisher exists) |
+| Marketplace publisher | `speechify`, created 2026-09-10 under shaun.trennery@gmail.com (Microsoft account); <https://marketplace.visualstudio.com/manage/publishers/speechify>. Domain `speechify.com` saved but not verified; no second member yet. |
 | Model / default voice | `simba-3.2` / `harper_32` |
 | Hook script | `~/.readback/hook.sh`, written on activation |
 | Endpoint files | `~/.readback/endpoints/<pid>` holding `port token` |
@@ -47,8 +47,13 @@ human to run one after installing the hook.
   timestamped output fails at the last word (known to Speechify, being fixed). Read-along is
   reliable on the eight roster voices only until that is fixed.
 - **Windows** needs a PowerShell hook.
-- **Marketplace publisher** must be created under the Speechify account
-  before publishing; the manifest's `publisher` field then has to match.
+- **Marketplace publisher** exists but is owned by one personal account.
+  Add a Speechify co-owner under Members, and verify `speechify.com` (DNS
+  TXT record) so the listing gets the verified badge. 0.2.4 was uploaded
+  by hand through the manage page on 2026-09-10 (listing:
+  <https://marketplace.visualstudio.com/items?itemName=speechify.readback>).
+  No access token exists yet, so `vsce publish` and CI cannot release;
+  nothing is on Open VSX.
 - **A GIF for the README** once a real turn has been played.
 
 ## Trying it
