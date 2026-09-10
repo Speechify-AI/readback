@@ -54,6 +54,9 @@ export class PlayerView implements vscode.WebviewViewProvider {
         case "speed":
           void writeSetting("speed", raw.rate);
           return;
+        case "autoplay":
+          void writeSetting("autoplay", raw.on);
+          return;
         case "command":
           this.runCommand(raw.name);
           return;
@@ -95,6 +98,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
       keyOk: Boolean(key),
       voice: settings.voice,
       speed: settings.speed,
+      autoplay: settings.autoplay,
       hookInstalled: this.hookInstalled(),
     });
   }
@@ -165,6 +169,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
     <button id="fwd" class="icon" title="Forward a sentence"><i class="codicon codicon-chevron-right"></i></button>
     <button id="stop" class="icon" title="Stop"><i class="codicon codicon-debug-stop"></i></button>
     <span class="spacer"></span>
+    <button id="autoplay" class="icon toggle" title="Autoplay new replies"><i class="codicon codicon-play-circle"></i></button>
     <button id="speed" class="pill" title="Speed">1×</button>
     <button id="voice" class="pill" title="Choose voice"><i class="codicon codicon-unmute"></i><span id="voiceName"></span></button>
   </div>

@@ -47,6 +47,18 @@ button.primary {
 }
 button.primary:hover { background: var(--vscode-button-hoverBackground); }
 button.primary .codicon { font-size: 18px; }
+button.toggle { opacity: 0.45; }
+button.toggle.on { opacity: 1; color: var(--vscode-textLink-foreground); }
+.turn.unheard .turn-head .para.lead::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--vscode-textLink-foreground);
+}
 button.pill {
   color: var(--vscode-badge-foreground);
   background: var(--vscode-badge-background);

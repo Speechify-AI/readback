@@ -21,6 +21,7 @@ const els = {
   back: document.getElementById("back"),
   fwd: document.getElementById("fwd"),
   stop: document.getElementById("stop"),
+  autoplay: document.getElementById("autoplay"),
   speed: document.getElementById("speed"),
   voice: document.getElementById("voice"),
   voiceName: document.getElementById("voiceName"),
@@ -41,6 +42,8 @@ const state = {
   runEnd: 0, // first index the current run will not play
   playing: false,
   rate: 1,
+  autoplay: true,
+  unheard: 0, // turns that arrived while autoplay was off and have not been played
   highlight: { word: -1, sentence: -1 },
   frame: null,
   keyOk: false,
@@ -60,11 +63,18 @@ window.addEventListener("message", (event) => {
       state.hookInstalled = msg.hookInstalled;
       els.voiceName.textContent = msg.voice;
       setRate(msg.speed, false);
+      setAutoplay(msg.autoplay, false);
       renderSetup();
       return;
     case "turn":
       addTurn(msg.turn);
-      if (msg.autoplay) enqueue(msg.turn.id);
+      if (!msg.autoplay) return;
+      if (state.autoplay) enqueue(msg.turn.id);
+      else {
+        state.unheard++;
+        state.turns.get(msg.turn.id).el.classList.add("unheard");
+        if (!state.playing) setStatus(state.unheard === 1 ? "1 new reply, press play" : `${state.unheard} new replies, press play`);
+      }
       return;
     case "audio":
       onAudio(msg);
@@ -252,6 +262,10 @@ function goTo(turnId, index, autoplay) {
   }
   clearCurrent();
   state.current = { turnId, index };
+  if (t.el.classList.contains("unheard")) {
+    t.el.classList.remove("unheard");
+    state.unheard = Math.max(0, state.unheard - 1);
+  }
   t.el.classList.add("playing");
   const p = t.paragraphs[index];
   p.el.classList.add("current");
@@ -403,6 +417,13 @@ function setRate(rate, persist) {
   if (persist) post({ kind: "speed", rate });
 }
 
+function setAutoplay(on, persist) {
+  state.autoplay = on;
+  els.autoplay.classList.toggle("on", on);
+  els.autoplay.title = on ? "Autoplay is on: new replies play as they arrive" : "Autoplay is off: new replies wait for play";
+  if (persist) post({ kind: "autoplay", on });
+}
+
 function setPlaying(playing) {
   state.playing = playing;
   els.toggle.firstElementChild.className = `codicon codicon-${playing ? "debug-pause" : "play"}`;
@@ -442,6 +463,7 @@ els.toggle.addEventListener("click", toggle);
 els.back.addEventListener("click", () => step(-1));
 els.fwd.addEventListener("click", () => step(1));
 els.stop.addEventListener("click", stop);
+els.autoplay.addEventListener("click", () => setAutoplay(!state.autoplay, true));
 els.speed.addEventListener("click", () => setRate(RATES[(RATES.indexOf(state.rate) + 1) % RATES.length], true));
 els.voice.addEventListener("click", () => post({ kind: "command", name: "chooseVoice" }));
 

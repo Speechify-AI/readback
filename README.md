@@ -59,6 +59,7 @@ secret storage and every reply you listen to bills your own workspace.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
+| `readback.autoplay` | `true` | Play each new reply as it arrives; off lists them and waits for play |
 | `readback.summarize` | `claude` | Condense replies with `claude -p`, or `off` to read them in full |
 | `readback.voice` | `harper_32` | Speechify voice id |
 | `readback.model` | `simba-3.2` | Speechify model |
@@ -78,7 +79,8 @@ matches no open window is not read.
 
 Play, pause, back and forward a sentence, stop. Space, left and right do
 the same when the player has focus. The progress line tracks the current
-paragraph. The speed pill cycles from 0.75× to 2×; the voice pill opens
+paragraph. The autoplay toggle decides whether a new reply plays at once
+or waits, marked with a dot, for you to press play. The speed pill cycles from 0.75× to 2×; the voice pill opens
 the voice picker. Each turn has its own play button, and a condensed turn
 has a "Full reply" section with one of its own.
 

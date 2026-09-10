@@ -2,7 +2,7 @@
   "name": "readback",
   "displayName": "Readback",
   "description": "Hear your AI coding agent's replies in a Speechify voice, with the words highlighted as they are spoken.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "speechify",
   "license": "MIT",
   "private": true,
@@ -91,6 +91,11 @@
           "type": "string",
           "default": "simba-3.2",
           "description": "Speechify model."
+        },
+        "readback.autoplay": {
+          "type": "boolean",
+          "default": true,
+          "description": "Play each new reply as it arrives. Off: replies are listed and wait for play."
         },
         "readback.speed": {
           "type": "number",
