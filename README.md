@@ -49,7 +49,7 @@ secret storage and every reply you listen to bills your own workspace.
 | Command | What it does |
 | --- | --- |
 | Readback: Set Speechify API key | Checks the key against the live API before storing it |
-| Readback: Choose voice | Lists the voices on your key that can render the model |
+| Readback: Choose voice | Lists the voices on your key that can render the model. Saved for the open project; set `readback.voice` in user settings for the default |
 | Readback: Install the Claude Code hook | Adds one Stop hook, leaving the rest of the file alone |
 | Readback: Remove the Claude Code hook | Removes exactly that hook |
 | Readback: Read selection | Reads the editor selection. Also in the editor context menu |
@@ -61,7 +61,7 @@ secret storage and every reply you listen to bills your own workspace.
 | --- | --- | --- |
 | `readback.autoplay` | `true` | Play each new reply as it arrives; off lists them and waits for play |
 | `readback.summarize` | `claude` | Condense replies with `claude -p`, or `off` to read them in full |
-| `readback.voice` | `harper_32` | Speechify voice id |
+| `readback.voice` | `harper_32` | Speechify voice id. Per project when set from the picker |
 | `readback.model` | `simba-3.2` | Speechify model |
 | `readback.speed` | `1` | Playback rate, also cycled from the player |
 | `readback.minChars` | `80` | Replies shorter than this are skipped |

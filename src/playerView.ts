@@ -22,6 +22,10 @@ export class PlayerView implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | null = null;
   private turns: Turn[] = [];
   private inFlight = new Map<string, Promise<void>>();
+  /** The page has loaded and said so. Before that, posts are dropped by VS Code. */
+  private ready = false;
+  /** Turns pushed while the page was not ready; they autoplay on arrival. */
+  private awaiting = new Set<string>();
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -45,11 +49,20 @@ export class PlayerView implements vscode.WebviewViewProvider {
       }
       switch (raw.kind) {
         case "ready":
+          this.ready = true;
+          this.log.info("player ready");
           void this.sendState();
-          for (const turn of [...this.turns].reverse()) this.post({ kind: "turn", turn, autoplay: false });
+          // Oldest first so the newest lands on top. A turn that arrived
+          // while the page was loading still autoplays; the rest are history.
+          for (const turn of this.turns) {
+            this.post({ kind: "turn", turn, autoplay: this.awaiting.delete(turn.id) });
+          }
           return;
         case "need":
           void this.serve(raw.turnId, raw.index);
+          return;
+        case "note":
+          this.log.info(`player: ${raw.text}`);
           return;
         case "speed":
           void writeSetting("speed", raw.rate);
@@ -67,7 +80,11 @@ export class PlayerView implements vscode.WebviewViewProvider {
       }
     });
     view.onDidDispose(() => {
-      if (this.view === view) this.view = null;
+      if (this.view === view) {
+        this.view = null;
+        this.ready = false;
+        this.log.info("player view disposed");
+      }
     });
   }
 
@@ -75,10 +92,15 @@ export class PlayerView implements vscode.WebviewViewProvider {
   async push(turn: Turn): Promise<void> {
     this.turns.push(turn);
     if (this.turns.length > KEEP_TURNS) this.turns.splice(0, this.turns.length - KEEP_TURNS);
-    if (!this.view) {
-      await vscode.commands.executeCommand(`${PlayerView.viewId}.focus`);
+    if (this.ready) {
+      this.post({ kind: "turn", turn, autoplay: true });
+      return;
     }
-    this.post({ kind: "turn", turn, autoplay: true });
+    // The page will ask for its turns when it has loaded; mark this one to
+    // autoplay then. Revealing the view is what creates the page.
+    this.awaiting.add(turn.id);
+    this.log.info(`player not ready; revealing the view for turn ${turn.id.slice(0, 8)}`);
+    await vscode.commands.executeCommand(`${PlayerView.viewId}.focus`);
   }
 
   stop(): void {
@@ -121,10 +143,12 @@ export class PlayerView implements vscode.WebviewViewProvider {
     if (text === undefined) return;
     const apiKey = await this.context.secrets.get(SECRET_KEY);
     if (!apiKey) {
+      this.log.warn(`no API key; cannot render ${id(turnId, index)}`);
       this.post({ kind: "error", turnId, index, message: "Set your Speechify API key first." });
       return;
     }
     const settings = readSettings();
+    const started = Date.now();
     try {
       const rendered = await renderParagraph(text, {
         apiBase: settings.apiBase,
@@ -132,6 +156,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
         voiceId: settings.voice,
         model: settings.model,
       }, this.cache);
+      this.log.info(`rendered ${id(turnId, index)} in ${Date.now() - started} ms, ${rendered.durationMs} ms of audio, ${rendered.marks.length} marks`);
       this.post({
         kind: "audio",
         turnId,

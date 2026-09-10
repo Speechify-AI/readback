@@ -68,6 +68,7 @@ window.addEventListener("message", (event) => {
       return;
     case "turn":
       addTurn(msg.turn);
+      note(`turn ${msg.turn.id.slice(0, 8)} listed, autoplay ${msg.autoplay && state.autoplay ? "yes" : "no"}`);
       if (!msg.autoplay) return;
       if (state.autoplay) enqueue(msg.turn.id);
       else {
@@ -93,6 +94,11 @@ window.addEventListener("message", (event) => {
 
 function post(message) {
   vscode.postMessage(message);
+}
+
+/** A line in the host's log, for the moments the page cannot show. */
+function note(text) {
+  post({ kind: "note", text });
 }
 
 // ---- setup card -----------------------------------------------------------
@@ -291,6 +297,7 @@ function onAudio(msg) {
 }
 
 function onError(msg) {
+  note(`paragraph ${msg.index} failed: ${msg.message}`);
   setStatus(msg.message);
   if (state.current && state.current.turnId === msg.turnId && state.current.index === msg.index) {
     // Skip the paragraph that will not play rather than block the run.
@@ -314,7 +321,8 @@ async function play(p, autoplay) {
     setPlaying(true);
     setStatus(nowPlaying());
     watch();
-  } catch {
+  } catch (err) {
+    note(`play() refused: ${err && err.name ? err.name : err}`);
     setPlaying(false);
     setStatus("Press play to start");
   }

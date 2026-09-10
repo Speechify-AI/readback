@@ -17,6 +17,7 @@ export type WebMessage =
   | { kind: "need"; turnId: string; index: number }
   | { kind: "speed"; rate: number }
   | { kind: "autoplay"; on: boolean }
+  | { kind: "note"; text: string }
   | { kind: "command"; name: WebCommand };
 
 const WEB_COMMANDS: readonly WebCommand[] = ["setApiKey", "chooseVoice", "installHook"];
@@ -32,6 +33,8 @@ export function isWebMessage(value: unknown): value is WebMessage {
       return "rate" in value && typeof value.rate === "number";
     case "autoplay":
       return "on" in value && typeof value.on === "boolean";
+    case "note":
+      return "text" in value && typeof value.text === "string";
     case "command":
       return "name" in value && typeof value.name === "string" && WEB_COMMANDS.some((c) => c === value.name);
     default:

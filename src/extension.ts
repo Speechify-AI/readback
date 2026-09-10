@@ -207,16 +207,20 @@ async function chooseVoice(context: vscode.ExtensionContext, player: PlayerView)
     void vscode.window.showErrorMessage(`No voice on this key can render ${settings.model}.`);
     return;
   }
+  const hasProject = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
   const picked = await vscode.window.showQuickPick(
     voices.map((v) => ({
       label: v.name,
       description: v.id === settings.voice ? "current" : v.cloned ? "your clone" : v.locale,
       id: v.id,
     })),
-    { title: `Voices for ${settings.model}` },
+    {
+      title: `Voices for ${settings.model}`,
+      placeHolder: hasProject ? "Saved for this project" : "Saved as your default",
+    },
   );
   if (!picked) return;
-  await writeSetting("voice", picked.id);
+  await writeSetting("voice", picked.id, "project");
   await player.sendState();
 }
 
