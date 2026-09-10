@@ -1,6 +1,6 @@
 /**
  * Paragraph plus speech marks → highlightable DOM. Copied from
- * tools/soundbites/public/reader.js and trimmed.
+ * Soundbites, Speechify's internal notebook, and trimmed.
  *
  * Marks carry character offsets into the exact string that was sent, and
  * after the host's fillGaps pass they tile the paragraph with only

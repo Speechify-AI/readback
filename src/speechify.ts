@@ -1,5 +1,5 @@
 /**
- * Thin client for Speechify /v1/audio/speech. Copied from tools/soundbites.
+ * Thin client for Speechify /v1/audio/speech. Copied from Soundbites, Speechify's internal notebook.
  *
  * That endpoint and not /v1/audio/stream, deliberately. Stream takes 20,000
  * characters against speech's 2,000, but returns raw audio and nothing else.

@@ -1,6 +1,6 @@
 /**
- * Text in, paragraphs out. Copied from tools/soundbites (repo rule: copy,
- * never import across project folders) and trimmed to what a player needs.
+ * Text in, paragraphs out. Copied from Soundbites, Speechify's internal
+ * notebook, and trimmed to what a player needs.
  *
  * `plainify` turns an agent's markdown into something worth listening to.
  * The flattened text is what is sent to the API and what the player shows,

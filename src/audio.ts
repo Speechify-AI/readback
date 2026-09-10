@@ -1,6 +1,5 @@
 /**
- * MP3 plumbing, copied from noa/article-audio-demo (repo rule: copy, never
- * import across project folders).
+ * MP3 plumbing, copied from an internal Speechify demo.
  *
  * Speechify returns each synthesis as a complete MP3 (ID3v2 header + MPEG
  * frames) with identical encoder settings per voice and model, so a paragraph

@@ -5,6 +5,14 @@
   "version": "0.2.4",
   "publisher": "speechify",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Speechify-AI/readback.git"
+  },
+  "homepage": "https://github.com/Speechify-AI/readback#readme",
+  "bugs": {
+    "url": "https://github.com/Speechify-AI/readback/issues"
+  },
   "private": true,
   "engines": {
     "vscode": "^1.100.0",

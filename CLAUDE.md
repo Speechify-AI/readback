@@ -5,9 +5,9 @@ open. This file is the rules; the runbook is the state.
 
 A VS Code extension that reads Claude Code's replies aloud in a Speechify
 voice with word-level read-along. Open source (MIT), meant to drive
-Speechify API adoption among developers. It lives under `tools/` while it is
-built and moves to its own public repo when it is ready; nothing here may
-depend on the rest of this monorepo.
+Speechify API adoption among developers. It lives at
+<https://github.com/Speechify-AI/readback> and depends on nothing outside
+this repo.
 
 ## Invariants — never weaken
 
@@ -70,7 +70,8 @@ depend on the rest of this monorepo.
 - `src/render.ts` — chunk, synthesize, stitch, fill gaps, cache
 - `src/fileCache.ts` — renders on disk under global storage
 - `src/speechify.ts`, `src/marks.ts`, `src/text.ts`, `src/audio.ts` —
-  copied from `tools/soundbites` (repo rule: copy, never import)
+  copied from Soundbites, Speechify's internal notebook (copies, not a
+  dependency)
 - `src/protocol.ts` — host/webview messages as discriminated unions
 - `media/player.js`, `media/reader.js`, `media/player.css` — the webview
 - `media/codicons/` — copied from `@vscode/codicons` by the build, not committed
