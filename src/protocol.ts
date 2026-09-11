@@ -21,7 +21,7 @@ export type HostMessage =
   /** A voice sample: the catalogue's preview or a synthesized line, or why neither came. */
   | { kind: "sample"; voiceId: string; audio: string | null; error: string | null };
 
-export type WebCommand = "setApiKey" | "installHook";
+export type WebCommand = "setApiKey" | "installHook" | "openSettings" | "openKeysPage";
 
 export type WebMessage =
   | { kind: "ready" }
@@ -37,7 +37,7 @@ export type WebMessage =
   | { kind: "sample"; voiceId: string }
   | { kind: "voice"; id: string };
 
-const WEB_COMMANDS: readonly WebCommand[] = ["setApiKey", "installHook"];
+const WEB_COMMANDS: readonly WebCommand[] = ["setApiKey", "installHook", "openSettings", "openKeysPage"];
 
 export function isWebMessage(value: unknown): value is WebMessage {
   if (typeof value !== "object" || value === null || !("kind" in value)) return false;

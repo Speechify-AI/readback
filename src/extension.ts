@@ -37,6 +37,8 @@ import { condense, findClaude } from "./summary.ts";
 import { decideMessage, makeTurn, PROGRESS_MIN_CHARS, replyParagraphs, type Message } from "./turns.ts";
 import { relatedToWorkspace } from "./windows.ts";
 
+const KEYS_URL = "https://platform.speechify.ai/api-keys";
+
 const home = homedir();
 const readbackHome = process.env.READBACK_HOME ?? join(home, ".readback");
 const endpointsDir = join(readbackHome, "endpoints");
@@ -82,6 +84,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("readback.readSelection", () => readSelection(player)),
     vscode.commands.registerCommand("readback.stop", () => player.stop()),
     vscode.commands.registerCommand("readback.clear", () => player.clear()),
+    // The Settings editor filtered to this extension: every setting, not just the three in the panel.
+    vscode.commands.registerCommand("readback.openSettings", () =>
+      vscode.commands.executeCommand("workbench.action.openSettings", "@ext:speechify.readback"),
+    ),
+    // Where keys are made. Opened from the host: a link inside the page has to
+    // reach the webview host's click listener, and the settings row swallows it.
+    vscode.commands.registerCommand("readback.openKeysPage", () =>
+      vscode.env.openExternal(vscode.Uri.parse(KEYS_URL)),
+    ),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("readback")) void player.sendState();
     }),

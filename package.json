@@ -80,6 +80,10 @@
       {
         "command": "readback.clear",
         "title": "Readback: Clear the list"
+      },
+      {
+        "command": "readback.openSettings",
+        "title": "Readback: Open settings"
       }
     ],
     "menus": {

@@ -357,6 +357,11 @@ export class PlayerView implements vscode.WebviewViewProvider {
     <div class="setting-text"><div class="setting-label">Autoplay</div><div class="setting-help" id="autoplayHelp"></div></div>
     <button id="autoplaySwitch" class="switch" role="switch" aria-checked="true" aria-label="Autoplay"><span></span></button>
   </div>
+  <div class="setting" id="keySetting" role="button" tabindex="0">
+    <div class="setting-text"><div class="setting-label">Speechify API key</div><div class="setting-help" id="keyHelp"></div></div>
+    <span class="setting-action" id="keyAction">Change <i class="codicon codicon-chevron-right"></i></span>
+  </div>
+  <button id="allSettings" class="text-link"><i class="codicon codicon-settings"></i>All Readback settings<i class="codicon codicon-link-external"></i></button>
 </section>
 <section id="voices" class="panel" hidden>
   <div class="voices-head">

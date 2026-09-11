@@ -321,11 +321,15 @@ button.chip.on {
 .setting-help {
   margin-top: 2px;
   font-size: 0.85em;
+  line-height: 1.45;
   color: var(--vscode-descriptionForeground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+a { color: var(--vscode-textLink-foreground); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 .setting-action {
   display: inline-flex;
   align-items: center;
@@ -356,6 +360,16 @@ button.seg.on {
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
 }
+button.text-link {
+  margin: 10px 2px 0;
+  padding: 4px 6px;
+  gap: 6px;
+  font-size: 0.9em;
+  color: var(--vscode-textLink-foreground);
+}
+button.text-link:hover { background: var(--vscode-toolbar-hoverBackground); }
+button.text-link .codicon { font-size: 13px; }
+button.text-link .codicon-link-external { opacity: 0.7; }
 button.switch {
   flex: none;
   width: 36px;

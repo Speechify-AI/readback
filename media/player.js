@@ -48,6 +48,10 @@ const els = {
   speedSeg: document.getElementById("speedSeg"),
   autoplaySwitch: document.getElementById("autoplaySwitch"),
   autoplayHelp: document.getElementById("autoplayHelp"),
+  allSettings: document.getElementById("allSettings"),
+  keySetting: document.getElementById("keySetting"),
+  keyHelp: document.getElementById("keyHelp"),
+  keyAction: document.getElementById("keyAction"),
   clear: document.getElementById("clear"),
   status: document.getElementById("status"),
   progress: document.getElementById("progress"),
@@ -170,7 +174,7 @@ function renderSetup() {
   if (!state.keyOk) {
     needs.push(card(
       "Paste your Speechify API key",
-      "Create one at platform.speechify.ai/api-keys. It stays in VS Code's secret storage and every reply bills your workspace.",
+      [keysLink("Create one at platform.speechify.ai"), ". It stays in VS Code's secret storage and every reply bills your workspace."],
       "Set API key",
       "setApiKey",
     ));
@@ -196,13 +200,32 @@ function renderSetup() {
   for (const n of needs) els.setup.appendChild(n);
 }
 
+/** Where API keys are made. The webview hands http links to the browser. */
+const KEYS_URL = "https://platform.speechify.ai/api-keys";
+
+function keysLink(text) {
+  const a = document.createElement("a");
+  a.href = KEYS_URL;
+  a.textContent = text;
+  a.title = KEYS_URL;
+  // Opened by the host. Stopping the click keeps the row around it from
+  // firing too, and preventing the default keeps the page where it is.
+  a.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    post({ kind: "command", name: "openKeysPage" });
+  });
+  return a;
+}
+
 function card(title, body, action, command) {
   const el = document.createElement("div");
   el.className = "card";
   const h = document.createElement("h2");
   h.textContent = title;
   const p = document.createElement("p");
-  p.textContent = body;
+  if (Array.isArray(body)) p.append(...body);
+  else p.textContent = body;
   const b = document.createElement("button");
   b.className = "action";
   b.textContent = action;
@@ -645,6 +668,13 @@ function renderSettings() {
     if (v.cloned) parts.push("your clone");
   }
   els.voiceCurrent.textContent = parts.join(" · ");
+  els.keyHelp.textContent = "";
+  els.keyHelp.append(
+    state.keyOk ? "Stored in VS Code's secret storage." : "Not set.",
+    document.createElement("br"),
+    keysLink(state.keyOk ? "Create a new one at platform.speechify.ai" : "Create one at platform.speechify.ai"),
+  );
+  els.keyAction.firstChild.textContent = state.keyOk ? "Change " : "Set ";
   renderSpeed();
 }
 
@@ -986,6 +1016,14 @@ els.clear.addEventListener("click", () => clearAll(true));
 els.settings.addEventListener("click", () => showPanel(state.panel === null ? "settings" : null));
 els.settingsClose.addEventListener("click", () => showPanel(null));
 els.autoplaySwitch.addEventListener("click", () => setAutoplay(!state.autoplay, true));
+els.allSettings.addEventListener("click", () => post({ kind: "command", name: "openSettings" }));
+els.keySetting.addEventListener("click", () => post({ kind: "command", name: "setApiKey" }));
+els.keySetting.addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter" || ev.key === " ") {
+    ev.preventDefault();
+    post({ kind: "command", name: "setApiKey" });
+  }
+});
 els.voiceSetting.addEventListener("click", openVoices);
 els.voiceSetting.addEventListener("keydown", (ev) => {
   if (ev.key === "Enter" || ev.key === " ") {
