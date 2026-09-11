@@ -1,11 +1,1 @@
-src/**
-node_modules/**
-tests/**
-.gitignore
-.dev.vars
-esbuild.mjs
-tsconfig.json
-vitest.config.ts
-**/*.map
-CLAUDE.md
-RUNBOOK.md
+.vscode/**
