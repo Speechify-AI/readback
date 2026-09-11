@@ -1,1 +1,15 @@
+# What ships is dist/extension.js, media/, docs/, LICENSE, readme and package.json.
 .vscode/**
+.github/**
+.gitignore
+.vscodeignore
+.dev.vars
+CLAUDE.md
+RUNBOOK.md
+esbuild.mjs
+tsconfig.json
+vitest.config.ts
+src/**
+node_modules/**
+dist/**/*.map
+*.vsix
