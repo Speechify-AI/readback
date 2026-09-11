@@ -106,6 +106,12 @@ under Verified.
   No access token exists yet, so `vsce publish` and CI cannot release;
   nothing is on Open VSX.
 - **A GIF for the README** once a real turn has been played.
+- **Voice samples on a live key: verified 2026-09-11.** Shaun opened the
+  picker on 0.4.0 and samples played. The picker plays the catalogue's
+  `preview_audio` when a voice has one and otherwise synthesizes
+  `SAMPLE_LINE` (`src/playerView.ts`) in that voice through the render
+  cache, so it bills once per voice. Not yet counted: how many voices carry
+  a preview versus a synthesized line (the Readback log prints which).
 - **Progress notes with sound.** Heard end to end on 2026-09-10 after the
   click. Still to confirm on 0.3.3: a reply is never read twice (look for
   "already read as a note" and the "Stop came N ms" lines), and notes are
@@ -119,12 +125,12 @@ under Verified.
 
 ```sh
 npm run package
-code --install-extension readback-0.3.3.vsix
+code --install-extension readback-0.4.0.vsix
 ```
 
 If `code` on PATH is Cursor's shim, the VS Code binary is
 `/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code`.
-Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s.
+Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false), and those are the voices whose speech marks reach the last word.
 
 Reload VS Code, open the Readback view in the activity bar, set the key,
 install the hook, then run a Claude Code turn in the integrated terminal.

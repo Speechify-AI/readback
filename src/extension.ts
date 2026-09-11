@@ -32,7 +32,7 @@ import { startListener, type Listener } from "./listener.ts";
 import { LiveTurns, type LiveEvent } from "./live.ts";
 import { PlayerView } from "./playerView.ts";
 import type { WebCommand } from "./protocol.ts";
-import { checkKey, listVoices } from "./speechify.ts";
+import { checkKey } from "./speechify.ts";
 import { condense, findClaude } from "./summary.ts";
 import { decideMessage, makeTurn, PROGRESS_MIN_CHARS, replyParagraphs, type Message } from "./turns.ts";
 import { relatedToWorkspace } from "./windows.ts";
@@ -81,6 +81,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("readback.uninstallHook", () => uninstallHook(player, log)),
     vscode.commands.registerCommand("readback.readSelection", () => readSelection(player)),
     vscode.commands.registerCommand("readback.stop", () => player.stop()),
+    vscode.commands.registerCommand("readback.clear", () => player.clear()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("readback")) void player.sendState();
     }),
@@ -250,6 +251,7 @@ async function setApiKey(context: vscode.ExtensionContext, player: PlayerView): 
     return;
   }
   await context.secrets.store(SECRET_KEY, entered.trim());
+  player.forgetVoices();
   if (!check.voices.some((v) => v.id === settings.voice)) {
     const [first] = check.voices;
     if (first) await writeSetting("voice", first.id);
@@ -258,36 +260,15 @@ async function setApiKey(context: vscode.ExtensionContext, player: PlayerView): 
   void vscode.window.showInformationMessage(`Readback is ready. ${check.voices.length} voices can render ${settings.model}.`);
 }
 
+/** The picker lives in the panel: reveal it and ask the page to open it. */
 async function chooseVoice(context: vscode.ExtensionContext, player: PlayerView): Promise<void> {
   const apiKey = await context.secrets.get(SECRET_KEY);
   if (!apiKey) {
     void vscode.window.showWarningMessage("Set your Speechify API key first.");
     return;
   }
-  const settings = readSettings();
-  const voices = await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: "Fetching voices" },
-    () => listVoices({ apiBase: settings.apiBase, apiKey, model: settings.model }).catch(() => []),
-  );
-  if (voices.length === 0) {
-    void vscode.window.showErrorMessage(`No voice on this key can render ${settings.model}.`);
-    return;
-  }
-  const hasProject = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
-  const picked = await vscode.window.showQuickPick(
-    voices.map((v) => ({
-      label: v.name,
-      description: v.id === settings.voice ? "current" : v.cloned ? "your clone" : v.locale,
-      id: v.id,
-    })),
-    {
-      title: `Voices for ${settings.model}`,
-      placeHolder: hasProject ? "Saved for this project" : "Saved as your default",
-    },
-  );
-  if (!picked) return;
-  await writeSetting("voice", picked.id, "project");
-  await player.sendState();
+  await vscode.commands.executeCommand(`${PlayerView.viewId}.focus`);
+  player.showVoices();
 }
 
 function readClaudeSettings(): ClaudeSettings | null {

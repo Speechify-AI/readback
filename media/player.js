@@ -15,30 +15,50 @@
  * A condensed turn carries its full reply after `fullFrom`. A run started
  * before that point stops there; the full reply plays only when asked.
  *
- * The browser under VS Code refuses to start sound until the page has been
- * clicked once (NotAllowedError from `play()`), and a reload makes a new
- * page. The player says so with a card until the first click, and a click
- * resumes whatever was refused; turns that arrived meanwhile are queued.
+ * The browser under VS Code refuses to start sound until the window has had
+ * a click or keypress since the page was made (NotAllowedError from
+ * `play()`), and a reload makes a new page. The player says so with a card
+ * until the first play succeeds, and a click resumes whatever was refused.
+ *
+ * Settings live behind the gear: voice, speed and autoplay, one panel that
+ * replaces the list while it is open. The voice picker is a second panel
+ * behind it: search, a row of filters, voices grouped by language, a sample
+ * button on each. Samples play through their own audio element and pause
+ * the reader while they do. Catalogue tags come as "Category:Value"; the
+ * value is what people see.
  */
 import { applyHighlight, clearHighlight, markIndexAtTime, paintParagraph, sentenceStarts } from "./reader.js";
 
 const vscode = acquireVsCodeApi();
-const RATES = [1, 1.25, 1.5, 1.75, 2, 0.75];
+const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
 const LOOK_AHEAD = 2;
+/** Tag chips shown in the picker, at most. */
+const TAG_CHIPS = 6;
 
 const els = {
   toggle: document.getElementById("toggle"),
   back: document.getElementById("back"),
   fwd: document.getElementById("fwd"),
   stop: document.getElementById("stop"),
-  autoplay: document.getElementById("autoplay"),
-  speed: document.getElementById("speed"),
-  voice: document.getElementById("voice"),
-  voiceName: document.getElementById("voiceName"),
+  settings: document.getElementById("settings"),
+  settingsPanel: document.getElementById("settingsPanel"),
+  settingsClose: document.getElementById("settingsClose"),
+  voiceSetting: document.getElementById("voiceSetting"),
+  voiceCurrent: document.getElementById("voiceCurrent"),
+  speedSeg: document.getElementById("speedSeg"),
+  autoplaySwitch: document.getElementById("autoplaySwitch"),
+  autoplayHelp: document.getElementById("autoplayHelp"),
+  clear: document.getElementById("clear"),
   status: document.getElementById("status"),
   progress: document.getElementById("progress"),
   progressFill: document.getElementById("progressFill"),
   setup: document.getElementById("setup"),
+  voices: document.getElementById("voices"),
+  voiceSearch: document.getElementById("voiceSearch"),
+  voicesBack: document.getElementById("voicesBack"),
+  voicesClose: document.getElementById("voicesClose"),
+  voiceFilters: document.getElementById("voiceFilters"),
+  voiceList: document.getElementById("voiceList"),
   turns: document.getElementById("turns"),
   empty: document.getElementById("empty"),
 };
@@ -58,15 +78,22 @@ const state = {
   frame: null,
   keyOk: false,
   hookInstalled: false,
-  // Sound is off until the page has been clicked. Known up front where the
+  voiceId: "",
+  // Sound is off until the window has been clicked. Known up front where the
   // browser says so, and learnt the hard way when play() is refused.
   needsClick: typeof navigator.userActivation === "object" ? !navigator.userActivation.hasBeenActive : false,
   refused: false,
   playedOnce: false,
+  // Which panel covers the list: null, "settings" or "voices".
+  panel: null,
+  // The voice picker.
+  picker: { voices: null, error: null, asked: false, query: "", chip: "all", sampling: null, rows: new Map() },
 };
 
 const audio = new Audio();
 audio.preload = "auto";
+/** Voice samples, so a sample never replaces what the reader was playing. */
+const sampleAudio = new Audio();
 
 // ---- messages from the host ---------------------------------------------
 
@@ -76,10 +103,17 @@ window.addEventListener("message", (event) => {
     case "state":
       state.keyOk = msg.keyOk;
       state.hookInstalled = msg.hookInstalled;
-      els.voiceName.textContent = msg.voice;
+      state.voiceId = msg.voice;
       setRate(msg.speed, false);
       setAutoplay(msg.autoplay, false);
       renderSetup();
+      renderSettings();
+      if (state.panel === "voices") renderVoices();
+      // The catalogue names the voice; ask once as soon as a key can answer.
+      if (msg.keyOk && !state.picker.asked) {
+        state.picker.asked = true;
+        post({ kind: "voices" });
+      }
       return;
     case "turn":
       addTurn(msg.turn);
@@ -101,6 +135,21 @@ window.addEventListener("message", (event) => {
     case "stop":
       stop();
       return;
+    case "clear":
+      clearAll(false);
+      return;
+    case "showVoices":
+      openVoices();
+      return;
+    case "voices":
+      state.picker.voices = msg.voices;
+      state.picker.error = msg.error;
+      renderSettings();
+      if (state.panel === "voices") renderVoices();
+      return;
+    case "sample":
+      onSample(msg);
+      return;
   }
 });
 
@@ -113,7 +162,7 @@ function note(text) {
   post({ kind: "note", text });
 }
 
-// ---- setup card -----------------------------------------------------------
+// ---- setup cards ----------------------------------------------------------
 
 function renderSetup() {
   els.setup.textContent = "";
@@ -129,7 +178,7 @@ function renderSetup() {
   if (!state.hookInstalled) {
     needs.push(card(
       "Let Claude Code talk to Readback",
-      "Adds Stop and MessageDisplay hooks to ~/.claude/settings.json. Nothing else in the file is touched.",
+      "Adds Stop, MessageDisplay and PreToolUse hooks to ~/.claude/settings.json. Nothing else in the file is touched.",
       "Install the hook",
       "installHook",
     ));
@@ -181,6 +230,7 @@ function iconButton(icon, title, onClick) {
   const b = document.createElement("button");
   b.className = "icon";
   b.title = title;
+  b.setAttribute("aria-label", title);
   const i = document.createElement("i");
   i.className = `codicon codicon-${icon}`;
   b.appendChild(i);
@@ -312,6 +362,21 @@ function onParagraphClick(turnId, index, ev) {
   goTo(turnId, index, true);
 }
 
+/** Forget every turn. From the bar the host is told too; from the host it already knows. */
+function clearAll(tellHost = true) {
+  stop();
+  for (const t of state.turns.values()) {
+    for (const p of t.paragraphs) if (p.entry) URL.revokeObjectURL(p.entry.url);
+  }
+  state.turns.clear();
+  state.order = [];
+  state.requested.clear();
+  state.unheard = 0;
+  els.turns.textContent = "";
+  els.empty.hidden = state.panel !== null;
+  if (tellHost) post({ kind: "clear" });
+}
+
 // ---- playback ---------------------------------------------------------------
 
 function enqueue(turnId, index) {
@@ -380,13 +445,17 @@ function onAudio(msg) {
   const t = state.turns.get(msg.turnId);
   const p = t?.paragraphs[msg.index];
   if (!p) return;
-  const bytes = Uint8Array.from(atob(msg.audio), (c) => c.charCodeAt(0));
-  const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+  const url = blobUrl(msg.audio);
   p.entry = { url, marks: msg.marks, durationMs: msg.durationMs, sentenceStarts: sentenceStarts(p.text, msg.marks) };
   p.painted = paintParagraph(p.body, p.text, msg.marks);
   if (state.current && state.current.turnId === msg.turnId && state.current.index === msg.index) {
     play(p, true);
   }
+}
+
+function blobUrl(base64) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  return URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
 }
 
 function onError(msg) {
@@ -400,6 +469,7 @@ function onError(msg) {
 }
 
 async function play(p, autoplay) {
+  stopSample();
   audio.onended = null;
   audio.src = p.entry.url;
   audio.playbackRate = state.rate;
@@ -472,6 +542,7 @@ function clearCurrent() {
 }
 
 function stop() {
+  stopSample();
   audio.pause();
   audio.onended = null;
   state.queue = [];
@@ -500,6 +571,7 @@ function toggle() {
 /** Carry on with the current paragraph, whether paused or never started. */
 function resume() {
   if (!state.current || state.playing) return;
+  stopSample();
   audio.play().then(() => {
     setPlaying(true);
     setStatus(nowPlaying());
@@ -537,20 +609,62 @@ function setRate(rate, persist) {
   if (!RATES.includes(rate)) rate = 1;
   state.rate = rate;
   audio.playbackRate = rate;
-  els.speed.textContent = `${rate}×`;
+  renderSpeed();
   if (persist) post({ kind: "speed", rate });
 }
 
 function setAutoplay(on, persist) {
   state.autoplay = on;
-  els.autoplay.classList.toggle("on", on);
-  els.autoplay.title = on ? "Autoplay is on: new replies play as they arrive" : "Autoplay is off: new replies wait for play";
+  els.autoplaySwitch.classList.toggle("on", on);
+  els.autoplaySwitch.setAttribute("aria-checked", String(on));
+  els.autoplayHelp.textContent = on ? "New replies play as they arrive" : "New replies wait for play";
   if (persist) post({ kind: "autoplay", on });
+}
+
+// ---- panels -----------------------------------------------------------------
+
+/** Show one panel over the list, or none. */
+function showPanel(name) {
+  if (state.panel === "voices" && name !== "voices") stopSample();
+  state.panel = name;
+  els.settingsPanel.hidden = name !== "settings";
+  els.voices.hidden = name !== "voices";
+  els.turns.hidden = name !== null;
+  els.empty.hidden = name !== null || state.turns.size > 0;
+  els.settings.classList.toggle("on", name !== null);
+  if (name === "settings") renderSettings();
+}
+
+function renderSettings() {
+  const v = state.picker.voices?.find((x) => x.id === state.voiceId);
+  const parts = [voiceLabel(state.voiceId)];
+  if (v) {
+    const region = regionOf(v.locale);
+    if (region) parts.push(region);
+    if (v.gender !== "unspecified") parts.push(capitalize(v.gender));
+    if (v.cloned) parts.push("your clone");
+  }
+  els.voiceCurrent.textContent = parts.join(" · ");
+  renderSpeed();
+}
+
+function renderSpeed() {
+  els.speedSeg.textContent = "";
+  for (const rate of RATES) {
+    const b = document.createElement("button");
+    b.className = "seg";
+    b.textContent = `${rate}×`;
+    b.classList.toggle("on", rate === state.rate);
+    b.setAttribute("aria-pressed", String(rate === state.rate));
+    b.addEventListener("click", () => setRate(rate, true));
+    els.speedSeg.appendChild(b);
+  }
 }
 
 function setPlaying(playing) {
   state.playing = playing;
   els.toggle.firstElementChild.className = `codicon codicon-${playing ? "debug-pause" : "play"}`;
+  els.toggle.title = playing ? "Pause (space)" : "Play (space)";
 }
 
 function setStatus(text) {
@@ -581,18 +695,317 @@ function tick() {
   setProgress(p.entry.durationMs > 0 ? ms / p.entry.durationMs : 0, true);
 }
 
+// ---- voice picker -----------------------------------------------------------
+
+/** The voice's name when the catalogue is known, else its id made readable: "harper_32" → "Harper". */
+function voiceLabel(id) {
+  const v = state.picker.voices?.find((x) => x.id === id);
+  if (v) return v.name;
+  return (id || "").replace(/[_-]?\d+$/, "").split(/[_-]+/).filter(Boolean).map(capitalize).join(" ") || id;
+}
+
+function capitalize(word) {
+  return word ? word.charAt(0).toUpperCase() + word.slice(1) : "";
+}
+
+/** "Audiobook long form" from "Use-Case:Audiobook-Long-Form". */
+function tagValue(tag) {
+  const value = tag.includes(":") ? tag.slice(tag.indexOf(":") + 1) : tag;
+  return capitalize(value.replace(/[-_]+/g, " ").trim().toLowerCase());
+}
+
+function openVoices() {
+  showPanel("voices");
+  // Always ask again: the host answers from its cache when nothing changed,
+  // and with a fresh list after a new key or model. What is known shows meanwhile.
+  if (state.picker.voices === null || state.picker.voices.length === 0) {
+    els.voiceList.textContent = "";
+    els.voiceList.appendChild(hint("Fetching voices…"));
+  } else {
+    renderVoices();
+  }
+  post({ kind: "voices" });
+  els.voiceSearch.focus();
+}
+
+function hint(text) {
+  const p = document.createElement("p");
+  p.className = "hint";
+  p.textContent = text;
+  return p;
+}
+
+const languageNames = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames(["en"], { type: "language" }) : null;
+const regionNames = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
+
+/** "English" for en-US; the raw tag when the browser cannot name it. */
+function languageOf(locale) {
+  const lang = (locale || "").split(/[-_]/)[0];
+  if (!lang) return "Other";
+  try {
+    return languageNames?.of(lang) ?? lang;
+  } catch {
+    return lang;
+  }
+}
+
+/** "US" for en-US, "" when the locale has no region. */
+function regionOf(locale) {
+  const region = (locale || "").split(/[-_]/)[1];
+  if (!region) return "";
+  try {
+    return regionNames?.of(region.toUpperCase()) ?? region;
+  } catch {
+    return region;
+  }
+}
+
+/** Filter chips: everyone, featured if any, gender, clones if any, then the commonest tags. */
+function chipsFor(voices) {
+  const chips = [{ id: "all", label: "All" }];
+  if (voices.some((v) => v.featured)) chips.push({ id: "featured", label: "Featured" });
+  if (voices.some((v) => v.gender === "female")) chips.push({ id: "female", label: "Female" });
+  if (voices.some((v) => v.gender === "male")) chips.push({ id: "male", label: "Male" });
+  if (voices.some((v) => v.cloned)) chips.push({ id: "clones", label: "Your clones" });
+  const counts = new Map();
+  for (const v of voices) for (const tag of v.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  const tags = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, TAG_CHIPS);
+  for (const [tag] of tags) chips.push({ id: `tag:${tag}`, label: tagValue(tag) });
+  return chips;
+}
+
+function matchesChip(v, chip) {
+  if (chip === "all") return true;
+  if (chip === "featured") return v.featured;
+  if (chip === "female" || chip === "male") return v.gender === chip;
+  if (chip === "clones") return v.cloned;
+  if (chip.startsWith("tag:")) return v.tags.includes(chip.slice(4));
+  return true;
+}
+
+function matchesQuery(v, query) {
+  if (!query) return true;
+  const hay = `${v.name} ${v.id} ${v.locale} ${languageOf(v.locale)} ${regionOf(v.locale)} ${v.tags.map(tagValue).join(" ")}`.toLowerCase();
+  return query.split(/\s+/).every((word) => hay.includes(word));
+}
+
+function renderVoices() {
+  const { voices, error, query, chip } = state.picker;
+  els.voiceFilters.textContent = "";
+  els.voiceList.textContent = "";
+  state.picker.rows.clear();
+  if (error && (!voices || voices.length === 0)) {
+    els.voiceList.appendChild(hint(error));
+    return;
+  }
+  if (!voices) return;
+
+  const chips = chipsFor(voices);
+  if (!chips.some((c) => c.id === chip)) state.picker.chip = "all";
+  for (const c of chips) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = c.label;
+    b.classList.toggle("on", c.id === state.picker.chip);
+    b.addEventListener("click", () => {
+      state.picker.chip = c.id;
+      renderVoices();
+    });
+    els.voiceFilters.appendChild(b);
+  }
+
+  const shown = voices.filter((v) => matchesChip(v, state.picker.chip) && matchesQuery(v, query.trim().toLowerCase()));
+  if (shown.length === 0) {
+    els.voiceList.appendChild(hint("No voice matches."));
+    return;
+  }
+
+  // Featured first, as their own group; every voice also appears under its language.
+  const featured = shown.filter((v) => v.featured);
+  if (featured.length > 0 && state.picker.chip !== "featured") {
+    els.voiceList.appendChild(groupHeading("Featured", featured.length, "Read-along tested on these"));
+    for (const v of featured) els.voiceList.appendChild(voiceRow(v, "featured"));
+  }
+
+  // Grouped by language, the current voice's language first, then A to Z.
+  const groups = new Map();
+  for (const v of shown) {
+    const name = languageOf(v.locale);
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(v);
+  }
+  const currentLanguage = languageOf(voices.find((v) => v.id === state.voiceId)?.locale ?? "");
+  const names = [...groups.keys()].sort((a, b) => (a === currentLanguage ? -1 : b === currentLanguage ? 1 : a.localeCompare(b)));
+  for (const name of names) {
+    const list = groups.get(name);
+    els.voiceList.appendChild(groupHeading(name, list.length, null));
+    for (const v of list) els.voiceList.appendChild(voiceRow(v, "language"));
+  }
+  if (error) els.voiceList.prepend(hint(error));
+}
+
+function groupHeading(name, count, help) {
+  const h = document.createElement("h3");
+  h.className = "voice-group";
+  h.textContent = name;
+  const n = document.createElement("span");
+  n.textContent = String(count);
+  h.appendChild(n);
+  if (help) {
+    const s = document.createElement("small");
+    s.textContent = help;
+    h.appendChild(s);
+  }
+  return h;
+}
+
+/** One row. `section` keeps the two rows of a featured voice apart in the row map. */
+function voiceRow(v, section) {
+  const row = document.createElement("div");
+  row.className = "voice";
+  row.classList.toggle("current", v.id === state.voiceId);
+  row.setAttribute("role", "button");
+  row.tabIndex = 0;
+
+  const sample = iconButton("play", `Hear ${v.name}`, () => toggleSample(v.id));
+  sample.classList.add("sample");
+  row.appendChild(sample);
+
+  const main = document.createElement("div");
+  main.className = "voice-main";
+  const nameEl = document.createElement("div");
+  nameEl.className = "voice-name";
+  nameEl.textContent = v.name;
+  if (v.featured && section !== "featured") {
+    const star = document.createElement("i");
+    star.className = "codicon codicon-star-full featured";
+    star.title = "Featured";
+    nameEl.appendChild(star);
+  }
+  if (v.id === state.voiceId) {
+    const check = document.createElement("i");
+    check.className = "codicon codicon-check";
+    nameEl.appendChild(check);
+  }
+  const meta = document.createElement("div");
+  meta.className = "voice-meta";
+  const parts = [];
+  const region = regionOf(v.locale);
+  if (region) parts.push(region);
+  if (v.gender !== "unspecified") parts.push(capitalize(v.gender));
+  if (v.cloned) parts.push("your clone");
+  if (v.tags.length) parts.push(v.tags.map(tagValue).join(", "));
+  meta.textContent = parts.join(" · ");
+  main.append(nameEl, meta);
+  row.appendChild(main);
+
+  const choose = () => {
+    if (v.id === state.voiceId) return;
+    state.voiceId = v.id;
+    post({ kind: "voice", id: v.id });
+    renderVoices();
+    renderSettings();
+  };
+  row.addEventListener("click", choose);
+  row.addEventListener("keydown", (ev) => {
+    // Only the row itself; Enter on the sample button samples.
+    if (ev.target !== row) return;
+    if (ev.key === "Enter" || ev.key === " ") {
+      ev.preventDefault();
+      choose();
+    }
+  });
+  const rows = state.picker.rows.get(v.id) ?? [];
+  rows.push(row);
+  state.picker.rows.set(v.id, rows);
+  return row;
+}
+
+/** A featured voice has two rows; both follow the sample. */
+function setRowState(voiceId, cls) {
+  for (const row of state.picker.rows.get(voiceId) ?? []) {
+    row.classList.remove("loading", "sampling");
+    if (cls) row.classList.add(cls);
+    const icon = row.querySelector(".sample .codicon");
+    if (icon) icon.className = `codicon codicon-${cls === "sampling" ? "debug-stop" : cls === "loading" ? "loading codicon-modifier-spin" : "play"}`;
+  }
+}
+
+function toggleSample(voiceId) {
+  if (state.picker.sampling === voiceId) {
+    stopSample();
+    return;
+  }
+  stopSample();
+  state.picker.sampling = voiceId;
+  setRowState(voiceId, "loading");
+  post({ kind: "sample", voiceId });
+}
+
+function onSample(msg) {
+  if (state.picker.sampling !== msg.voiceId) return;
+  if (!msg.audio) {
+    note(`sample of ${msg.voiceId} failed: ${msg.error}`);
+    setStatus(msg.error || "No sample for this voice.");
+    state.picker.sampling = null;
+    setRowState(msg.voiceId, null);
+    return;
+  }
+  // A sample should not talk over the reader.
+  if (state.playing) {
+    audio.pause();
+    setPlaying(false);
+    setStatus("Paused for a sample");
+  }
+  if (sampleAudio.src) URL.revokeObjectURL(sampleAudio.src);
+  sampleAudio.src = blobUrl(msg.audio);
+  sampleAudio.onended = () => stopSample();
+  setRowState(msg.voiceId, "sampling");
+  sampleAudio.play().catch((err) => {
+    note(`sample play() refused: ${err && err.name ? err.name : err}`);
+    stopSample();
+  });
+}
+
+function stopSample() {
+  const was = state.picker.sampling;
+  if (was === null) return;
+  sampleAudio.pause();
+  sampleAudio.onended = null;
+  state.picker.sampling = null;
+  setRowState(was, null);
+}
+
 // ---- controls ---------------------------------------------------------------
 
 els.toggle.addEventListener("click", toggle);
 els.back.addEventListener("click", () => step(-1));
 els.fwd.addEventListener("click", () => step(1));
 els.stop.addEventListener("click", stop);
-els.autoplay.addEventListener("click", () => setAutoplay(!state.autoplay, true));
-els.speed.addEventListener("click", () => setRate(RATES[(RATES.indexOf(state.rate) + 1) % RATES.length], true));
-els.voice.addEventListener("click", () => post({ kind: "command", name: "chooseVoice" }));
+els.clear.addEventListener("click", () => clearAll(true));
+els.settings.addEventListener("click", () => showPanel(state.panel === null ? "settings" : null));
+els.settingsClose.addEventListener("click", () => showPanel(null));
+els.autoplaySwitch.addEventListener("click", () => setAutoplay(!state.autoplay, true));
+els.voiceSetting.addEventListener("click", openVoices);
+els.voiceSetting.addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter" || ev.key === " ") {
+    ev.preventDefault();
+    openVoices();
+  }
+});
+els.voicesBack.addEventListener("click", () => showPanel("settings"));
+els.voicesClose.addEventListener("click", () => showPanel(null));
+els.voiceSearch.addEventListener("input", () => {
+  state.picker.query = els.voiceSearch.value;
+  renderVoices();
+});
 
 document.addEventListener("keydown", (ev) => {
-  if (ev.target.closest("button, input, textarea")) return;
+  if (ev.key === "Escape" && state.panel !== null) {
+    showPanel(state.panel === "voices" ? "settings" : null);
+    return;
+  }
+  if (ev.target.closest("button, input, textarea, [role=button]")) return;
   if (ev.key === " ") { ev.preventDefault(); toggle(); }
   else if (ev.key === "ArrowLeft") step(-1);
   else if (ev.key === "ArrowRight") step(1);

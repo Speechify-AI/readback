@@ -95,12 +95,32 @@ export async function synthesize(input: string, cfg: TtsConfig): Promise<TtsResu
   }
 }
 
+export type Gender = "female" | "male" | "unspecified";
+
 export interface Voice {
   id: string;
   name: string;
   locale: string;
   /** A workspace clone rather than a shared stock voice. */
   cloned: boolean;
+  gender: Gender;
+  /** Catalogue tags such as "narrator" or "young"; empty when none. */
+  tags: string[];
+  /** A sample the catalogue already has, or null when one must be synthesized. */
+  preview: string | null;
+  /** One of the roster voices the picker puts first. See `isFeatured`. */
+  featured: boolean;
+}
+
+/**
+ * The roster: the `*_32` voices on simba-3.2. The catalogue carries no flag
+ * for them, but the suffix is how Speechify names the voices trained for
+ * that model, and since 2026-09-08 they are the ones whose speech marks
+ * reach the last word, so read-along is reliable on them and not on the
+ * rest. Other models have no roster here.
+ */
+export function isFeatured(id: string, model: string | undefined): boolean {
+  return model === "simba-3.2" && /_32$/.test(id);
 }
 
 export interface RawVoice {
@@ -108,7 +128,10 @@ export interface RawVoice {
   type?: string;
   display_name?: string;
   locale?: string;
-  models?: { name?: string }[];
+  gender?: unknown;
+  tags?: unknown;
+  preview_audio?: unknown;
+  models?: { name?: string; languages?: { locale?: string; preview_audio?: unknown }[] }[];
 }
 
 /**
@@ -133,21 +156,36 @@ function isRawVoice(value: unknown): value is RawVoice {
   return typeof value === "object" && value !== null;
 }
 
-export function toVoice(raw: RawVoice): Voice | null {
+/** The catalogue's own sample for this voice: the voice's, else the model's for the voice's locale. */
+function previewOf(raw: RawVoice, model: string | undefined): string | null {
+  if (typeof raw.preview_audio === "string" && raw.preview_audio !== "") return raw.preview_audio;
+  for (const m of raw.models ?? []) {
+    if (model !== undefined && m.name !== model) continue;
+    for (const lang of m.languages ?? []) {
+      if (typeof lang.preview_audio === "string" && lang.preview_audio !== "") return lang.preview_audio;
+    }
+  }
+  return null;
+}
+
+export function toVoice(raw: RawVoice, model?: string): Voice | null {
   if (!raw.id) return null;
   return {
     id: raw.id,
     name: raw.display_name ?? raw.id,
     locale: raw.locale ?? "",
     cloned: raw.type === "personal",
+    gender: raw.gender === "female" || raw.gender === "male" ? raw.gender : "unspecified",
+    tags: Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === "string" && t !== "") : [],
+    preview: previewOf(raw, model),
+    featured: raw.type !== "personal" && isFeatured(raw.id, model),
   };
 }
 
-/** Shared narrators first; a workspace clone is the exception, not the default. */
+/** Featured first, then shared narrators, then workspace clones; A to Z within each. */
 export function sortVoices(voices: Voice[]): Voice[] {
-  return [...voices].sort((a, b) =>
-    a.cloned === b.cloned ? a.name.localeCompare(b.name) : a.cloned ? 1 : -1,
-  );
+  const rank = (v: Voice) => (v.featured ? 0 : v.cloned ? 2 : 1);
+  return [...voices].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
 /** Voices on this key that can render `model`, walking every page. */
@@ -164,7 +202,7 @@ export async function listVoices(cfg: Omit<TtsConfig, "voiceId">): Promise<Voice
     const { rows, cursor: next } = normalizeVoicePage(await res.json());
     for (const raw of rows) {
       if (!(raw.models ?? []).some((m) => m.name === cfg.model)) continue;
-      const voice = toVoice(raw);
+      const voice = toVoice(raw, cfg.model);
       if (voice) out.push(voice);
     }
     cursor = next;

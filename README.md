@@ -8,7 +8,7 @@ between tool calls as they land, then condenses the finished reply to a few
 spoken sentences, all in the VS Code sidebar with each word lit as it is
 said. The full reply is one click away. Click a word to jump to it. Step by
 sentence. Cycle the speed. Pick any voice your Speechify key can render,
-including your own clone.
+including your own clone, and hear a sample of each before you choose.
 
 ## Install
 
@@ -60,11 +60,12 @@ that arrive before that queue up.
 | Command | What it does |
 | --- | --- |
 | Readback: Set Speechify API key | Checks the key against the live API before storing it |
-| Readback: Choose voice | Lists the voices on your key that can render the model. Saved for the open project; set `readback.voice` in user settings for the default |
+| Readback: Choose voice | Opens the picker in the panel: featured voices first, then every voice grouped by language, with search, filters by gender, clone or tag, and a sample of each. Saved for the open project; set `readback.voice` in user settings for the default |
 | Readback: Install the Claude Code hook | Adds Stop, MessageDisplay and PreToolUse hooks, leaving the rest of the file alone |
 | Readback: Remove the Claude Code hook | Removes exactly that hook |
 | Readback: Read selection | Reads the editor selection. Also in the editor context menu |
 | Readback: Stop | Stops playback and clears the queue |
+| Readback: Clear the list | Forgets every listed reply. The trash button in the bar does the same |
 
 ## Settings
 

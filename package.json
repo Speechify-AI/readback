@@ -2,7 +2,7 @@
   "name": "readback",
   "displayName": "Readback",
   "description": "Hear your AI coding agent's replies in a Speechify voice, with the words highlighted as they are spoken.",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "publisher": "speechify",
   "license": "MIT",
   "repository": {
@@ -76,6 +76,10 @@
       {
         "command": "readback.stop",
         "title": "Readback: Stop"
+      },
+      {
+        "command": "readback.clear",
+        "title": "Readback: Clear the list"
       }
     ],
     "menus": {

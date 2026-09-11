@@ -87,7 +87,7 @@ this repo.
 - `src/live.ts` — the stream: MessageDisplay, PreToolUse and Stop payloads → progress notes and the finished reply
 - `src/summary.ts` — the condensing run: brief, flags, finding `claude`
 - `src/windows.ts` — the project rule, pure
-- `src/playerView.ts` — the WebviewViewProvider and on-demand rendering
+- `src/playerView.ts` — the WebviewViewProvider, on-demand rendering, the voice catalogue and samples
 - `src/render.ts` — chunk, synthesize, stitch, fill gaps, cache
 - `src/fileCache.ts` — renders on disk under global storage
 - `src/speechify.ts`, `src/marks.ts`, `src/text.ts`, `src/audio.ts` —

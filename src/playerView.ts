@@ -9,16 +9,25 @@
  * A turn can grow while it is listed: progress notes are appended as Claude
  * writes them, and the finished reply last. The stored turn is the truth;
  * the webview is told what was added and where.
+ *
+ * The voice picker lives in the webview too. The host fetches the catalogue
+ * for the current model and, on request, a sample of one voice: the
+ * catalogue's own preview when it has one, else one short line synthesized
+ * in that voice, which goes through the render cache so it bills once.
  */
 import { Buffer } from "node:buffer";
 import * as vscode from "vscode";
 import { readSettings, SECRET_KEY, writeSetting } from "./config.ts";
 import { isWebMessage, type HostMessage, type WebCommand } from "./protocol.ts";
 import { renderParagraph, type RenderCache } from "./render.ts";
-import { TtsError } from "./speechify.ts";
+import { listVoices, TtsError, type Voice } from "./speechify.ts";
 import type { Turn } from "./turns.ts";
 
 const KEEP_TURNS = 50;
+/** How long a fetched catalogue is reused before asking Speechify again. */
+const VOICES_TTL_MS = 10 * 60 * 1000;
+/** Spoken in a voice that has no catalogue preview. Short: it bills once per voice. */
+export const SAMPLE_LINE = "Hi, this is how your replies will sound. The tests pass and two files changed.";
 
 export class PlayerView implements vscode.WebviewViewProvider {
   static readonly viewId = "readback.player";
@@ -30,6 +39,9 @@ export class PlayerView implements vscode.WebviewViewProvider {
   private ready = false;
   /** Turns pushed while the page was not ready; they autoplay on arrival. */
   private awaiting = new Set<string>();
+  private voices: { at: number; scope: string; list: Voice[] } | null = null;
+  /** The picker was asked for before the page was ready; open it on ready. */
+  private showVoicesWhenReady = false;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -61,6 +73,10 @@ export class PlayerView implements vscode.WebviewViewProvider {
           for (const turn of this.turns) {
             this.post({ kind: "turn", turn, autoplay: this.awaiting.delete(turn.id) });
           }
+          if (this.showVoicesWhenReady) {
+            this.showVoicesWhenReady = false;
+            this.post({ kind: "showVoices" });
+          }
           return;
         case "need":
           void this.serve(raw.turnId, raw.index);
@@ -76,6 +92,19 @@ export class PlayerView implements vscode.WebviewViewProvider {
           return;
         case "command":
           this.runCommand(raw.name);
+          return;
+        case "clear":
+          // The page has already emptied itself.
+          this.forget();
+          return;
+        case "voices":
+          void this.sendVoices();
+          return;
+        case "sample":
+          void this.sample(raw.voiceId);
+          return;
+        case "voice":
+          void writeSetting("voice", raw.id, "project").then(() => this.sendState());
           return;
         default: {
           const _exhaustive: never = raw;
@@ -134,6 +163,30 @@ export class PlayerView implements vscode.WebviewViewProvider {
     this.post({ kind: "stop" });
   }
 
+  /** Forget every turn and empty the page, from the command. */
+  clear(): void {
+    this.forget();
+    this.post({ kind: "clear" });
+  }
+
+  private forget(): void {
+    const count = this.turns.length;
+    this.turns = [];
+    this.awaiting.clear();
+    this.log.info(`cleared ${count} turns`);
+  }
+
+  /** Open the voice picker, from the command. Waits for the page if it is still loading. */
+  showVoices(): void {
+    if (this.ready) this.post({ kind: "showVoices" });
+    else this.showVoicesWhenReady = true;
+  }
+
+  /** The key changed: the catalogue it listed no longer applies. */
+  forgetVoices(): void {
+    this.voices = null;
+  }
+
   /** A line in the bar while something is happening off screen. */
   status(text: string): void {
     this.post({ kind: "status", text });
@@ -154,6 +207,65 @@ export class PlayerView implements vscode.WebviewViewProvider {
 
   private post(message: HostMessage): void {
     void this.view?.webview.postMessage(message);
+  }
+
+  private async sendVoices(): Promise<void> {
+    const settings = readSettings();
+    const apiKey = await this.context.secrets.get(SECRET_KEY);
+    if (!apiKey) {
+      this.post({ kind: "voices", voices: [], error: "Set your Speechify API key first." });
+      return;
+    }
+    const scope = `${settings.apiBase} ${settings.model}`;
+    const cached = this.voices;
+    if (cached && cached.scope === scope && Date.now() - cached.at < VOICES_TTL_MS) {
+      this.post({ kind: "voices", voices: cached.list, error: null });
+      return;
+    }
+    try {
+      const list = await listVoices({ apiBase: settings.apiBase, apiKey, model: settings.model });
+      this.voices = { at: Date.now(), scope, list };
+      this.log.info(`${list.length} voices for ${settings.model}, ${list.filter((v) => v.preview).length} with previews`);
+      this.post({ kind: "voices", voices: list, error: list.length === 0 ? `No voice on this key can render ${settings.model}.` : null });
+    } catch (err) {
+      this.log.error(`voices failed: ${describe(err)}`);
+      this.post({ kind: "voices", voices: cached?.list ?? [], error: describe(err) });
+    }
+  }
+
+  private async sample(voiceId: string): Promise<void> {
+    const apiKey = await this.context.secrets.get(SECRET_KEY);
+    if (!apiKey) {
+      this.post({ kind: "sample", voiceId, audio: null, error: "Set your Speechify API key first." });
+      return;
+    }
+    const settings = readSettings();
+    const voice = this.voices?.list.find((v) => v.id === voiceId);
+    const started = Date.now();
+    try {
+      let audio: Uint8Array;
+      let source: string;
+      if (voice?.preview) {
+        const res = await fetch(voice.preview);
+        if (!res.ok) throw new Error(`preview answered ${res.status}`);
+        audio = new Uint8Array(await res.arrayBuffer());
+        source = "preview";
+      } else {
+        const rendered = await renderParagraph(SAMPLE_LINE, {
+          apiBase: settings.apiBase,
+          apiKey,
+          voiceId,
+          model: settings.model,
+        }, this.cache);
+        audio = rendered.audio;
+        source = "synthesized";
+      }
+      this.log.info(`sample of ${voiceId} (${source}) in ${Date.now() - started} ms`);
+      this.post({ kind: "sample", voiceId, audio: Buffer.from(audio).toString("base64"), error: null });
+    } catch (err) {
+      this.log.error(`sample of ${voiceId} failed: ${describe(err)}`);
+      this.post({ kind: "sample", voiceId, audio: null, error: describe(err) });
+    }
   }
 
   private async serve(turnId: string, index: number): Promise<void> {
@@ -216,21 +328,47 @@ export class PlayerView implements vscode.WebviewViewProvider {
 <body>
 <header id="bar">
   <div class="transport">
-    <button id="back" class="icon" title="Back a sentence"><i class="codicon codicon-chevron-left"></i></button>
-    <button id="toggle" class="icon primary" title="Play or pause"><i class="codicon codicon-play"></i></button>
-    <button id="fwd" class="icon" title="Forward a sentence"><i class="codicon codicon-chevron-right"></i></button>
-    <button id="stop" class="icon" title="Stop"><i class="codicon codicon-debug-stop"></i></button>
-    <span class="spacer"></span>
-    <button id="autoplay" class="icon toggle" title="Autoplay new replies"><i class="codicon codicon-play-circle"></i></button>
-    <button id="speed" class="pill" title="Speed">1×</button>
-    <button id="voice" class="pill" title="Choose voice"><i class="codicon codicon-unmute"></i><span id="voiceName"></span></button>
+    <div class="cluster">
+      <button id="back" class="icon" title="Back a sentence (←)" aria-label="Back a sentence"><i class="codicon codicon-debug-step-back"></i></button>
+      <button id="toggle" class="icon primary" title="Play or pause (space)" aria-label="Play or pause"><i class="codicon codicon-play"></i></button>
+      <button id="fwd" class="icon" title="Forward a sentence (→)" aria-label="Forward a sentence"><i class="codicon codicon-debug-step-over"></i></button>
+      <button id="stop" class="icon" title="Stop" aria-label="Stop"><i class="codicon codicon-debug-stop"></i></button>
+    </div>
+    <div class="cluster secondary">
+      <button id="settings" class="icon" title="Settings: voice, speed, autoplay" aria-label="Settings"><i class="codicon codicon-settings-gear"></i></button>
+      <button id="clear" class="icon" title="Clear the list" aria-label="Clear the list"><i class="codicon codicon-clear-all"></i></button>
+    </div>
   </div>
   <div id="progress"><div id="progressFill"></div></div>
   <div id="status"></div>
 </header>
 <section id="setup" hidden></section>
+<section id="settingsPanel" class="panel" hidden>
+  <div class="panel-head"><h2>Settings</h2><button id="settingsClose" class="icon" title="Back to the replies" aria-label="Back to the replies"><i class="codicon codicon-close"></i></button></div>
+  <div class="setting" id="voiceSetting" role="button" tabindex="0">
+    <div class="setting-text"><div class="setting-label">Voice</div><div class="setting-help" id="voiceCurrent"></div></div>
+    <span class="setting-action">Change <i class="codicon codicon-chevron-right"></i></span>
+  </div>
+  <div class="setting">
+    <div class="setting-text"><div class="setting-label">Speed</div><div class="setting-help">Playback rate, saved for this project</div></div>
+    <div class="segmented" id="speedSeg"></div>
+  </div>
+  <div class="setting">
+    <div class="setting-text"><div class="setting-label">Autoplay</div><div class="setting-help" id="autoplayHelp"></div></div>
+    <button id="autoplaySwitch" class="switch" role="switch" aria-checked="true" aria-label="Autoplay"><span></span></button>
+  </div>
+</section>
+<section id="voices" class="panel" hidden>
+  <div class="voices-head">
+    <button id="voicesBack" class="icon" title="Back to settings" aria-label="Back to settings"><i class="codicon codicon-arrow-left"></i></button>
+    <input id="voiceSearch" type="search" placeholder="Search voices" autocomplete="off" spellcheck="false">
+    <button id="voicesClose" class="icon" title="Back to the replies" aria-label="Back to the replies"><i class="codicon codicon-close"></i></button>
+  </div>
+  <div id="voiceFilters" class="chips"></div>
+  <div id="voiceList"></div>
+</section>
 <main id="turns"></main>
-<p id="empty">Nothing yet. Finish a Claude Code turn in this project, or select text and run Readback: Read selection.</p>
+<p id="empty">Nothing to hear yet. Replies from Claude Code in this project appear here as they come in. To hear anything else, select some text and run <b>Readback: Read selection</b>.</p>
 <script type="module" nonce="${nonce}" src="${media("player.js")}"></script>
 </body>
 </html>`;
