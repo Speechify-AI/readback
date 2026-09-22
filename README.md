@@ -35,8 +35,12 @@ that arrive before that queue up.
 
 - Three hooks in `~/.claude/settings.json`, `MessageDisplay`, `PreToolUse`
   and `Stop`, post each assistant message, each tool call and each finished
-  turn to Readback. The hook is ten lines of POSIX shell and curl. It needs
-  no runtime on your PATH and never decides anything itself.
+  turn to Readback. The hook is ten lines of POSIX shell and curl (the same
+  lines in PowerShell on Windows). It needs no runtime on your PATH and
+  never decides anything itself.
+- Codex CLI can be a second source: a `Stop` hook in `~/.codex/hooks.json`
+  posts each finished turn the same way. Codex has no per-message hook, so
+  its notes between tool calls are not read. See Codex below.
 - A message followed by a tool call was a note written before it, and
   Readback reads it as it stands while the tool runs. A message followed by
   Stop is the finished reply and gets condensed. Turn the notes off with
@@ -63,6 +67,9 @@ that arrive before that queue up.
 | Readback: Choose voice | Opens the picker in the panel: featured voices first, then every voice grouped by language, with search, filters by gender, clone or tag, and a sample of each. Saved for the open project; set `readback.voice` in user settings for the default |
 | Readback: Install the Claude Code hook | Adds Stop, MessageDisplay and PreToolUse hooks, leaving the rest of the file alone |
 | Readback: Remove the Claude Code hook | Removes exactly that hook |
+| Readback: Install the Codex hook | Adds a Stop hook to `~/.codex/hooks.json`. Also a row in the settings panel when a `~/.codex` folder exists |
+| Readback: Remove the Codex hook | Removes exactly that hook |
+| Readback: Catch me up | One briefing of every listed reply you have not heard. The history button in the bar does the same |
 | Readback: Read selection | Reads the editor selection. Also in the editor context menu |
 | Readback: Stop | Stops playback and clears the queue |
 | Readback: Clear the list | Forgets every listed reply. The trash button in the bar does the same |
@@ -88,6 +95,29 @@ workspace folders, or contains one (running Claude at a monorepo's root
 while the window has a sub-project open is the same project). A turn that
 matches no open window is not read.
 
+## Catching up
+
+A reply counts as heard when it started playing while this VS Code window
+was focused. One that played to an empty room, or that waited because
+autoplay was off, stays unheard. **Catch me up** (the history button, or
+the command) takes every unheard reply in the list, oldest first, and has
+`claude -p` brief them together: what landed, what is still open, what
+waits on you, grouped by project. The briefing is listed as its own turn
+and plays; the replies it covers stay in the list and count as heard.
+Without `claude`, or with `readback.summarize` off, the same replies are
+read one after another instead. At most 20 are read in detail; older ones
+are counted in the lead-in.
+
+## Codex
+
+Open the settings panel and press **Install** on the Codex CLI row, or run
+**Readback: Install the Codex hook**. This writes one `Stop` entry to
+`~/.codex/hooks.json`, next to whatever is already there. Codex runs a new
+hook only after you have trusted it once: open Codex, run `/hooks`, and
+approve Readback. Until then nothing arrives. Condensing still runs
+through `claude -p` when it is installed; without it Codex replies are read
+in full.
+
 ## The player
 
 Play, pause, back and forward a sentence, stop. Space, left and right do
@@ -99,10 +129,11 @@ has a "Full reply" section with one of its own.
 
 ## Limits
 
-- Claude Code is the only source in this version. The hook fires for
-  sessions in a terminal and in the Claude Code panel in VS Code.
-- The hook is a shell script, so macOS and Linux. Windows needs a
-  PowerShell hook, which does not exist yet.
+- Claude Code and Codex CLI are the sources. The Claude Code hook fires
+  for sessions in a terminal and in the Claude Code panel in VS Code.
+- On Windows the hook is a PowerShell script run through `powershell.exe`
+  with no shell in between. It has not yet been tried on a Windows machine
+  by us; if you run it there, an issue with what you saw would help.
 - Read-along needs speech marks, which the streaming endpoint does not
   return, so replies are read paragraph by paragraph at up to 2,000
   characters per request.

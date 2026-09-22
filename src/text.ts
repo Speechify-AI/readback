@@ -137,12 +137,17 @@ export function truncate(text: string, limit: number): string {
  * from. Its own paragraph so the player can show it as a heading and you can
  * skip it in one step.
  */
-export function entryLead(at: Date, project: string | null, timeZone?: string): string {
-  const time = new Intl.DateTimeFormat("en-GB", {
+/** "14:32", as a lead-in says it. */
+export function clock(at: Date, timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     ...(timeZone ? { timeZone } : {}),
   }).format(at);
+}
+
+export function entryLead(at: Date, project: string | null, timeZone?: string): string {
+  const time = clock(at, timeZone);
   return project ? `${time}, in ${project}.` : `${time}.`;
 }

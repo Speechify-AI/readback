@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { HOOK_EVENTS, hasHook, hookScript, withHook, withoutHook, type ClaudeSettings } from "./claudeSettings.ts";
+import {
+  CODEX_TARGET,
+  HOOK_EVENTS,
+  hasHook,
+  hookEntry,
+  hookScript,
+  hookScriptName,
+  withHook,
+  withoutHook,
+  type ClaudeSettings,
+} from "./claudeSettings.ts";
 
 const script = "/Users/me/.readback/hook.sh";
 
@@ -88,5 +98,62 @@ describe("hookScript", () => {
 
   it("exits at the top inside a condensing run", () => {
     expect(hookScript("/e")).toContain('[ -n "$READBACK_HOOK" ] && exit 0');
+  });
+});
+
+describe("on Windows", () => {
+  const ps1 = "C:\\Users\\me\\.readback\\hook.ps1";
+
+  it("names a PowerShell script and runs it in exec form, so the path is one argument and no shell is involved", () => {
+    expect(hookScriptName("win32")).toBe("hook.ps1");
+    expect(hookScriptName("darwin")).toBe("hook.sh");
+    const [hook] = hookEntry(ps1, "win32").hooks;
+    expect(hook).toEqual({
+      type: "command",
+      command: "powershell.exe",
+      args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1],
+      async: true,
+    });
+  });
+
+  it("recognises and removes the exec-form entry", () => {
+    const after = withHook({ hooks: { Stop: [{ hooks: [{ type: "command", command: "heard" }] }] } }, ps1, "win32");
+    expect(hasHook(after, ps1)).toBe(true);
+    const gone = withoutHook(after, ps1);
+    expect(hasHook(gone, ps1)).toBe(false);
+    expect(JSON.stringify(gone.hooks?.Stop)).toContain("heard");
+    expect(gone.hooks?.MessageDisplay).toBeUndefined();
+  });
+
+  it("writes a PowerShell hook with the endpoints folder quoted and the loop guard first", () => {
+    const text = hookScript("C:\\Users\\Jo O'Brien\\.readback\\endpoints", "win32");
+    expect(text.startsWith("# Readback")).toBe(true);
+    expect(text).toContain("if ($env:READBACK_HOOK) { exit 0 }");
+    expect(text).toContain("$dir = 'C:\\Users\\Jo O''Brien\\.readback\\endpoints'");
+    expect(text).toContain("[Console]::In.ReadToEnd()");
+    expect(text).toContain("Invoke-RestMethod -Method Post");
+    expect(text).not.toContain("#!/bin/sh");
+  });
+});
+
+describe("for Codex", () => {
+  it("adds the Stop entry only, beside what is there, and removes exactly that", () => {
+    const before: ClaudeSettings = { hooks: { Stop: [{ matcher: "*", hooks: [{ type: "command", command: "notify.sh" }] }] } };
+    const after = withHook(before, script, "darwin", CODEX_TARGET);
+    expect(hasHook(after, script, CODEX_TARGET)).toBe(true);
+    expect(hasHook(after, script)).toBe(false);
+    expect(Object.keys(after.hooks ?? {})).toEqual(["Stop"]);
+    expect(JSON.stringify(after.hooks?.Stop)).toContain("notify.sh");
+    const gone = withoutHook(after, script, CODEX_TARGET);
+    expect(hasHook(gone, script, CODEX_TARGET)).toBe(false);
+    expect(JSON.stringify(gone.hooks?.Stop)).toContain("notify.sh");
+  });
+
+  it("on Windows writes a commandWindows string rather than exec form", () => {
+    const ps1 = "C:\\Users\\me\\.readback\\hook.ps1";
+    const [hook] = hookEntry(ps1, "win32", CODEX_TARGET).hooks;
+    expect(hook?.args).toBeUndefined();
+    expect(hook?.commandWindows).toBe(`powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1}"`);
+    expect(hasHook(withHook({}, ps1, "win32", CODEX_TARGET), ps1, CODEX_TARGET)).toBe(true);
   });
 });

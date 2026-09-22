@@ -10,6 +10,10 @@
  * writes them, and the finished reply last. The stored turn is the truth;
  * the webview is told what was added and where.
  *
+ * A turn counts as heard when it started playing while the VS Code window
+ * was focused. Played to an empty room, or listed while autoplay was off, it
+ * stays unheard, which is what a catch-up covers.
+ *
  * The voice picker lives in the webview too. The host fetches the catalogue
  * for the current model and, on request, a sample of one voice: the
  * catalogue's own preview when it has one, else one short line synthesized
@@ -18,7 +22,7 @@
 import { Buffer } from "node:buffer";
 import * as vscode from "vscode";
 import { readSettings, SECRET_KEY, writeSetting } from "./config.ts";
-import { isWebMessage, type HostMessage, type WebCommand } from "./protocol.ts";
+import { isWebMessage, type CodexState, type HostMessage, type WebCommand } from "./protocol.ts";
 import { renderParagraph, type RenderCache } from "./render.ts";
 import { listVoices, TtsError, type Voice } from "./speechify.ts";
 import type { Turn } from "./turns.ts";
@@ -34,6 +38,8 @@ export class PlayerView implements vscode.WebviewViewProvider {
 
   private view: vscode.WebviewView | null = null;
   private turns: Turn[] = [];
+  /** Ids of listed turns that played while the window was focused. */
+  private heard = new Set<string>();
   private inFlight = new Map<string, Promise<void>>();
   /** The page has loaded and said so. Before that, posts are dropped by VS Code. */
   private ready = false;
@@ -48,6 +54,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
     private readonly cache: RenderCache,
     private readonly log: vscode.LogOutputChannel,
     private readonly hookInstalled: () => boolean,
+    private readonly codexState: () => CodexState,
     private readonly runCommand: (name: WebCommand) => void,
   ) {}
 
@@ -83,6 +90,10 @@ export class PlayerView implements vscode.WebviewViewProvider {
           return;
         case "note":
           this.log.info(`player: ${raw.text}`);
+          return;
+        case "heard":
+          if (vscode.window.state.focused) this.heard.add(raw.turnId);
+          else this.log.debug(`turn ${raw.turnId.slice(0, 8)} played while the window was not focused; still unheard`);
           return;
         case "speed":
           void writeSetting("speed", raw.rate, "project");
@@ -121,10 +132,14 @@ export class PlayerView implements vscode.WebviewViewProvider {
     });
   }
 
-  /** A new turn to read. Reveals the view once so its audio element exists. */
-  async push(turn: Turn): Promise<void> {
+  /** A new turn to read. Reveals the view once so its audio element exists. A catch-up is heard by definition. */
+  async push(turn: Turn, opts: { heard?: boolean } = {}): Promise<void> {
     this.turns.push(turn);
-    if (this.turns.length > KEEP_TURNS) this.turns.splice(0, this.turns.length - KEEP_TURNS);
+    if (opts.heard) this.heard.add(turn.id);
+    if (this.turns.length > KEEP_TURNS) {
+      this.turns.splice(0, this.turns.length - KEEP_TURNS);
+      for (const id of this.heard) if (!this.turns.some((t) => t.id === id)) this.heard.delete(id);
+    }
     if (this.ready) {
       this.post({ kind: "turn", turn, autoplay: true });
       return;
@@ -159,6 +174,15 @@ export class PlayerView implements vscode.WebviewViewProvider {
     return true;
   }
 
+  /** Listed turns nobody has heard, oldest first. */
+  unheard(): Turn[] {
+    return this.turns.filter((t) => !this.heard.has(t.id));
+  }
+
+  markHeard(ids: Iterable<string>): void {
+    for (const id of ids) this.heard.add(id);
+  }
+
   stop(): void {
     this.post({ kind: "stop" });
   }
@@ -172,6 +196,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
   private forget(): void {
     const count = this.turns.length;
     this.turns = [];
+    this.heard.clear();
     this.awaiting.clear();
     this.log.info(`cleared ${count} turns`);
   }
@@ -202,6 +227,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
       speed: settings.speed,
       autoplay: settings.autoplay,
       hookInstalled: this.hookInstalled(),
+      codex: this.codexState(),
     });
   }
 
@@ -335,6 +361,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
       <button id="stop" class="icon" title="Stop" aria-label="Stop"><i class="codicon codicon-debug-stop"></i></button>
     </div>
     <div class="cluster secondary">
+      <button id="catchUp" class="icon" title="Catch me up: one briefing of the replies you have not heard" aria-label="Catch me up"><i class="codicon codicon-history"></i></button>
       <button id="settings" class="icon" title="Settings: voice, speed, autoplay" aria-label="Settings"><i class="codicon codicon-settings-gear"></i></button>
       <button id="clear" class="icon" title="Clear the list" aria-label="Clear the list"><i class="codicon codicon-clear-all"></i></button>
     </div>
@@ -361,6 +388,10 @@ export class PlayerView implements vscode.WebviewViewProvider {
     <div class="setting-text"><div class="setting-label">Speechify API key</div><div class="setting-help" id="keyHelp"></div></div>
     <span class="setting-action" id="keyAction">Change <i class="codicon codicon-chevron-right"></i></span>
   </div>
+  <div class="setting" id="codexSetting" hidden>
+    <div class="setting-text"><div class="setting-label">Codex CLI</div><div class="setting-help" id="codexHelp"></div></div>
+    <button id="codexAction" class="action"></button>
+  </div>
   <button id="allSettings" class="text-link"><i class="codicon codicon-settings"></i>All Readback settings<i class="codicon codicon-link-external"></i></button>
 </section>
 <section id="voices" class="panel" hidden>
@@ -373,7 +404,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
   <div id="voiceList"></div>
 </section>
 <main id="turns"></main>
-<p id="empty">Nothing to hear yet. Replies from Claude Code in this project appear here as they come in. To hear anything else, select some text and run <b>Readback: Read selection</b>.</p>
+<p id="empty">Nothing to hear yet. Replies from Claude Code, or Codex once its hook is installed, appear here for this project as they come in. To hear anything else, select some text and run <b>Readback: Read selection</b>.</p>
 <script type="module" nonce="${nonce}" src="${media("player.js")}"></script>
 </body>
 </html>`;

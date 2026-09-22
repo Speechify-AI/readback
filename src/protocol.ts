@@ -4,7 +4,7 @@ import type { Voice } from "./speechify.ts";
 import type { Turn } from "./turns.ts";
 
 export type HostMessage =
-  | { kind: "state"; keyOk: boolean; voice: string; speed: number; autoplay: boolean; hookInstalled: boolean }
+  | { kind: "state"; keyOk: boolean; voice: string; speed: number; autoplay: boolean; hookInstalled: boolean; codex: CodexState }
   | { kind: "turn"; turn: Turn; autoplay: boolean }
   /** More paragraphs for a listed turn, starting at index `from`. `fullFrom` is the turn's new value. */
   | { kind: "append"; turnId: string; from: number; paragraphs: string[]; fullFrom: number | null; autoplay: boolean }
@@ -21,7 +21,17 @@ export type HostMessage =
   /** A voice sample: the catalogue's preview or a synthesized line, or why neither came. */
   | { kind: "sample"; voiceId: string; audio: string | null; error: string | null };
 
-export type WebCommand = "setApiKey" | "installHook" | "openSettings" | "openKeysPage";
+/** Codex CLI on this machine: not there, there without our hook, or hooked. */
+export type CodexState = "absent" | "missing" | "installed";
+
+export type WebCommand =
+  | "setApiKey"
+  | "installHook"
+  | "installCodexHook"
+  | "uninstallCodexHook"
+  | "openSettings"
+  | "openKeysPage"
+  | "catchUp";
 
 export type WebMessage =
   | { kind: "ready" }
@@ -29,6 +39,8 @@ export type WebMessage =
   | { kind: "speed"; rate: number }
   | { kind: "autoplay"; on: boolean }
   | { kind: "note"; text: string }
+  /** A turn started playing. Whether that counts as heard is the host's call: it knows if the window was focused. */
+  | { kind: "heard"; turnId: string }
   | { kind: "command"; name: WebCommand }
   /** Forget every listed turn. */
   | { kind: "clear" }
@@ -37,7 +49,15 @@ export type WebMessage =
   | { kind: "sample"; voiceId: string }
   | { kind: "voice"; id: string };
 
-const WEB_COMMANDS: readonly WebCommand[] = ["setApiKey", "installHook", "openSettings", "openKeysPage"];
+const WEB_COMMANDS: readonly WebCommand[] = [
+  "setApiKey",
+  "installHook",
+  "installCodexHook",
+  "uninstallCodexHook",
+  "openSettings",
+  "openKeysPage",
+  "catchUp",
+];
 
 export function isWebMessage(value: unknown): value is WebMessage {
   if (typeof value !== "object" || value === null || !("kind" in value)) return false;
@@ -54,6 +74,8 @@ export function isWebMessage(value: unknown): value is WebMessage {
       return "on" in value && typeof value.on === "boolean";
     case "note":
       return "text" in value && typeof value.text === "string";
+    case "heard":
+      return "turnId" in value && typeof value.turnId === "string";
     case "command":
       return "name" in value && typeof value.name === "string" && WEB_COMMANDS.some((c) => c === value.name);
     case "sample":

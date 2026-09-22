@@ -28,9 +28,10 @@ this repo.
 - **Nothing renders ahead of the player.** The webview pulls a paragraph
   when the playhead is about to need it plus a two-paragraph look-ahead. A
   turn stopped after one sentence costs one sentence.
-- **The hook decides nothing.** It is POSIX shell plus curl, forwards the
-  raw payload of whichever event fired it (Stop, MessageDisplay or
-  PreToolUse) to every listener on the machine, and exits 0 whatever happens. Which window
+- **The hook decides nothing.** It is POSIX shell plus curl (PowerShell on
+  Windows, same lines), forwards the raw payload of whichever event fired
+  it (Stop, MessageDisplay or PreToolUse, from Claude Code or Codex) to
+  every listener on the machine, and exits 0 whatever happens. Which window
   speaks, which event it was, whether the text is long enough, what is
   read: all of that is the extension's call. Keep the hook dumb so it never
   needs updating in step with the extension.
@@ -47,6 +48,23 @@ this repo.
   `last_assistant_message` wins over anything held. A turn is listed on its
   first note and grows; the webview is told what was appended and where,
   never handed a rewritten turn.
+- **Codex is a second source, Stop only.** Its Stop payload carries
+  `last_assistant_message`, `session_id` and `cwd` like Claude's, no
+  `prompt_id` and no MessageDisplay, so `LiveTurns` sees a keyless Stop
+  and reads the reply; no notes. The entry goes in `~/.codex/hooks.json`
+  (same `hooks` shape) through the same merge code with `CODEX_TARGET`.
+  Codex runs a new hook only after the person trusts it in `/hooks`; the
+  install message says so and nothing we write can skip that.
+- **On Windows the Claude entry is exec form** (`command: powershell.exe`,
+  the script path one element of `args`), so no shell tokenises it and no
+  file association is consulted. Codex has no exec form and gets a
+  `commandWindows` string. A Windows path never contains a double quote.
+- **A turn is heard when it started playing while the window was focused.**
+  The page reports every run start; the host keeps the set and applies the
+  focus rule (`vscode.window.state.focused`). A catch-up covers the unheard
+  turns, marks them heard, and is itself heard on arrival. Text goes to
+  the same `condense` with `CATCH_UP_BRIEF`; without `claude` the covered
+  turns' own spoken paragraphs are read in order.
 - **Every window hears every turn; a window shows only its own project's.**
   A turn is this window's when the cwd is inside a workspace folder or
   contains one (`src/windows.ts`). No focused-window fallback: a panel full
@@ -82,10 +100,10 @@ this repo.
 
 - `src/extension.ts` — activation, commands, the window-selection rule
 - `src/listener.ts` — loopback HTTP listener and the endpoint file
-- `src/claudeSettings.ts` — the hook script text and the settings merge
-- `src/turns.ts` — text → message decision → Turn (plainify, paragraphs, lead-in, fullFrom)
+- `src/claudeSettings.ts` — the hook scripts (sh, PowerShell), the entries per target (Claude, Codex) and the settings merge
+- `src/turns.ts` — text → message decision → Turn (plainify, paragraphs, lead-in, fullFrom); the catch-up turn
 - `src/live.ts` — the stream: MessageDisplay, PreToolUse and Stop payloads → progress notes and the finished reply
-- `src/summary.ts` — the condensing run: brief, flags, finding `claude`
+- `src/summary.ts` — the condensing run: the two briefs, flags, finding and spawning `claude` (`.exe` or npm `.cmd` shim on Windows)
 - `src/windows.ts` — the project rule, pure
 - `src/playerView.ts` — the WebviewViewProvider, on-demand rendering, the voice catalogue and samples
 - `src/render.ts` — chunk, synthesize, stitch, fill gaps, cache

@@ -8,9 +8,13 @@
  * list: the condensed sentences, then the full reply from `fullFrom` on. One
  * index space keeps the player simple; autoplay stops at `fullFrom`, and the
  * full reply plays only when asked for.
+ *
+ * A catch-up is a turn about other turns: the replies that landed while
+ * nobody was listening, condensed into one briefing. It has no full section;
+ * the replies it covers are still listed on their own.
  */
 import { randomUUID } from "node:crypto";
-import { entryLead, plainify, toParagraphs } from "./text.ts";
+import { clock, entryLead, plainify, toParagraphs } from "./text.ts";
 
 export interface Turn {
   id: string;
@@ -67,7 +71,7 @@ export function decideMessage(markdown: string, cwd: string | null, limits: Turn
   const plain = plainify(markdown, limits.maxChars);
   if (plain === "") return { kind: "skip", reason: "empty" };
   if (plain.length < limits.minChars) return { kind: "skip", reason: "too-short" };
-  const project = cwd ? cwd.split("/").filter(Boolean).pop() ?? null : null;
+  const project = cwd ? cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
   return { kind: "message", markdown, cwd, project };
 }
 
@@ -102,5 +106,69 @@ export function makeTurn(input: TurnInput): Turn | null {
     project: input.project,
     paragraphs: [lead, ...summary, ...full],
     fullFrom: summary.length > 0 ? 1 + summary.length : null,
+  };
+}
+
+/** How many replies one catch-up reads at most. Older unheard ones are counted in the lead, not read. */
+export const CATCH_UP_MAX = 20;
+
+/** The spoken part of a listed turn: everything after the lead, up to the full reply when there is one. */
+function spokenParagraphs(turn: Turn): string[] {
+  return turn.paragraphs.slice(1, turn.fullFrom ?? undefined);
+}
+
+/**
+ * The replies a catch-up covers, as text for the condensing run: oldest
+ * first, each headed by its time and project so the briefing can group by
+ * project. The full reply is used where there is one; a turn that never got
+ * one (a selection, or a reply already read as a note) contributes what it
+ * has.
+ */
+export function catchUpText(covered: readonly Turn[], timeZone?: string): string {
+  return covered
+    .map((turn, i) => {
+      const where = turn.project ? `, in ${turn.project}` : "";
+      const body = turn.fullFrom === null ? spokenParagraphs(turn) : turn.paragraphs.slice(turn.fullFrom);
+      return `Reply ${i + 1} of ${covered.length}, ${clock(new Date(turn.at), timeZone)}${where}:\n${body.join("\n\n")}`;
+    })
+    .join("\n\n");
+}
+
+export interface CatchUpInput {
+  /** Oldest first. */
+  covered: readonly Turn[];
+  /** Unheard replies older than `covered`, mentioned in the lead only. */
+  earlier: number;
+  /** The briefing, or null when no condensing run was possible. */
+  summary: string | null;
+  limits: TurnLimits;
+  at?: Date;
+  timeZone?: string;
+}
+
+/**
+ * One turn that briefs the covered replies. With a summary, that is the
+ * briefing; without one, each covered reply's own spoken paragraphs follow
+ * its lead, so a catch-up without `claude` still catches up.
+ */
+export function catchUpTurn(input: CatchUpInput): Turn | null {
+  const { covered, earlier } = input;
+  const first = covered[0];
+  if (!first) return null;
+  const at = input.at ?? new Date();
+  const count = covered.length + earlier;
+  const lead =
+    `${entryLead(at, null, input.timeZone)} Catching up on ${count} ${count === 1 ? "reply" : "replies"} since ` +
+    `${clock(new Date(first.at), input.timeZone)}${earlier > 0 ? `, the last ${covered.length} in detail` : ""}.`;
+  const body = input.summary
+    ? toParagraphs(plainify(input.summary, input.limits.maxChars))
+    : covered.flatMap((turn) => [turn.paragraphs[0], ...spokenParagraphs(turn)]);
+  if (body.length === 0) return null;
+  return {
+    id: randomUUID(),
+    at: at.toISOString(),
+    project: null,
+    paragraphs: [lead, ...body],
+    fullFrom: null,
   };
 }

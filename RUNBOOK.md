@@ -4,8 +4,10 @@ Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
 ## Status (2026-09-22)
 
-**0.4.1 is on the VS Code Marketplace** (four versions listed, 8 installs
-on 2026-09-22). Built, unit-tested, live-tested against the Speechify API,
+**0.5.0 packaged and installed locally; 0.4.1 is on the VS Code
+Marketplace** (four versions listed, 8 installs on 2026-09-22). 0.5.0 adds
+catch-up, Codex as a source and the Windows hook; none of the three has had
+a live run yet, see Open. Built, unit-tested, live-tested against the Speechify API,
 and exercised end to end with real Claude Code turns on 2026-09-10 (0.3.0,
 Claude Code 2.1.267, the VS Code integrated terminal). Progress notes
 arrived, rendered and were appended; the finished reply was condensed and
@@ -18,7 +20,7 @@ under Verified.
 | License | MIT |
 | Marketplace publisher | `speechify`, created 2026-09-10 under shaun.trennery@gmail.com (Microsoft account); <https://marketplace.visualstudio.com/manage/publishers/speechify>. Domain `speechify.com` saved but not verified; no second member yet. |
 | Model / default voice | `simba-3.2` / `harper_32` |
-| Hook script | `~/.readback/hook.sh`, written on activation, registered under `Stop`, `MessageDisplay` and `PreToolUse` |
+| Hook script | `~/.readback/hook.sh` (`hook.ps1` on Windows), written on activation, registered under `Stop`, `MessageDisplay` and `PreToolUse` in `~/.claude/settings.json`; under `Stop` only in `~/.codex/hooks.json` when the Codex hook is installed |
 | Endpoint files | `~/.readback/endpoints/<pid>` holding `port token` |
 | Render cache | `<globalStorage>/speechify.readback/cache/<model>/<voice>/<sha256>.{mp3,json}` |
 | API key | VS Code SecretStorage, key `readback.speechifyApiKey` |
@@ -109,13 +111,40 @@ under Verified.
   the last word no longer shows on stock voices. Clones were not tested:
   the key used carries none.
 
+- **Codex CLI hooks, from the docs and source** (codex 0.155.1,
+  <https://developers.openai.com/codex/hooks>, `codex-rs/hooks`): file
+  `~/.codex/hooks.json` with the same `{"hooks": {Event: [{hooks: [...]}]}}`
+  shape, feature `features.hooks` on by default. Events include `Stop`,
+  `PreToolUse`, `UserPromptSubmit`, `SessionStart`; nothing per message.
+  Stop's stdin is `session_id`, `turn_id`, `cwd`, `transcript_path`,
+  `hook_event_name`, `model`, `permission_mode`, `stop_hook_active`,
+  `last_assistant_message` (nullable). Hooks run through the user's shell
+  (`$SHELL -lc`; PowerShell or cmd on Windows, `commandWindows` overrides).
+  Every new or changed hook must be trusted once in `/hooks`, recorded as a
+  hash in config.toml; untrusted hooks are skipped. Not yet run live.
+- **The catch-up brief on Haiku**: three sample replies from three
+  projects, 13 s, three short paragraphs grouped by project, decisions
+  called out. Not yet heard through the player.
+
 ## Open
 
 - **Speech marks on cloned voices.** Stock off-roster voices are fine
   again (see Verified, 2026-09-22). Render one sentence on a personal
   clone and check the last mark ends at the text's length before telling
   anyone read-along works on clones.
-- **Windows** needs a PowerShell hook.
+- **Windows is written, not tried.** `hook.ps1` (Windows PowerShell 5.1
+  syntax, `Invoke-RestMethod`), the exec-form entry, `claude.exe` and the
+  npm `.cmd` shim through cmd.exe. Known Windows hook issues in the Claude
+  Code tracker as of 2026-09-22: #36156 (stdin arrives empty), #88896
+  (PreToolUse never fires, closed not planned), #29007 (the VS Code
+  extension mangles backslashes in hook commands). Any of them would show
+  as silence; the Readback log will say whether a payload arrived.
+- **Codex end to end.** Install the hook, trust it in `/hooks`, run a turn,
+  confirm a Stop payload arrives and is read. Whether the desktop app
+  surfaces the trust review is unconfirmed.
+- **Catch-up end to end.** Let two replies play with the window
+  unfocused, come back, press the history button; expect one briefing turn
+  and the two marked heard (a second press says nothing to catch up on).
 - **Marketplace publisher** exists but is owned by one personal account.
   Add a Speechify co-owner under Members, and verify `speechify.com` (DNS
   TXT record) so the listing gets the verified badge. 0.2.4 was uploaded
@@ -144,12 +173,12 @@ under Verified.
 
 ```sh
 npm run package
-code --install-extension readback-0.4.1.vsix
+code --install-extension readback-0.5.0.vsix
 ```
 
 If `code` on PATH is Cursor's shim, the VS Code binary is
 `/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code`.
-Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only; 0.4.1 the settings panel gains an API key row (status, change, link to the keys page) and an "All Readback settings" link into the filtered Settings editor. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false). Until 2026-09-22 they were also the only voices whose speech marks reached the last word; stock voices are fine again since then.
+Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only; 0.4.1 the settings panel gains an API key row (status, change, link to the keys page) and an "All Readback settings" link into the filtered Settings editor. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false). Until 2026-09-22 they were also the only voices whose speech marks reached the last word; stock voices are fine again since then; 0.5.0 catch-up (history button and command, focus-based heard rule, `CATCH_UP_BRIEF`), Codex CLI as a Stop-only second source (settings panel row, two commands), Windows hook (PowerShell, exec form), the Featured hint reads "Trained for this model".
 
 Reload VS Code, open the Readback view in the activity bar, set the key,
 install the hook, then run a Claude Code turn in the integrated terminal.

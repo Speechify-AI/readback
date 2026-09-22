@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideMessage, makeTurn, messageFromStop, replyParagraphs } from "./turns.ts";
+import { catchUpText, catchUpTurn, decideMessage, makeTurn, messageFromStop, replyParagraphs, type Turn } from "./turns.ts";
 
 const limits = { minChars: 20, maxChars: 4000 };
 const at = new Date("2026-09-10T14:32:00");
@@ -67,5 +67,61 @@ describe("makeTurn", () => {
   it("returns null for nothing to say", () => {
     expect(makeTurn({ markdown: "```\ncode\n```", project: null, limits, at })?.paragraphs).toEqual(["14:32.", "Code omitted."]);
     expect(makeTurn({ markdown: "   ", project: null, limits, at })).toBeNull();
+  });
+});
+
+describe("decideMessage on Windows", () => {
+  it("names the project from a backslash cwd", () => {
+    expect(decideMessage("I'll check the settings file first.", "C:\\Users\\me\\code\\customers", limits)).toMatchObject({ project: "customers" });
+  });
+});
+
+describe("catch-up", () => {
+  const tz = "UTC";
+  const at = new Date("2026-09-22T14:32:00Z");
+  const listed = (over: Partial<Turn>): Turn => ({
+    id: "t",
+    at: "2026-09-22T13:50:00Z",
+    project: "customers",
+    paragraphs: ["13:50, in customers.", "Fixed it.", "Tests pass."],
+    fullFrom: null,
+    ...over,
+  });
+  const condensed = listed({
+    id: "c",
+    at: "2026-09-22T14:05:00Z",
+    project: "readback",
+    paragraphs: ["14:05, in readback.", "Looking at the hook first.", "The hook was rewritten.", "Rewrote the hook.", "Windows next."],
+    fullFrom: 3,
+  });
+
+  it("feeds the condensing run each reply under its time and project, full reply where there is one", () => {
+    const text = catchUpText([listed({}), condensed], tz);
+    expect(text).toBe(
+      "Reply 1 of 2, 13:50, in customers:\nFixed it.\n\nTests pass.\n\n" +
+        "Reply 2 of 2, 14:05, in readback:\nRewrote the hook.\n\nWindows next.",
+    );
+  });
+
+  it("briefs with the summary and counts the replies it covers", () => {
+    const turn = catchUpTurn({ covered: [listed({}), condensed], earlier: 0, summary: "Two things landed. Windows is next.", limits, at, timeZone: tz });
+    expect(turn?.paragraphs).toEqual(["14:32. Catching up on 2 replies since 13:50.", "Two things landed. Windows is next."]);
+    expect(turn?.fullFrom).toBeNull();
+    expect(turn?.project).toBeNull();
+  });
+
+  it("without a summary reads each reply's own spoken part after its lead", () => {
+    const turn = catchUpTurn({ covered: [listed({}), condensed], earlier: 0, summary: null, limits, at, timeZone: tz });
+    expect(turn?.paragraphs).toEqual([
+      "14:32. Catching up on 2 replies since 13:50.",
+      "13:50, in customers.", "Fixed it.", "Tests pass.",
+      "14:05, in readback.", "Looking at the hook first.", "The hook was rewritten.",
+    ]);
+  });
+
+  it("mentions the replies it does not read", () => {
+    const turn = catchUpTurn({ covered: [listed({})], earlier: 3, summary: "One thing.", limits, at, timeZone: tz });
+    expect(turn?.paragraphs[0]).toBe("14:32. Catching up on 4 replies since 13:50, the last 1 in detail.");
+    expect(catchUpTurn({ covered: [], earlier: 0, summary: null, limits, at })).toBeNull();
   });
 });

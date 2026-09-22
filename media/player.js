@@ -41,6 +41,7 @@ const els = {
   fwd: document.getElementById("fwd"),
   stop: document.getElementById("stop"),
   settings: document.getElementById("settings"),
+  catchUp: document.getElementById("catchUp"),
   settingsPanel: document.getElementById("settingsPanel"),
   settingsClose: document.getElementById("settingsClose"),
   voiceSetting: document.getElementById("voiceSetting"),
@@ -52,6 +53,9 @@ const els = {
   keySetting: document.getElementById("keySetting"),
   keyHelp: document.getElementById("keyHelp"),
   keyAction: document.getElementById("keyAction"),
+  codexSetting: document.getElementById("codexSetting"),
+  codexHelp: document.getElementById("codexHelp"),
+  codexAction: document.getElementById("codexAction"),
   clear: document.getElementById("clear"),
   status: document.getElementById("status"),
   progress: document.getElementById("progress"),
@@ -82,6 +86,7 @@ const state = {
   frame: null,
   keyOk: false,
   hookInstalled: false,
+  codex: "absent",
   voiceId: "",
   // Sound is off until the window has been clicked. Known up front where the
   // browser says so, and learnt the hard way when play() is refused.
@@ -107,6 +112,7 @@ window.addEventListener("message", (event) => {
     case "state":
       state.keyOk = msg.keyOk;
       state.hookInstalled = msg.hookInstalled;
+      state.codex = msg.codex;
       state.voiceId = msg.voice;
       setRate(msg.speed, false);
       setAutoplay(msg.autoplay, false);
@@ -507,6 +513,7 @@ async function play(p, autoplay) {
     setPlaying(true);
     setStatus(nowPlaying());
     watch();
+    if (state.current) post({ kind: "heard", turnId: state.current.turnId });
     if (!state.playedOnce) {
       state.playedOnce = true;
       note("first play() of this page succeeded");
@@ -675,6 +682,11 @@ function renderSettings() {
     keysLink(state.keyOk ? "Create a new one at platform.speechify.ai" : "Create one at platform.speechify.ai"),
   );
   els.keyAction.firstChild.textContent = state.keyOk ? "Change " : "Set ";
+  els.codexSetting.hidden = state.codex === "absent";
+  els.codexHelp.textContent = state.codex === "installed"
+    ? "Stop hook in ~/.codex/hooks.json. Codex runs it once you trust it with /hooks."
+    : "Hear Codex's replies too. Adds a Stop hook to ~/.codex/hooks.json.";
+  els.codexAction.textContent = state.codex === "installed" ? "Remove" : "Install";
   renderSpeed();
 }
 
@@ -1013,6 +1025,8 @@ els.back.addEventListener("click", () => step(-1));
 els.fwd.addEventListener("click", () => step(1));
 els.stop.addEventListener("click", stop);
 els.clear.addEventListener("click", () => clearAll(true));
+els.catchUp.addEventListener("click", () => post({ kind: "command", name: "catchUp" }));
+els.codexAction.addEventListener("click", () => post({ kind: "command", name: state.codex === "installed" ? "uninstallCodexHook" : "installCodexHook" }));
 els.settings.addEventListener("click", () => showPanel(state.panel === null ? "settings" : null));
 els.settingsClose.addEventListener("click", () => showPanel(null));
 els.autoplaySwitch.addEventListener("click", () => setAutoplay(!state.autoplay, true));

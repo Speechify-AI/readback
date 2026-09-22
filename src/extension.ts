@@ -15,26 +15,38 @@
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import * as vscode from "vscode";
 import {
-  HOOK_SCRIPT_NAME,
+  CLAUDE_TARGET,
+  CODEX_TARGET,
   hasHook,
   hookScript,
+  hookScriptName,
   isClaudeSettings,
   withHook,
   withoutHook,
   type ClaudeSettings,
+  type HookTarget,
 } from "./claudeSettings.ts";
 import { readSettings, SECRET_KEY, writeSetting } from "./config.ts";
 import { fileCache } from "./fileCache.ts";
 import { startListener, type Listener } from "./listener.ts";
 import { LiveTurns, type LiveEvent } from "./live.ts";
 import { PlayerView } from "./playerView.ts";
-import type { WebCommand } from "./protocol.ts";
+import type { CodexState, WebCommand } from "./protocol.ts";
 import { checkKey } from "./speechify.ts";
-import { condense, findClaude } from "./summary.ts";
-import { decideMessage, makeTurn, PROGRESS_MIN_CHARS, replyParagraphs, type Message } from "./turns.ts";
+import { CATCH_UP_BRIEF, condense, findClaude } from "./summary.ts";
+import {
+  CATCH_UP_MAX,
+  catchUpText,
+  catchUpTurn,
+  decideMessage,
+  makeTurn,
+  PROGRESS_MIN_CHARS,
+  replyParagraphs,
+  type Message,
+} from "./turns.ts";
 import { relatedToWorkspace } from "./windows.ts";
 
 const KEYS_URL = "https://platform.speechify.ai/api-keys";
@@ -42,8 +54,10 @@ const KEYS_URL = "https://platform.speechify.ai/api-keys";
 const home = homedir();
 const readbackHome = process.env.READBACK_HOME ?? join(home, ".readback");
 const endpointsDir = join(readbackHome, "endpoints");
-const hookPath = join(readbackHome, HOOK_SCRIPT_NAME);
+const hookPath = join(readbackHome, hookScriptName());
 const claudeSettingsPath = join(home, ".claude", "settings.json");
+const codexHome = join(home, ".codex");
+const codexHooksPath = join(codexHome, "hooks.json");
 
 let listener: Listener | null = null;
 
@@ -54,7 +68,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   writeHookScript(log);
 
   const cache = fileCache(join(context.globalStorageUri.fsPath, "cache"));
-  const player = new PlayerView(context, cache, log, hookInstalled, (name) => runWebCommand(name));
+  const player = new PlayerView(context, cache, log, hookInstalled, codexState, (name) => runWebCommand(name));
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(PlayerView.viewId, player, {
       webviewOptions: { retainContextWhenHidden: true },
@@ -81,9 +95,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("readback.chooseVoice", () => chooseVoice(context, player)),
     vscode.commands.registerCommand("readback.installHook", () => installHook(player, log)),
     vscode.commands.registerCommand("readback.uninstallHook", () => uninstallHook(player, log)),
+    vscode.commands.registerCommand("readback.installCodexHook", () => installCodexHook(player, log)),
+    vscode.commands.registerCommand("readback.uninstallCodexHook", () => uninstallCodexHook(player, log)),
     vscode.commands.registerCommand("readback.readSelection", () => readSelection(player)),
     vscode.commands.registerCommand("readback.stop", () => player.stop()),
     vscode.commands.registerCommand("readback.clear", () => player.clear()),
+    vscode.commands.registerCommand("readback.catchUp", () => catchUp(player, log)),
     // The Settings editor filtered to this extension: every setting, not just the three in the panel.
     vscode.commands.registerCommand("readback.openSettings", () =>
       vscode.commands.executeCommand("workbench.action.openSettings", "@ext:speechify.readback"),
@@ -141,7 +158,7 @@ function writeHookScript(log: vscode.LogOutputChannel): void {
       writeFileSync(hookPath, wanted);
       log.info(`wrote ${hookPath}`);
     }
-    chmodSync(hookPath, 0o755);
+    if (process.platform !== "win32") chmodSync(hookPath, 0o755);
   } catch (err) {
     log.error(`could not write the hook script: ${String(err)}`);
   }
@@ -244,6 +261,37 @@ async function speak(
   await player.push(turn);
 }
 
+/**
+ * One briefing of every listed turn nobody has heard, condensed together
+ * when `claude` is there and read one after another when it is not. The
+ * covered turns count as heard from here on.
+ */
+async function catchUp(player: PlayerView, log: vscode.LogOutputChannel): Promise<void> {
+  const settings = readSettings();
+  const unheard = player.unheard();
+  if (unheard.length === 0) {
+    void vscode.window.showInformationMessage("Nothing to catch up on: every reply here has been heard.");
+    return;
+  }
+  const covered = unheard.slice(-CATCH_UP_MAX);
+  const earlier = unheard.length - covered.length;
+  let summary: string | null = null;
+  const claudePath = settings.summarize === "claude" ? findClaude() : null;
+  if (claudePath) {
+    player.status(`Catching up on ${unheard.length} ${unheard.length === 1 ? "reply" : "replies"}…`);
+    const started = Date.now();
+    summary = await condense(catchUpText(covered), { claudePath, brief: CATCH_UP_BRIEF });
+    log.info(`catch-up condense ${summary ? "ok" : "failed"} in ${Date.now() - started} ms over ${covered.length} replies`);
+    if (!summary) player.status("");
+  } else {
+    log.info(`catch-up without condensing: reading ${covered.length} replies in turn`);
+  }
+  const turn = catchUpTurn({ covered, earlier, summary, limits: settings });
+  if (!turn) return;
+  player.markHeard(unheard.map((t) => t.id));
+  await player.push(turn, { heard: true });
+}
+
 async function setApiKey(context: vscode.ExtensionContext, player: PlayerView): Promise<void> {
   const settings = readSettings();
   const entered = await vscode.window.showInputBox({
@@ -282,23 +330,34 @@ async function chooseVoice(context: vscode.ExtensionContext, player: PlayerView)
   player.showVoices();
 }
 
-function readClaudeSettings(): ClaudeSettings | null {
-  if (!existsSync(claudeSettingsPath)) return {};
-  const parsed: unknown = JSON.parse(readFileSync(claudeSettingsPath, "utf8"));
+/** A hooks file as parsed, `{}` when there is none, null when it is not a JSON object. */
+function readHooksFile(path: string): ClaudeSettings | null {
+  if (!existsSync(path)) return {};
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
   return isClaudeSettings(parsed) ? parsed : null;
 }
 
-function hookInstalled(): boolean {
+function hooksFileHas(path: string, target: HookTarget): boolean {
   try {
-    const settings = readClaudeSettings();
-    return settings !== null && hasHook(settings, hookPath);
+    const settings = readHooksFile(path);
+    return settings !== null && hasHook(settings, hookPath, target);
   } catch {
     return false;
   }
 }
 
+function hookInstalled(): boolean {
+  return hooksFileHas(claudeSettingsPath, CLAUDE_TARGET);
+}
+
+/** Codex is "there" when its home folder is: the CLI, the desktop app and the IDE extension all make one. */
+function codexState(): CodexState {
+  if (!existsSync(codexHome)) return "absent";
+  return hooksFileHas(codexHooksPath, CODEX_TARGET) ? "installed" : "missing";
+}
+
 async function installHook(player: PlayerView, log: vscode.LogOutputChannel): Promise<void> {
-  await editClaudeSettings((s) => withHook(s, hookPath), log);
+  await editHooksFile(claudeSettingsPath, (s) => withHook(s, hookPath, process.platform, CLAUDE_TARGET), log);
   await player.sendState();
   if (hookInstalled()) {
     void vscode.window.showInformationMessage("Readback hook installed. Claude Code picks it up on its next session.");
@@ -306,32 +365,50 @@ async function installHook(player: PlayerView, log: vscode.LogOutputChannel): Pr
 }
 
 async function uninstallHook(player: PlayerView, log: vscode.LogOutputChannel): Promise<void> {
-  await editClaudeSettings((s) => withoutHook(s, hookPath), log);
+  await editHooksFile(claudeSettingsPath, (s) => withoutHook(s, hookPath, CLAUDE_TARGET), log);
   await player.sendState();
 }
 
-async function editClaudeSettings(
+/**
+ * Codex runs a new hook only after the person has trusted it once, from its
+ * own `/hooks` screen; nothing written to the file can do that for them.
+ */
+async function installCodexHook(player: PlayerView, log: vscode.LogOutputChannel): Promise<void> {
+  await editHooksFile(codexHooksPath, (s) => withHook(s, hookPath, process.platform, CODEX_TARGET), log);
+  await player.sendState();
+  if (codexState() === "installed") {
+    void vscode.window.showInformationMessage(
+      "Readback hook written to ~/.codex/hooks.json. Codex runs a new hook only after you trust it: open Codex, run /hooks, and approve Readback.",
+    );
+  }
+}
+
+async function uninstallCodexHook(player: PlayerView, log: vscode.LogOutputChannel): Promise<void> {
+  await editHooksFile(codexHooksPath, (s) => withoutHook(s, hookPath, CODEX_TARGET), log);
+  await player.sendState();
+}
+
+async function editHooksFile(
+  path: string,
   edit: (settings: ClaudeSettings) => ClaudeSettings,
   log: vscode.LogOutputChannel,
 ): Promise<void> {
   let settings: ClaudeSettings | null;
   try {
-    settings = readClaudeSettings();
+    settings = readHooksFile(path);
   } catch (err) {
-    log.error(`could not parse ${claudeSettingsPath}: ${String(err)}`);
+    log.error(`could not parse ${path}: ${String(err)}`);
     settings = null;
   }
   if (settings === null) {
-    void vscode.window.showErrorMessage(
-      `Readback could not read ${claudeSettingsPath} as JSON, so it left the file alone.`,
-    );
+    void vscode.window.showErrorMessage(`Readback could not read ${path} as JSON, so it left the file alone.`);
     return;
   }
   const next = edit(settings);
   if (next === settings) return;
-  mkdirSync(join(home, ".claude"), { recursive: true });
-  writeFileSync(claudeSettingsPath, `${JSON.stringify(next, null, 2)}\n`);
-  log.info(`updated ${claudeSettingsPath}`);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
+  log.info(`updated ${path}`);
 }
 
 async function readSelection(player: PlayerView): Promise<void> {
