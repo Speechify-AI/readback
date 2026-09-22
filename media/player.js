@@ -853,7 +853,7 @@ function renderVoices() {
   // Featured first, as their own group; every voice also appears under its language.
   const featured = shown.filter((v) => v.featured);
   if (featured.length > 0 && state.picker.chip !== "featured") {
-    els.voiceList.appendChild(groupHeading("Featured", featured.length, "Read-along tested on these"));
+    els.voiceList.appendChild(groupHeading("Featured", featured.length, "Trained for this model"));
     for (const v of featured) els.voiceList.appendChild(voiceRow(v, "featured"));
   }
 

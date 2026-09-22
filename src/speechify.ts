@@ -115,9 +115,10 @@ export interface Voice {
 /**
  * The roster: the `*_32` voices on simba-3.2. The catalogue carries no flag
  * for them, but the suffix is how Speechify names the voices trained for
- * that model, and since 2026-09-08 they are the ones whose speech marks
- * reach the last word, so read-along is reliable on them and not on the
- * rest. Other models have no roster here.
+ * that model. Between 2026-09-08 and 2026-09-22 they were also the only
+ * voices whose speech marks reached the last word; stock voices are fine
+ * again since (RUNBOOK, Verified 2026-09-22), clones still unchecked.
+ * Other models have no roster here.
  */
 export function isFeatured(id: string, model: string | undefined): boolean {
   return model === "simba-3.2" && /_32$/.test(id);

@@ -100,8 +100,7 @@ has a "Full reply" section with one of its own.
 ## Limits
 
 - Claude Code is the only source in this version. The hook fires for
-  sessions in a terminal; whether it fires from the Claude Code panel in
-  VS Code depends on the extension version you run.
+  sessions in a terminal and in the Claude Code panel in VS Code.
 - The hook is a shell script, so macOS and Linux. Windows needs a
   PowerShell hook, which does not exist yet.
 - Read-along needs speech marks, which the streaming endpoint does not
