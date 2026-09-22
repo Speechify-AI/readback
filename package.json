@@ -2,7 +2,7 @@
   "name": "readback",
   "displayName": "Readback",
   "description": "Hear your AI coding agent's replies in a Speechify voice, with the words highlighted as they are spoken.",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "publisher": "speechify",
   "license": "MIT",
   "repository": {
@@ -70,12 +70,24 @@
         "title": "Readback: Remove the Claude Code hook"
       },
       {
+        "command": "readback.installCodexHook",
+        "title": "Readback: Install the Codex hook"
+      },
+      {
+        "command": "readback.uninstallCodexHook",
+        "title": "Readback: Remove the Codex hook"
+      },
+      {
         "command": "readback.readSelection",
         "title": "Readback: Read selection"
       },
       {
         "command": "readback.stop",
         "title": "Readback: Stop"
+      },
+      {
+        "command": "readback.catchUp",
+        "title": "Readback: Catch me up"
       },
       {
         "command": "readback.clear",
