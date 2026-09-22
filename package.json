@@ -125,7 +125,10 @@
         },
         "readback.summarize": {
           "type": "string",
-          "enum": ["claude", "off"],
+          "enum": [
+            "claude",
+            "off"
+          ],
           "enumDescriptions": [
             "Condense each reply to a few spoken sentences with claude -p on your own subscription. The full reply stays one click away.",
             "Read every reply in full."
@@ -163,8 +166,8 @@
     "@types/vscode": "^1.100.0",
     "@vscode/codicons": "^0.0.46-24",
     "@vscode/vsce": "^3.0.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^5.0.1"
   }
 }
