@@ -16,7 +16,7 @@
   "private": true,
   "engines": {
     "vscode": "^1.100.0",
-    "node": ">=20"
+    "node": ">=22"
   },
   "categories": [
     "Other"
@@ -177,9 +177,9 @@
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.100.0",
     "@vscode/codicons": "^0.0.46-24",
-    "@vscode/vsce": "^3.0.0",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
-    "typescript": "^5.8.0",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   }
 }
