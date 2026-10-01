@@ -39,6 +39,14 @@ export interface TurnLimits {
  */
 export const PROGRESS_MIN_CHARS = 20;
 
+/**
+ * Shortest finished reply worth condensing. Condensed, a 300-character
+ * reply came back at 253 to 292 characters and a 2,234-character one at 386
+ * to 456. A reply already that size is read as it stands, with no run and
+ * no wait.
+ */
+export const CONDENSE_MIN_CHARS = 500;
+
 /** The Stop payload, typed only as far as we read it. */
 export interface StopPayload {
   hook_event_name?: unknown;
@@ -73,6 +81,11 @@ export function decideMessage(markdown: string, cwd: string | null, limits: Turn
   if (plain.length < limits.minChars) return { kind: "skip", reason: "too-short" };
   const project = cwd ? cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
   return { kind: "message", markdown, cwd, project };
+}
+
+/** Is the reply long enough, once flattened, for condensing to shorten it. */
+export function worthCondensing(markdown: string, limits: TurnLimits): boolean {
+  return plainify(markdown, limits.maxChars).length >= CONDENSE_MIN_CHARS;
 }
 
 export interface ReplyInput {

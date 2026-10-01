@@ -46,6 +46,7 @@ import {
   PROGRESS_MIN_CHARS,
   replyParagraphs,
   type Message,
+  worthCondensing,
 } from "./turns.ts";
 import { relatedToWorkspace } from "./windows.ts";
 
@@ -237,8 +238,10 @@ async function speak(
 ): Promise<void> {
   const settings = readSettings();
   let condensed: string | null = null;
-  const claudePath = settings.summarize === "claude" ? findClaude() : null;
-  if (settings.summarize === "claude" && claudePath === null) {
+  const wanted = settings.summarize === "claude" && worthCondensing(message.markdown, settings);
+  if (settings.summarize === "claude" && !wanted) log.info("the reply is already short; reading it as it stands");
+  const claudePath = wanted ? findClaude() : null;
+  if (wanted && claudePath === null) {
     log.warn("summarize is on but no claude binary was found; reading the full reply");
   }
   if (claudePath) {

@@ -43,9 +43,10 @@ that arrive before that queue up.
   its notes between tool calls are not read. See Codex below.
 - A message followed by a tool call was a note written before it, and
   Readback reads it as it stands while the tool runs. A message followed by
-  Stop is the finished reply and gets condensed. Turn the notes off with
+  Stop is the finished reply and gets condensed, unless it is under 500
+  characters already, which is read as it stands. Turn the notes off with
   `readback.progress`.
-- Readback condenses the reply with `claude -p` on the smallest model, on
+- Readback condenses the reply with `claude -p` on Sonnet, on
   your own Claude subscription, so it holds no model key. The run loads no
   settings and is marked so the hook ignores it, which is what stops a
   reply about a reply. If `claude` is missing or the run fails, you hear

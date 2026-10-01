@@ -39,7 +39,8 @@ this repo.
   condensed.** MessageDisplay delivers each assistant message as its lines
   complete (`delta`, `final`, `message_id`). What follows the message says
   what it was, by `prompt_id`: PreToolUse means a note written before a
-  tool call, read as it stands; Stop means the reply, condensed as before.
+  tool call, read as it stands; Stop means the reply, condensed as before
+  (a short one is read as it stands, see the condensing rule).
   `src/live.ts` holds each completed message until one arrives, with a long
   timer as the fallback only. Never decide by timing alone: Stop came 27 ms
   after the message headless and 1.5 s in an interactive session, and a
@@ -70,11 +71,16 @@ this repo.
   contains one (`src/windows.ts`). No focused-window fallback: a panel full
   of another project's replies is worse than silence.
 - **Condensing runs on the person's own Claude subscription, never on a key
-  we hold.** `claude -p --model haiku` with `--setting-sources ""` (no hooks
+  we hold.** `claude -p --model sonnet` with `--setting-sources ""` (no hooks
   load into that run) and `READBACK_HOOK=1` in its environment (the hook
   script exits at the top when it sees it). Both guards stay; either alone
   would do, both means a hook installed some other way still cannot loop. A
-  failed run falls back to the full reply, never to silence.
+  failed run falls back to the full reply, never to silence. The brief and
+  the reply both go on stdin, the reply fenced in `agent_output` tags and
+  named as material (`condensePrompt`). Bare, Haiku sometimes answered the
+  brief instead of condensing. The answer must come back inside `spoken`
+  tags (`spokenFrom`); a run without them counts as failed. A reply under
+  `CONDENSE_MIN_CHARS` once flattened is not condensed at all.
 - **A condensed turn carries the full reply too**, after `fullFrom` in the
   same paragraph list. Autoplay stops there; the full reply is one click
   away and costs nothing until played.

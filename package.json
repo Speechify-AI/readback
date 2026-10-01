@@ -142,7 +142,7 @@
             "off"
           ],
           "enumDescriptions": [
-            "Condense each reply to a few spoken sentences with claude -p on your own subscription. The full reply stays one click away.",
+            "Condense each reply to a few spoken sentences with claude -p on your own subscription. The full reply stays one click away. A reply under 500 characters is read as it is.",
             "Read every reply in full."
           ],
           "default": "claude",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catchUpText, catchUpTurn, decideMessage, makeTurn, messageFromStop, replyParagraphs, type Turn } from "./turns.ts";
+import { catchUpText, catchUpTurn, CONDENSE_MIN_CHARS, decideMessage, makeTurn, messageFromStop, replyParagraphs, worthCondensing, type Turn } from "./turns.ts";
 
 const limits = { minChars: 20, maxChars: 4000 };
 const at = new Date("2026-09-10T14:32:00");
@@ -67,6 +67,15 @@ describe("makeTurn", () => {
   it("returns null for nothing to say", () => {
     expect(makeTurn({ markdown: "```\ncode\n```", project: null, limits, at })?.paragraphs).toEqual(["14:32.", "Code omitted."]);
     expect(makeTurn({ markdown: "   ", project: null, limits, at })).toBeNull();
+  });
+});
+
+describe("worthCondensing", () => {
+  it("leaves a reply that is already summary-sized alone and measures the flattened text", () => {
+    expect(worthCondensing("Good, the guard is cleared then. Send me its id and the tier you want and I'll apply it.", limits)).toBe(false);
+    expect(worthCondensing("word ".repeat(CONDENSE_MIN_CHARS / 5 + 1), limits)).toBe(true);
+    const link = `[x](https://example.com/${"a".repeat(CONDENSE_MIN_CHARS)})`;
+    expect(worthCondensing(`See ${link} for the rest.`, limits)).toBe(false);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claudeCandidates, claudeCommand, CLAUDE_ARGS } from "./summary.ts";
+import { BRIEF, claudeCandidates, claudeCommand, CLAUDE_ARGS, condensePrompt, spokenFrom } from "./summary.ts";
 
 describe("claudeCandidates", () => {
   it("tries PATH entries first, then the usual homes", () => {
@@ -24,6 +24,30 @@ describe("CLAUDE_ARGS", () => {
   });
 });
 
+describe("condensePrompt", () => {
+  it("fences the reply and says it is material, so a reply that addresses its reader is not answered", () => {
+    const prompt = condensePrompt(BRIEF, "Send me its id and I'll apply it.");
+    expect(prompt.startsWith(BRIEF)).toBe(true);
+    expect(prompt).toContain("not addressed to you");
+    expect(prompt.endsWith("<agent_output>\nSend me its id and I'll apply it.\n</agent_output>\n")).toBe(true);
+  });
+});
+
+describe("spokenFrom", () => {
+  it("takes what is inside the spoken tags, across lines", () => {
+    expect(spokenFrom("<spoken>The guard was cleared.</spoken>\n")).toBe("The guard was cleared.");
+    expect(spokenFrom("<spoken>\nIn customers, done.\n\nIn locl, tests pass.\n</spoken>")).toBe("In customers, done.\n\nIn locl, tests pass.");
+  });
+
+  it("rejects a run that answered the brief instead, as measured", () => {
+    expect(spokenFrom("I understand. When condensing a finished reply, I'll deliver one to three short sentences.")).toBeNull();
+    expect(spokenFrom("I understand. I'll condense my summary and wrap it in `<spoken>` tags with nothing outside them. Got it.")).toBeNull();
+    expect(spokenFrom("I don't see a coding-agent reply to condense in your message.")).toBeNull();
+    expect(spokenFrom("<spoken>  </spoken>")).toBeNull();
+    expect(spokenFrom("")).toBeNull();
+  });
+});
+
 describe("on Windows", () => {
   it("looks for claude.exe and the npm shim on PATH, then the native and npm homes", () => {
     const c = claudeCandidates("C:\\Tools;C:\\Users\\me\\.local\\bin", "C:\\Users\\me", "win32");
@@ -40,7 +64,7 @@ describe("on Windows", () => {
     expect(shim.args).toEqual(["/d", "/s", "/c", '""C:\\npm\\claude.cmd" "-p" "--tools" """']);
   });
 
-  it("never puts a double quote into a brief the shim line would break on", () => {
+  it("never puts a double quote into an argument the shim line would break on", () => {
     expect([...CLAUDE_ARGS].join("")).not.toContain('"');
   });
 });

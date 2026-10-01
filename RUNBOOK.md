@@ -126,6 +126,46 @@ under Verified.
   projects, 13 s, three short paragraphs grouped by project, decisions
   called out. Not yet heard through the player.
 
+## Verified on 2026-10-01
+
+Claude Code 2.1.286 throughout. The reply used is the one from `customers`
+at 10:29: two paragraphs, 300 characters, ending "Send me its `ws_` id and
+the tier shape you want and I'll apply it in Atlas".
+
+- **A condense run that answered the brief.** That reply came back
+  condensed as "I understand. When condensing a finished reply for someone
+  reading it aloud moments after, I'll deliver one to three short
+  sentences", and the log called it "condense ok in 14992 ms". Re-run on
+  Haiku with the brief as the prompt argument, 1 run in 12 did it again.
+  With the brief and the reply both on stdin and the reply fenced in
+  `agent_output` tags (`condensePrompt`), 0 in 24.
+- **Sonnet instead of Haiku.** Same fenced prompt, five runs at a time.
+  Haiku took 5.9 to 16.9 s, median about 7 s. Sonnet took 3.1 to 4.0 s. On
+  a 2,234-character reply Sonnet kept "I couldn't test the create myself"
+  in all 17 runs and Haiku dropped it in all 5. It uses more of the
+  person's subscription allowance per reply than Haiku does; nobody has
+  measured how much.
+- **The `spoken` tags are the check on a run.** Sonnet, fenced: 28 runs in
+  28 answered inside the tags (12 on the short reply, 12 on the long one,
+  4 catch-ups). Haiku on the old bare layout with the tag instruction
+  added: 5 runs in 36 went wrong ("I understand", "I don't see a reply to
+  condense") and none of the 5 had the tags; all 31 good runs did. A run
+  without them is logged as "condense failed" and the full reply is read.
+- **Replies under 500 characters are not condensed**
+  (`CONDENSE_MIN_CHARS`, measured on the flattened text). On Sonnet the
+  300-character reply condensed to 253 to 292 characters and the
+  2,234-character one to 386 to 456, so below 500 the run saves nothing.
+  The log says "the reply is already short". Catch-up still
+  condenses whatever it covers.
+- **TypeScript 7.0.2** typechecks the tree with no config change. vitest
+  5.0.3 and `@types/node` 22.20.4 are in, `npm audit` is clean, 110 tests
+  pass.
+- **`@vscode/vsce` 4.0.0** packages a vsix with the same 13 files as
+  3.9.2. It needs Node 22, so `engines.node` is now `>=22`. Published on
+  2026-09-29; no publish has gone through it yet.
+- None of this has been heard through the player. The checks were unit
+  tests and direct runs of `condense`.
+
 ## Open
 
 - **Speech marks on cloned voices.** Stock off-roster voices are fine
