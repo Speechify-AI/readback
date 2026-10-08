@@ -146,13 +146,12 @@ describe("truncate", () => {
 });
 
 describe("entryLead", () => {
-  it("names the time and the project", () => {
-    const at = new Date("2026-09-04T14:32:00Z");
-    expect(entryLead(at, "customers", "UTC")).toBe("14:32, customers.");
+  it("names the project and nothing else, so every turn of a project shares one render", () => {
+    expect(entryLead("customers")).toBe("customers.");
+    expect(entryLead("extension.ts")).toBe("extension.ts.");
   });
 
-  it("drops the project when there is not one", () => {
-    const at = new Date("2026-09-04T09:05:00Z");
-    expect(entryLead(at, null, "UTC")).toBe("09:05.");
+  it("names Readback when there is no project", () => {
+    expect(entryLead(null)).toBe("Readback.");
   });
 });

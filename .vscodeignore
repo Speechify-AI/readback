@@ -14,3 +14,4 @@ docs/**
 node_modules/**
 dist/**/*.map
 *.vsix
+tsconfig.webview.json

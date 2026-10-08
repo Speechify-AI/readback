@@ -33,11 +33,12 @@ that arrive before that queue up.
 
 ## How it works
 
-- Three hooks in `~/.claude/settings.json`, `MessageDisplay`, `PreToolUse`
-  and `Stop`, post each assistant message, each tool call and each finished
-  turn to Readback. The hook is ten lines of POSIX shell and curl (the same
-  lines in PowerShell on Windows). It needs no runtime on your PATH and
-  never decides anything itself.
+- Five hooks in `~/.claude/settings.json`, `MessageDisplay`, `PreToolUse`,
+  `Notification`, `UserPromptSubmit` and `Stop`, post each assistant
+  message, each tool call, each permission prompt left waiting, each prompt
+  of yours and each finished turn to Readback. The hook is ten lines of
+  POSIX shell and curl (the same lines in PowerShell on Windows). It needs
+  no runtime on your PATH and never decides anything itself.
 - Codex CLI can be a second source: a `Stop` hook in `~/.codex/hooks.json`
   posts each finished turn the same way. Codex has no per-message hook, so
   its notes between tool calls are not read. See Codex below.
@@ -46,6 +47,19 @@ that arrive before that queue up.
   Stop is the finished reply and gets condensed, unless it is under 500
   characters already, which is read as it stands. Turn the notes off with
   `readback.progress`.
+- A permission prompt that has waited about six seconds (Claude Code's own
+  threshold for the `permission_prompt` notification) is read at once, ahead
+  of whatever is playing: "Claude is waiting for your permission to run npm
+  install, in readback." The tool call comes from the `PreToolUse` that
+  preceded it. Whatever was playing carries on afterwards. Turn it off with
+  `readback.alerts`.
+- When you submit your next prompt, Readback stops reading: the reply it
+  was on has been read. A reply still being condensed when you type lands
+  in the list without playing.
+- Each turn opens with a one-word lead-in, the project's name, that renders
+  once and plays from the cache, so you hear that a turn has started within
+  a few milliseconds while its first paragraph renders. The time is shown
+  next to it, not spoken.
 - Readback condenses the reply with `claude -p` on Sonnet, on
   your own Claude subscription, so it holds no model key. The run loads no
   settings and is marked so the hook ignores it, which is what stops a
@@ -66,7 +80,7 @@ that arrive before that queue up.
 | --- | --- |
 | Readback: Set Speechify API key | Checks the key against the live API before storing it |
 | Readback: Choose voice | Opens the picker in the panel: featured voices first, then every voice grouped by language, with search, filters by gender, clone or tag, and a sample of each. Saved for the open project; set `readback.voice` in user settings for the default |
-| Readback: Install the Claude Code hook | Adds Stop, MessageDisplay and PreToolUse hooks, leaving the rest of the file alone |
+| Readback: Install the Claude Code hook | Adds Stop, MessageDisplay, PreToolUse, Notification and UserPromptSubmit hooks, leaving the rest of the file alone |
 | Readback: Remove the Claude Code hook | Removes exactly that hook |
 | Readback: Install the Codex hook | Adds a Stop hook to `~/.codex/hooks.json`. Also a row in the settings panel when a `~/.codex` folder exists |
 | Readback: Remove the Codex hook | Removes exactly that hook |
@@ -82,6 +96,7 @@ that arrive before that queue up.
 | `readback.autoplay` | `true` | Play each new reply as it arrives; off lists them and waits for play |
 | `readback.summarize` | `claude` | Condense replies with `claude -p`, or `off` to read them in full |
 | `readback.progress` | `true` | Read the notes Claude writes between tool calls as they arrive |
+| `readback.alerts` | `true` | Say when Claude has been waiting for your permission for a few seconds, ahead of whatever is playing |
 | `readback.voice` | `harper_32` | Speechify voice id. Per project when set from the picker. Unset, and Claude Code's `language` is German, Spanish, French, Italian or Portuguese, a voice in that language is used |
 | `readback.model` | `simba-3.2` | Speechify model for English voices. Other voices render on `simba-3.0`, the model that speaks their language |
 | `readback.speed` | `1` | Playback rate. Per project when cycled from the player |

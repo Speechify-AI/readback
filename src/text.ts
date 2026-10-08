@@ -132,12 +132,7 @@ export function truncate(text: string, limit: number): string {
   return `${text.slice(0, cut).trim()} and more.`;
 }
 
-/**
- * The spoken lead-in on a turn: when it finished and which project it came
- * from. Its own paragraph so the player can show it as a heading and you can
- * skip it in one step.
- */
-/** "14:32", as a lead-in says it. */
+/** "14:32", as the catch-up lead and the condensing run's headers say it. */
 export function clock(at: Date, timeZone?: string): string {
   return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
@@ -147,8 +142,19 @@ export function clock(at: Date, timeZone?: string): string {
   }).format(at);
 }
 
-export function entryLead(at: Date, project: string | null, timeZone?: string): string {
-  const time = clock(at, timeZone);
-  // No "in": the voice may not speak English, and a bare name reads in any language.
-  return project ? `${time}, ${project}.` : `${time}.`;
+/**
+ * The spoken lead-in on a turn: the project it came from, or the extension's
+ * name when there is none. Its own paragraph so the player can show it as a
+ * heading and you can skip it in one step.
+ *
+ * No time in it. Until 0.6.0 the lead was "14:32, readback.", a new string
+ * every minute and so a fresh render (1.3 to 1.8 s in the log) before the
+ * first word of every turn. A lead that is the same for every turn of a
+ * project renders once and plays from the cache in a few milliseconds; the
+ * time is shown in the turn's header instead, where nobody has to hear it.
+ * No "in" either: the voice may not speak English, and a bare name reads in
+ * any language.
+ */
+export function entryLead(project: string | null): string {
+  return project ? `${project}.` : "Readback.";
 }

@@ -79,8 +79,12 @@ export function decideMessage(markdown: string, cwd: string | null, limits: Turn
   const plain = plainify(markdown, limits.maxChars);
   if (plain === "") return { kind: "skip", reason: "empty" };
   if (plain.length < limits.minChars) return { kind: "skip", reason: "too-short" };
-  const project = cwd ? cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
-  return { kind: "message", markdown, cwd, project };
+  return { kind: "message", markdown, cwd, project: projectOf(cwd) };
+}
+
+/** The folder's name: what a lead-in calls the project. */
+export function projectOf(cwd: string | null): string | null {
+  return cwd ? cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
 }
 
 /** Is the reply long enough, once flattened, for condensing to shorten it. */
@@ -112,7 +116,7 @@ export function makeTurn(input: TurnInput): Turn | null {
   const at = input.at ?? new Date();
   const { summary, full } = replyParagraphs(input);
   if (full.length === 0) return null;
-  const lead = entryLead(at, input.project);
+  const lead = entryLead(input.project);
   return {
     id: randomUUID(),
     at: at.toISOString(),
@@ -120,6 +124,89 @@ export function makeTurn(input: TurnInput): Turn | null {
     paragraphs: [lead, ...summary, ...full],
     fullFrom: summary.length > 0 ? 1 + summary.length : null,
   };
+}
+
+/** A tool call as PreToolUse described it, typed only as far as it is read. */
+export interface ToolUse {
+  name: string;
+  input: unknown;
+}
+
+/** Longest command read aloud from a permission alert; the rest is "and more". */
+const ALERT_COMMAND_CHARS = 120;
+
+/**
+ * What Claude wants to do, as one spoken phrase: "run npm install", "edit
+ * marks.ts", "use Playwright from browser". Bash reads its command's first
+ * line, files their name, MCP tools their name and server, the rest the
+ * tool's name. Nothing here is the whole input: a permission prompt is
+ * answered on screen, this only says it is waiting.
+ */
+export function describeToolUse(tool: ToolUse): string {
+  const input = typeof tool.input === "object" && tool.input !== null ? (tool.input as Record<string, unknown>) : {};
+  const str = (key: string): string | null => (typeof input[key] === "string" ? (input[key] as string) : null);
+  const file = (key = "file_path"): string | null => str(key)?.split(/[\\/]/).filter(Boolean).pop() ?? null;
+  switch (tool.name) {
+    case "Bash": {
+      const command = str("command")?.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? "";
+      if (command === "") return "run a command";
+      return `run ${command.length > ALERT_COMMAND_CHARS ? `${command.slice(0, ALERT_COMMAND_CHARS).trimEnd()} and more` : command}`;
+    }
+    case "Edit":
+    case "MultiEdit":
+    case "NotebookEdit": {
+      const name = file() ?? file("notebook_path");
+      return name ? `edit ${name}` : "edit a file";
+    }
+    case "Write": {
+      const name = file();
+      return name ? `write ${name}` : "write a file";
+    }
+    case "Read": {
+      const name = file();
+      return name ? `read ${name}` : "read a file";
+    }
+    case "WebFetch": {
+      const url = str("url");
+      try {
+        return url ? `fetch ${new URL(url).hostname}` : "fetch a page";
+      } catch {
+        return "fetch a page";
+      }
+    }
+    case "WebSearch":
+      return "search the web";
+    case "Task":
+    case "Agent":
+      return "start an agent";
+    default: {
+      const mcp = /^mcp__([^_].*?)__(.+)$/.exec(tool.name);
+      if (mcp) return `use ${mcp[2]?.replace(/_/g, " ")} from ${mcp[1]?.replace(/_/g, " ")}`;
+      return `use ${tool.name}`;
+    }
+  }
+}
+
+export interface AlertInput {
+  /** The Notification's own text, used when no tool call was seen. */
+  message: string;
+  tool: ToolUse | null;
+  project: string | null;
+  at?: Date;
+}
+
+/**
+ * A permission prompt that has been waiting: one sentence, spoken now. The
+ * sentence is the whole turn, lead and all, so there is nothing to skip.
+ * English, like the catch-up lead: it is Readback talking, not the agent.
+ */
+export function alertTurn(input: AlertInput): Turn {
+  const at = input.at ?? new Date();
+  const where = input.project ? `, in ${input.project}` : "";
+  const text = input.tool
+    ? `Claude is waiting for your permission to ${describeToolUse(input.tool)}${where}.`
+    : `${input.message.trim().replace(/[.!]+$/, "") || "Claude is waiting for your permission"}${where}.`;
+  return { id: randomUUID(), at: at.toISOString(), project: input.project, paragraphs: [text], fullFrom: null };
 }
 
 /** How many replies one catch-up reads at most. Older unheard ones are counted in the lead, not read. */
@@ -171,7 +258,7 @@ export function catchUpTurn(input: CatchUpInput): Turn | null {
   const at = input.at ?? new Date();
   const count = covered.length + earlier;
   const lead =
-    `${entryLead(at, null, input.timeZone)} Catching up on ${count} ${count === 1 ? "reply" : "replies"} since ` +
+    `Catching up on ${count} ${count === 1 ? "reply" : "replies"} since ` +
     `${clock(new Date(first.at), input.timeZone)}${earlier > 0 ? `, the last ${covered.length} in detail` : ""}.`;
   const body = input.summary
     ? toParagraphs(plainify(input.summary, input.limits.maxChars))

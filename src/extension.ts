@@ -38,12 +38,14 @@ import type { CodexState, WebCommand } from "./protocol.ts";
 import { checkKey } from "./speechify.ts";
 import { CATCH_UP_BRIEF, condense, findClaude } from "./summary.ts";
 import {
+  alertTurn,
   CATCH_UP_MAX,
   catchUpText,
   catchUpTurn,
   decideMessage,
   makeTurn,
   PROGRESS_MIN_CHARS,
+  projectOf,
   replyParagraphs,
   type Message,
   worthCondensing,
@@ -78,7 +80,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Turns still going, by session and prompt, to the listed turn they grow.
   const openTurns = new Map<string, string>();
-  const live = new LiveTurns((event) => onLive(event, player, openTurns, log));
+  // When each session last got a new prompt: a reply condensed after that is listed, not played.
+  const prompted = new Map<string, number>();
+  const live = new LiveTurns((event) => onLive(event, player, { openTurns, prompted }, log));
   try {
     listener = await startListener(endpointsDir, (payload) => live.accept(payload));
     log.info(`listening on 127.0.0.1:${listener.port}, endpoint ${listener.endpointFile}`);
@@ -165,16 +169,40 @@ function writeHookScript(log: vscode.LogOutputChannel): void {
   }
 }
 
+interface Sessions {
+  /** Turns still going, by session and prompt, to the listed turn they grow. */
+  openTurns: Map<string, string>;
+  /** When each session last got a new prompt. */
+  prompted: Map<string, number>;
+}
+
 /**
- * Something the stream assembler decided: a progress note to read now, or
- * the finished reply. Both are filtered by project first, so another
- * window's turn never shows here.
+ * Something the stream assembler decided: a progress note to read now, the
+ * finished reply, a permission prompt that is waiting, or the person's next
+ * prompt. All are filtered by project first, so another window's turn never
+ * shows here and another project's prompt never stops this one's reading.
  */
-function onLive(event: LiveEvent, player: PlayerView, open: Map<string, string>, log: vscode.LogOutputChannel): void {
+function onLive(event: LiveEvent, player: PlayerView, sessions: Sessions, log: vscode.LogOutputChannel): void {
   const settings = readSettings();
+  const open = sessions.openTurns;
   const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
   if (!relatedToWorkspace(event.cwd, folders)) {
     log.debug(`a turn from ${event.cwd ?? "?"} is not this window's project`);
+    return;
+  }
+  if (event.kind === "prompt") {
+    // The person has moved on: what was being read to them has been read.
+    if (event.session !== null) sessions.prompted.set(event.session, Date.now());
+    log.info(`a new prompt in ${projectOf(event.cwd) ?? "?"}; stopped reading`);
+    player.stop();
+    return;
+  }
+  if (event.kind === "alert") {
+    if (!settings.alerts) return;
+    const turn = alertTurn({ message: event.message, tool: event.tool, project: projectOf(event.cwd) });
+    log.info(`alert: ${turn.paragraphs[0]}`);
+    // Heard by definition: a catch-up should not brief a prompt that has been answered since.
+    void player.push(turn, { urgent: true, heard: true });
     return;
   }
   if (event.kind === "progress") {
@@ -203,7 +231,11 @@ function onLive(event: LiveEvent, player: PlayerView, open: Map<string, string>,
     log.debug(`skipped a payload: ${decision.reason}`);
     return;
   }
-  void speak(decision, listed, player, log);
+  const session = event.key === null ? null : event.key.slice(0, event.key.indexOf("/"));
+  const stoppedAt = Date.now();
+  // Read unless the person types the next prompt while the reply is being condensed.
+  const movedOn = () => session !== null && (sessions.prompted.get(session) ?? 0) > stoppedAt;
+  void speak(decision, listed, movedOn, player, log);
 }
 
 /** A note Claude wrote before a tool call: append it to the turn, or start the turn with it. */
@@ -229,10 +261,16 @@ async function progress(
   await player.push(turn);
 }
 
-/** The finished reply. Condense if we can, then append it to its turn or list it as a new one. */
+/**
+ * The finished reply. Condense if we can, then append it to its turn or
+ * list it as a new one. `movedOn` is asked after the condensing run: a
+ * person who typed the next prompt meanwhile gets the reply listed, not
+ * played.
+ */
 async function speak(
   message: Message,
   listed: string | null,
+  movedOn: () => boolean,
   player: PlayerView,
   log: vscode.LogOutputChannel,
 ): Promise<void> {
@@ -251,9 +289,11 @@ async function speak(
     log.info(`condense ${condensed ? "ok" : "failed"} in ${Date.now() - started} ms`);
     if (!condensed) player.status("");
   }
+  const autoplay = !movedOn();
+  if (!autoplay) log.info("the person has moved on since this reply; listing it without playing");
   if (listed !== null) {
     const { summary, full } = replyParagraphs({ markdown: message.markdown, summary: condensed, limits: settings });
-    if (player.append(listed, [...summary, ...full], summary.length)) {
+    if (player.append(listed, [...summary, ...full], summary.length, autoplay)) {
       log.info(`turn ${listed.slice(0, 8)} finished with ${full.length} paragraphs${summary.length > 0 ? " (condensed)" : ""}`);
       return;
     }
@@ -261,7 +301,7 @@ async function speak(
   const turn = makeTurn({ markdown: message.markdown, summary: condensed, project: message.project, limits: settings });
   if (!turn) return;
   log.info(`turn from ${turn.project ?? "?"}, ${turn.paragraphs.length - 1} paragraphs${turn.fullFrom ? " (condensed)" : ""}`);
-  await player.push(turn);
+  await player.push(turn, { autoplay });
 }
 
 /**

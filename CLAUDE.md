@@ -49,6 +49,21 @@ this repo.
   `last_assistant_message` wins over anything held. A turn is listed on its
   first note and grows; the webview is told what was appended and where,
   never handed a rewritten turn.
+- **A waiting permission prompt is said at once; the next prompt stops the
+  reading.** `Notification` with `permission_prompt` (Claude Code sends it
+  once the prompt has waited about six seconds) becomes a one-sentence
+  turn naming the tool call from the session's last `PreToolUse`, pushed
+  urgent: the player puts whatever was playing back at the front of the
+  queue and plays the alert. It is marked heard, so a catch-up never briefs
+  a prompt answered since. `UserPromptSubmit` stops playback and empties the
+  queue in that project's windows; a reply whose condensing run finishes
+  after the prompt is listed without playing. Both respect the project rule
+  like everything else.
+- **The lead-in is the project name and nothing else.** Every turn of a
+  project shares one render, so the cue plays from the cache within
+  milliseconds; the time is shown in the turn's header, never spoken. A
+  lead with the time in it was a fresh 1.3 to 1.8 s render before the first
+  word of every turn.
 - **Codex is a second source, Stop only.** Its Stop payload carries
   `last_assistant_message`, `session_id` and `cwd` like Claude's, no
   `prompt_id` and no MessageDisplay, so `LiveTurns` sees a keyless Stop
@@ -119,11 +134,15 @@ this repo.
   copied from Soundbites, Speechify's internal notebook (copies, not a
   dependency)
 - `src/protocol.ts` — host/webview messages as discriminated unions
-- `media/player.js`, `media/reader.js`, `media/player.css` — the webview
+- `src/webview/player.ts` — the page: DOM, audio element, panels, voice picker; applies what `Playlist` decides
+- `src/webview/playlist.ts` — what plays next: queue, runs, `fullFrom`, urgent turns, autoplay-off counting, sentence steps; pure and tested
+- `src/webview/reader.ts` — marks → sentence and word spans, the highlight (copied from Soundbites)
+- `media/player.js` — the bundled page script, built from `src/webview/` by esbuild, not committed
+- `media/player.css` — the webview's stylesheet
 - `media/codicons/` — copied from `@vscode/codicons` by the build, not committed
 
 ## Commands
 
-- `npm run typecheck` / `npm test` / `npm run build`
+- `npm run typecheck` (both configs: `tsconfig.json` for the host, `tsconfig.webview.json` with the DOM lib for `src/webview/`) / `npm test` / `npm run build`
 - `npm run package` — runs all three then `vsce package`
 - `code --install-extension readback-<version>.vsix` to try it here

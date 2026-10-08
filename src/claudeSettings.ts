@@ -19,10 +19,13 @@ export function hookScriptName(platform: string = process.platform): string {
  * MessageDisplay carries each assistant message as its lines complete, which
  * is how the notes Claude writes between tool calls can be read before the
  * turn ends. PreToolUse is what tells a note from the reply: it follows a
- * note, Stop follows the reply. All run the same script; the extension
- * tells them apart.
+ * note, Stop follows the reply; it also names the tool a permission prompt
+ * is about. Notification says a permission prompt has gone unanswered for
+ * a few seconds. UserPromptSubmit says the person has moved on, so what was
+ * being read can stop. All run the same script; the extension tells them
+ * apart.
  */
-export const HOOK_EVENTS = ["Stop", "MessageDisplay", "PreToolUse"] as const;
+export const HOOK_EVENTS = ["Stop", "MessageDisplay", "PreToolUse", "Notification", "UserPromptSubmit"] as const;
 
 /**
  * Which agent's hooks file an entry is for. Codex CLI (`~/.codex/hooks.json`)
@@ -189,8 +192,8 @@ export function withoutHook(settings: ClaudeSettings, scriptPath: string, target
 export function hookScript(endpointsDir: string, platform: string = process.platform): string {
   if (platform === "win32") return powershellHook(endpointsDir);
   return `#!/bin/sh
-# Readback: Claude Code and Codex hook (Stop, MessageDisplay, PreToolUse). Installed by
-# the Readback VS Code extension; edits are overwritten on its next activation.
+# Readback: Claude Code and Codex hook. Installed by the Readback VS Code
+# extension; edits are overwritten on its next activation.
 # Readback condenses replies by running claude itself. That run carries this
 # marker, and a hook that sees it does nothing, so a reply about a reply can
 # never be read.
@@ -220,8 +223,8 @@ function shellQuote(value: string): string {
  * Windows machine as of 2026-09-22; see RUNBOOK.
  */
 function powershellHook(endpointsDir: string): string {
-  return `# Readback: Claude Code and Codex hook (Stop, MessageDisplay, PreToolUse). Installed by
-# the Readback VS Code extension; edits are overwritten on its next activation.
+  return `# Readback: Claude Code and Codex hook. Installed by the Readback VS Code
+# extension; edits are overwritten on its next activation.
 # Readback condenses replies by running claude itself. That run carries this
 # marker, and a hook that sees it does nothing, so a reply about a reply can
 # never be read.

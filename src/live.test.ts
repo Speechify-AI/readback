@@ -99,7 +99,7 @@ describe("LiveTurns", () => {
     live.accept(tool());
     live.accept(display({ message_id: "m3", index: 0, delta: "Done.", final: true }));
     live.accept(stop({ last_assistant_message: "Done." }));
-    expect(events.map((e) => [e.kind, e.kind === "final" ? e.readAsProgress : e.via])).toEqual([
+    expect(events.map((e) => [e.kind, e.kind === "final" ? e.readAsProgress : e.kind === "progress" ? e.via : null])).toEqual([
       ["progress", "tool"],
       ["progress", "tool"],
       ["final", false],
@@ -144,6 +144,40 @@ describe("LiveTurns", () => {
     expect(events).toEqual([expect.objectContaining({ kind: "final", markdown: "Held." })]);
   });
 
+  it("says a permission prompt is waiting, with the tool call it is about", () => {
+    const { events, live } = setup();
+    live.accept(display({ message_id: "m1", index: 0, delta: "Installing the dependencies.", final: true }));
+    live.accept(tool({ tool_input: { command: "npm install" } }));
+    live.accept({ hook_event_name: "Notification", ...session, message: "Claude needs your permission to use Bash", title: "Permission needed", notification_type: "permission_prompt" });
+    expect(events[1]).toEqual({
+      kind: "alert",
+      session: "s1",
+      cwd: "/Users/me/code/app",
+      message: "Claude needs your permission to use Bash",
+      tool: { name: "Bash", input: { command: "npm install" } },
+    });
+    // The tool is per session: another session's prompt knows nothing of it.
+    live.accept({ hook_event_name: "Notification", session_id: "s2", cwd: "/x", message: "Claude needs your permission", notification_type: "permission_prompt" });
+    expect(events[2]).toEqual({ kind: "alert", session: "s2", cwd: "/x", message: "Claude needs your permission", tool: null });
+    // Other notifications are not alerts.
+    live.accept({ hook_event_name: "Notification", ...session, message: "Claude is waiting for your input", notification_type: "idle_prompt" });
+    expect(events).toHaveLength(3);
+  });
+
+  it("remembers the latest tool call of a session", () => {
+    const { events, live } = setup();
+    live.accept(tool({ tool_input: { command: "ls" } }));
+    live.accept(tool({ tool_name: "Edit", tool_input: { file_path: "/a/b.ts" } }));
+    live.accept({ hook_event_name: "Notification", ...session, message: "", notification_type: "permission_prompt" });
+    expect(events[0]).toEqual(expect.objectContaining({ kind: "alert", tool: { name: "Edit", input: { file_path: "/a/b.ts" } } }));
+  });
+
+  it("passes a new prompt through with its session and cwd", () => {
+    const { events, live } = setup();
+    live.accept({ hook_event_name: "UserPromptSubmit", ...session, prompt: "Now fix the tests" });
+    expect(events).toEqual([{ kind: "prompt", session: "s1", cwd: "/Users/me/code/app" }]);
+  });
+
   it("ignores other events, a tool call with nothing held, blank messages and payloads missing their ids", () => {
     const { events, clock, live } = setup();
     live.accept({ hook_event_name: "PostToolUse", ...session, tool_name: "Bash" });
@@ -164,7 +198,7 @@ describe("LiveTurns", () => {
     live.accept(tool({ session_id: "s3" }));
     expect(events).toHaveLength(1);
     clock.fire();
-    expect(events.map((e) => [e.kind, e.key])).toEqual([
+    expect(events.map((e) => [e.kind, "key" in e ? e.key : null])).toEqual([
       ["final", "s2/p1"],
       ["progress", "s1/p1"],
     ]);

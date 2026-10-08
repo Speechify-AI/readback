@@ -1,5 +1,5 @@
-// Bundles the extension host entry. The webview scripts in media/ are plain
-// JS served as-is, and the hook is a shell script written at activation.
+// Bundles the extension host entry and the webview page script. The hook is
+// a shell script written at activation, not built.
 import { build, context } from "esbuild";
 import { copyFileSync, mkdirSync } from "node:fs";
 
@@ -9,7 +9,7 @@ for (const f of ["codicon.css", "codicon.ttf"]) {
   copyFileSync(`node_modules/@vscode/codicons/dist/${f}`, `media/codicons/${f}`);
 }
 
-const options = {
+const host = {
   entryPoints: ["src/extension.ts"],
   bundle: true,
   outfile: "dist/extension.js",
@@ -21,9 +21,20 @@ const options = {
   logLevel: "info",
 };
 
+// The page: one module, served from media/ next to its stylesheet.
+const page = {
+  entryPoints: ["src/webview/player.ts"],
+  bundle: true,
+  outfile: "media/player.js",
+  platform: "browser",
+  format: "esm",
+  target: "es2022",
+  logLevel: "info",
+};
+
 if (process.argv.includes("--watch")) {
-  const ctx = await context(options);
-  await ctx.watch();
+  const contexts = await Promise.all([context(host), context(page)]);
+  await Promise.all(contexts.map((ctx) => ctx.watch()));
 } else {
-  await build(options);
+  await Promise.all([build(host), build(page)]);
 }

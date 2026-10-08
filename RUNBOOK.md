@@ -4,8 +4,12 @@ Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
 ## Status (2026-10-08)
 
-**0.6.0 packaged and installed here, not yet uploaded; 0.5.0 is on the VS
-Code Marketplace.** 0.6.0 adds non-English voices on simba-3.0 and the
+**Uncommitted on main, built and unit-tested, not yet heard: permission
+alerts, stop on the next prompt, the one-word lead-in, and the webview in
+TypeScript** (see Verified, 2026-10-08, second block, and Open). The hook
+now registers five events, so an installed 0.6.0 shows the "Install the
+hook" card again until it is pressed once. **0.6.0 packaged and installed
+here, not yet uploaded; 0.5.0 is on the VS Code Marketplace.** 0.6.0 adds non-English voices on simba-3.0 and the
 default voice from Claude Code's `language`; see Verified, 2026-10-08. It
 carries 0.5.1, which was never uploaded: the condense run that answered
 the brief, condensing on Sonnet, short replies read as they stand
@@ -23,7 +27,7 @@ under Verified.
 | License | MIT |
 | Marketplace publisher | `speechify`, created 2026-09-10 under shaun.trennery@gmail.com (Microsoft account); <https://marketplace.visualstudio.com/manage/publishers/speechify>. Domain `speechify.com` saved but not verified; no second member yet. |
 | Model / default voice | `simba-3.2` / `harper_32` |
-| Hook script | `~/.readback/hook.sh` (`hook.ps1` on Windows), written on activation, registered under `Stop`, `MessageDisplay` and `PreToolUse` in `~/.claude/settings.json`; under `Stop` only in `~/.codex/hooks.json` when the Codex hook is installed |
+| Hook script | `~/.readback/hook.sh` (`hook.ps1` on Windows), written on activation, registered under `Stop`, `MessageDisplay`, `PreToolUse`, `Notification` and `UserPromptSubmit` in `~/.claude/settings.json`; under `Stop` only in `~/.codex/hooks.json` when the Codex hook is installed |
 | Endpoint files | `~/.readback/endpoints/<pid>` holding `port token` |
 | Render cache | `<globalStorage>/speechify.readback/cache/<model>/<voice>/<sha256>.{mp3,json}` |
 | API key | VS Code SecretStorage, key `readback.speechifyApiKey` |
@@ -196,8 +200,48 @@ the tier shape you want and I'll apply it in Atlas".
   replies through `CATCH_UP_BRIEF`, whose headers are English: English 3
   of 3 without the clause, Spanish 3 of 3 with it.
 
+## Verified on 2026-10-08, later
+
+- **Hook payloads for the two new events**, from the 2.1.294 binary's
+  schemas and the hooks page (<https://code.claude.com/docs/en/hooks>,
+  read 2026-10-08). `Notification`: `message`, optional `title`,
+  `notification_type`, plus the common fields (`session_id`, `cwd`,
+  `prompt_id`). `permission_prompt` fires when "Claude needs you to approve
+  a tool use or a sandboxed command's network request, and the prompt has
+  waited about six seconds"; its message is "Claude needs your permission
+  to use <tool>". Other types (`idle_prompt`, `auth_success`, the
+  elicitation and quota ones) are ignored. `UserPromptSubmit`: `prompt`,
+  optional `source` and `session_title`, plus the common fields.
+  `PreToolUse` carries `tool_name` and `tool_input` and runs before the
+  permission flow, so the session's last one is the call the prompt is
+  about. None of this has fired through the player yet.
+- **Lead-in render times**, from the Readback logs on this machine: a lead
+  ("14:32, readback.") rendered live in 1,294 to 1,781 ms across 11 turns
+  and in 8 ms the one time it was cached. The first content paragraph
+  rendered in 1,840 to 5,573 ms alongside it. The lead is now the project
+  name alone, so it is cached after the first turn of a project.
+- 138 unit tests, 11 of them on `src/webview/playlist.ts` (queue order,
+  runs stopping at `fullFrom`, growth, urgent turns, autoplay off, stop)
+  and 2 on sentence stepping. The page script is bundled from
+  `src/webview/` by esbuild into `media/player.js`, which is no longer
+  committed; `npm run typecheck` checks it against the DOM lib through
+  `tsconfig.webview.json`.
+
 ## Open
 
+- **The four changes of 2026-10-08 through the player.** Install the
+  package, reload, press "Install the hook" (the card is back: two events
+  were added), click once for sound, then: (1) start a turn and expect the
+  lead to play from the cache ("rendered …#0 … in 8 ms" from the second
+  turn of a project on) with the time shown in the header; (2) run a turn
+  that asks permission for a Bash command and do not answer for ten
+  seconds, expect "alert: Claude is waiting for your permission to run …"
+  in the log and the sentence spoken over whatever was playing, which then
+  resumes; (3) type the next prompt while a reply is being read, expect "a
+  new prompt in …; stopped reading" and silence, and a reply condensed
+  after that listed without playing; (4) the transport, the full-reply
+  section, the voice picker and samples behave as before, since the page
+  was ported.
 - **Non-English on a live key: verified 2026-10-08.** The catalogue grew
   from 131 to 1,059 voices once non-English ones were listed. `aitana`
   rendered on `simba-3.0 (es-MX)`, English and Spanish text, highlight
@@ -265,7 +309,7 @@ code --install-extension readback-0.6.0.vsix
 
 If `code` on PATH is Cursor's shim, the VS Code binary is
 `/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code`.
-Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only; 0.4.1 the settings panel gains an API key row (status, change, link to the keys page) and an "All Readback settings" link into the filtered Settings editor. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false). Until 2026-09-22 they were also the only voices whose speech marks reached the last word; stock voices are fine again since then; 0.5.0 catch-up (history button and command, focus-based heard rule, `CATCH_UP_BRIEF`), Codex CLI as a Stop-only second source (settings panel row, two commands), Windows hook (PowerShell, exec form), the Featured hint reads "Trained for this model"; 0.5.1 the condensing run reads the reply fenced and must answer inside `spoken` tags (a 0.5.0 run answered the brief instead of condensing), condensing moved from Haiku to Sonnet, replies under 500 characters are read as they stand, TypeScript 7 and vsce 4. 0.6.0 non-English voices: the model follows the voice (English on `readback.model`, the rest on `simba-3.0`) and `language` is sent from the voice's locale; Claude Code's `language` setting picks the default voice and the picker says when they disagree; condensing answers in the reply's language; the lead-in drops "in".
+Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only; 0.4.1 the settings panel gains an API key row (status, change, link to the keys page) and an "All Readback settings" link into the filtered Settings editor. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false). Until 2026-09-22 they were also the only voices whose speech marks reached the last word; stock voices are fine again since then; 0.5.0 catch-up (history button and command, focus-based heard rule, `CATCH_UP_BRIEF`), Codex CLI as a Stop-only second source (settings panel row, two commands), Windows hook (PowerShell, exec form), the Featured hint reads "Trained for this model"; 0.5.1 the condensing run reads the reply fenced and must answer inside `spoken` tags (a 0.5.0 run answered the brief instead of condensing), condensing moved from Haiku to Sonnet, replies under 500 characters are read as they stand, TypeScript 7 and vsce 4. 0.6.0 non-English voices: the model follows the voice (English on `readback.model`, the rest on `simba-3.0`) and `language` is sent from the voice's locale; Claude Code's `language` setting picks the default voice and the picker says when they disagree; condensing answers in the reply's language; the lead-in drops "in". Unreleased after 0.6.0: permission alerts (`Notification` hook, `readback.alerts`), stop on `UserPromptSubmit`, the lead-in is the project name alone with the time shown in the header, the webview moved to `src/webview/` in TypeScript with the play order in a tested `Playlist`.
 
 Reload VS Code, open the Readback view in the activity bar, set the key,
 install the hook, then run a Claude Code turn in the integrated terminal.

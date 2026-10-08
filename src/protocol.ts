@@ -5,7 +5,8 @@ import type { Turn } from "./turns.ts";
 
 export type HostMessage =
   | { kind: "state"; keyOk: boolean; voice: string; speed: number; autoplay: boolean; hookInstalled: boolean; codex: CodexState }
-  | { kind: "turn"; turn: Turn; autoplay: boolean }
+  /** A new turn. `urgent` plays it now, ahead of whatever is playing or queued: an alert, not a reply. */
+  | { kind: "turn"; turn: Turn; autoplay: boolean; urgent?: boolean }
   /** More paragraphs for a listed turn, starting at index `from`. `fullFrom` is the turn's new value. */
   | { kind: "append"; turnId: string; from: number; paragraphs: string[]; fullFrom: number | null; autoplay: boolean }
   | { kind: "audio"; turnId: string; index: number; audio: string; marks: Mark[]; durationMs: number }

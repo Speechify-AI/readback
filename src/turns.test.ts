@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { catchUpText, catchUpTurn, CONDENSE_MIN_CHARS, decideMessage, makeTurn, messageFromStop, replyParagraphs, worthCondensing, type Turn } from "./turns.ts";
+import {
+  alertTurn,
+  catchUpText,
+  catchUpTurn,
+  CONDENSE_MIN_CHARS,
+  decideMessage,
+  describeToolUse,
+  makeTurn,
+  messageFromStop,
+  replyParagraphs,
+  worthCondensing,
+  type Turn,
+} from "./turns.ts";
 
 const limits = { minChars: 20, maxChars: 4000 };
 const at = new Date("2026-09-10T14:32:00");
@@ -47,13 +59,14 @@ describe("replyParagraphs", () => {
 describe("makeTurn", () => {
   it("puts the lead, the summary, then the full reply in one list", () => {
     const t = makeTurn({ markdown: "Fixed it.\n\nTests pass.", summary: "The bug was fixed and tests pass.", project: "customers", limits, at });
-    expect(t?.paragraphs).toEqual(["14:32, customers.", "The bug was fixed and tests pass.", "Fixed it.", "Tests pass."]);
+    expect(t?.paragraphs).toEqual(["customers.", "The bug was fixed and tests pass.", "Fixed it.", "Tests pass."]);
+    expect(t?.at).toBe(at.toISOString());
     expect(t?.fullFrom).toBe(2);
   });
 
   it("has no fullFrom without a summary", () => {
     const t = makeTurn({ markdown: "Fixed it.", summary: null, project: null, limits, at });
-    expect(t?.paragraphs).toEqual(["14:32.", "Fixed it."]);
+    expect(t?.paragraphs).toEqual(["Readback.", "Fixed it."]);
     expect(t?.fullFrom).toBeNull();
   });
 
@@ -65,7 +78,7 @@ describe("makeTurn", () => {
   });
 
   it("returns null for nothing to say", () => {
-    expect(makeTurn({ markdown: "```\ncode\n```", project: null, limits, at })?.paragraphs).toEqual(["14:32.", "Code omitted."]);
+    expect(makeTurn({ markdown: "```\ncode\n```", project: null, limits, at })?.paragraphs).toEqual(["Readback.", "Code omitted."]);
     expect(makeTurn({ markdown: "   ", project: null, limits, at })).toBeNull();
   });
 });
@@ -92,7 +105,7 @@ describe("catch-up", () => {
     id: "t",
     at: "2026-09-22T13:50:00Z",
     project: "customers",
-    paragraphs: ["13:50, customers.", "Fixed it.", "Tests pass."],
+    paragraphs: ["customers.", "Fixed it.", "Tests pass."],
     fullFrom: null,
     ...over,
   });
@@ -100,7 +113,7 @@ describe("catch-up", () => {
     id: "c",
     at: "2026-09-22T14:05:00Z",
     project: "readback",
-    paragraphs: ["14:05, readback.", "Looking at the hook first.", "The hook was rewritten.", "Rewrote the hook.", "Windows next."],
+    paragraphs: ["readback.", "Looking at the hook first.", "The hook was rewritten.", "Rewrote the hook.", "Windows next."],
     fullFrom: 3,
   });
 
@@ -114,7 +127,7 @@ describe("catch-up", () => {
 
   it("briefs with the summary and counts the replies it covers", () => {
     const turn = catchUpTurn({ covered: [listed({}), condensed], earlier: 0, summary: "Two things landed. Windows is next.", limits, at, timeZone: tz });
-    expect(turn?.paragraphs).toEqual(["14:32. Catching up on 2 replies since 13:50.", "Two things landed. Windows is next."]);
+    expect(turn?.paragraphs).toEqual(["Catching up on 2 replies since 13:50.", "Two things landed. Windows is next."]);
     expect(turn?.fullFrom).toBeNull();
     expect(turn?.project).toBeNull();
   });
@@ -122,15 +135,52 @@ describe("catch-up", () => {
   it("without a summary reads each reply's own spoken part after its lead", () => {
     const turn = catchUpTurn({ covered: [listed({}), condensed], earlier: 0, summary: null, limits, at, timeZone: tz });
     expect(turn?.paragraphs).toEqual([
-      "14:32. Catching up on 2 replies since 13:50.",
-      "13:50, customers.", "Fixed it.", "Tests pass.",
-      "14:05, readback.", "Looking at the hook first.", "The hook was rewritten.",
+      "Catching up on 2 replies since 13:50.",
+      "customers.", "Fixed it.", "Tests pass.",
+      "readback.", "Looking at the hook first.", "The hook was rewritten.",
     ]);
   });
 
   it("mentions the replies it does not read", () => {
     const turn = catchUpTurn({ covered: [listed({})], earlier: 3, summary: "One thing.", limits, at, timeZone: tz });
-    expect(turn?.paragraphs[0]).toBe("14:32. Catching up on 4 replies since 13:50, the last 1 in detail.");
+    expect(turn?.paragraphs[0]).toBe("Catching up on 4 replies since 13:50, the last 1 in detail.");
     expect(catchUpTurn({ covered: [], earlier: 0, summary: null, limits, at })).toBeNull();
+  });
+});
+
+describe("describeToolUse", () => {
+  it("reads a command's first line, cut when it is long", () => {
+    expect(describeToolUse({ name: "Bash", input: { command: "npm install\nnpm test" } })).toBe("run npm install");
+    expect(describeToolUse({ name: "Bash", input: { command: "  \n  git push origin main  " } })).toBe("run git push origin main");
+    const long = describeToolUse({ name: "Bash", input: { command: "x".repeat(300) } });
+    expect(long).toBe(`run ${"x".repeat(120)} and more`);
+    expect(describeToolUse({ name: "Bash", input: {} })).toBe("run a command");
+  });
+
+  it("names files, hosts and MCP tools", () => {
+    expect(describeToolUse({ name: "Edit", input: { file_path: "/Users/me/code/src/marks.ts" } })).toBe("edit marks.ts");
+    expect(describeToolUse({ name: "Write", input: { file_path: "C:\\code\\hook.ps1" } })).toBe("write hook.ps1");
+    expect(describeToolUse({ name: "Read", input: {} })).toBe("read a file");
+    expect(describeToolUse({ name: "WebFetch", input: { url: "https://code.claude.com/docs/en/hooks" } })).toBe("fetch code.claude.com");
+    expect(describeToolUse({ name: "WebFetch", input: { url: "not a url" } })).toBe("fetch a page");
+    expect(describeToolUse({ name: "mcp__chrome_devtools__take_screenshot", input: {} })).toBe("use take screenshot from chrome devtools");
+    expect(describeToolUse({ name: "Glob", input: "nonsense" })).toBe("use Glob");
+  });
+});
+
+describe("alertTurn", () => {
+  it("is one spoken sentence naming the tool call and the project", () => {
+    const turn = alertTurn({ message: "Claude needs your permission to use Bash", tool: { name: "Bash", input: { command: "npm install" } }, project: "readback", at });
+    expect(turn.paragraphs).toEqual(["Claude is waiting for your permission to run npm install, in readback."]);
+    expect(turn.fullFrom).toBeNull();
+    expect(turn.project).toBe("readback");
+    expect(turn.at).toBe(at.toISOString());
+  });
+
+  it("falls back to the notification's own words when no tool call was seen", () => {
+    expect(alertTurn({ message: "Claude needs your permission to use Bash.", tool: null, project: null, at }).paragraphs).toEqual([
+      "Claude needs your permission to use Bash.",
+    ]);
+    expect(alertTurn({ message: "", tool: null, project: "app", at }).paragraphs).toEqual(["Claude is waiting for your permission, in app."]);
   });
 });

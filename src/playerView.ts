@@ -50,8 +50,8 @@ export class PlayerView implements vscode.WebviewViewProvider {
   private inFlight = new Map<string, Promise<void>>();
   /** The page has loaded and said so. Before that, posts are dropped by VS Code. */
   private ready = false;
-  /** Turns pushed while the page was not ready; they autoplay on arrival. */
-  private awaiting = new Set<string>();
+  /** Turns pushed while the page was not ready; they autoplay on arrival, urgent ones ahead of the rest. */
+  private awaiting = new Map<string, { urgent: boolean }>();
   private voices: { at: number; scope: string; list: Voice[] } | null = null;
   /** A catalogue fetch under way, shared by everything that asks meanwhile. */
   private fetchingVoices: { scope: string; job: Promise<Voice[]> } | null = null;
@@ -87,7 +87,9 @@ export class PlayerView implements vscode.WebviewViewProvider {
           // Oldest first so the newest lands on top. A turn that arrived
           // while the page was loading still autoplays; the rest are history.
           for (const turn of this.turns) {
-            this.post({ kind: "turn", turn, autoplay: this.awaiting.delete(turn.id) });
+            const pending = this.awaiting.get(turn.id);
+            this.awaiting.delete(turn.id);
+            this.post({ kind: "turn", turn, autoplay: pending !== undefined, urgent: pending?.urgent === true });
           }
           if (this.showVoicesWhenReady) {
             this.showVoicesWhenReady = false;
@@ -141,8 +143,13 @@ export class PlayerView implements vscode.WebviewViewProvider {
     });
   }
 
-  /** A new turn to read. Reveals the view once so its audio element exists. A catch-up is heard by definition. */
-  async push(turn: Turn, opts: { heard?: boolean } = {}): Promise<void> {
+  /**
+   * A new turn to read. Reveals the view once so its audio element exists.
+   * A catch-up is heard by definition. An urgent turn (an alert) plays
+   * ahead of whatever is playing or queued. With `autoplay` off the turn is
+   * listed and waits: the person has moved on since it ended.
+   */
+  async push(turn: Turn, opts: { heard?: boolean; urgent?: boolean; autoplay?: boolean } = {}): Promise<void> {
     this.turns.push(turn);
     if (opts.heard) this.heard.add(turn.id);
     if (this.turns.length > KEEP_TURNS) {
@@ -150,12 +157,16 @@ export class PlayerView implements vscode.WebviewViewProvider {
       for (const id of this.heard) if (!this.turns.some((t) => t.id === id)) this.heard.delete(id);
     }
     if (this.ready) {
-      this.post({ kind: "turn", turn, autoplay: true });
+      this.post({ kind: "turn", turn, autoplay: opts.autoplay !== false, urgent: opts.urgent === true });
+      return;
+    }
+    if (opts.autoplay === false) {
+      this.log.info(`player not ready; turn ${turn.id.slice(0, 8)} will be listed when it is`);
       return;
     }
     // The page will ask for its turns when it has loaded; mark this one to
     // autoplay then. Revealing the view is what creates the page.
-    this.awaiting.add(turn.id);
+    this.awaiting.set(turn.id, { urgent: opts.urgent === true });
     this.log.info(`player not ready; revealing the view for turn ${turn.id.slice(0, 8)}`);
     await vscode.commands.executeCommand(`${PlayerView.viewId}.focus`);
   }
@@ -165,9 +176,10 @@ export class PlayerView implements vscode.WebviewViewProvider {
    * the finished reply. The first `summaryCount` paragraphs are the condensed
    * reply; what follows them is the full reply, which plays only when asked,
    * as in `push`. False when the turn is no longer listed, so the caller
-   * starts a new one instead.
+   * starts a new one instead. With `autoplay` off the paragraphs are listed
+   * and wait: the person has moved on since this turn ended.
    */
-  append(turnId: string, paragraphs: string[], summaryCount: number): boolean {
+  append(turnId: string, paragraphs: string[], summaryCount: number, autoplay = true): boolean {
     const turn = this.turns.find((t) => t.id === turnId);
     if (!turn) return false;
     if (paragraphs.length === 0) return true;
@@ -175,10 +187,10 @@ export class PlayerView implements vscode.WebviewViewProvider {
     if (summaryCount > 0) turn.fullFrom = from + summaryCount;
     turn.paragraphs.push(...paragraphs);
     if (this.ready) {
-      this.post({ kind: "append", turnId, from, paragraphs, fullFrom: turn.fullFrom, autoplay: true });
-    } else {
+      this.post({ kind: "append", turnId, from, paragraphs, fullFrom: turn.fullFrom, autoplay });
+    } else if (autoplay) {
       // The page gets the whole turn when it loads; make sure it autoplays then.
-      this.awaiting.add(turnId);
+      if (!this.awaiting.has(turnId)) this.awaiting.set(turnId, { urgent: false });
     }
     return true;
   }
@@ -192,7 +204,9 @@ export class PlayerView implements vscode.WebviewViewProvider {
     for (const id of ids) this.heard.add(id);
   }
 
+  /** Stop playing and drop the queue, including turns that were going to autoplay once the page loaded. */
   stop(): void {
+    this.awaiting.clear();
     this.post({ kind: "stop" });
   }
 

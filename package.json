@@ -135,6 +135,11 @@
           "default": true,
           "description": "Read the notes Claude writes between tool calls as they arrive. Off: only the finished reply is read."
         },
+        "readback.alerts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Say when Claude has been waiting for your permission for a few seconds, ahead of whatever is playing. Off: permission prompts are not read."
+        },
         "readback.summarize": {
           "type": "string",
           "enum": [
@@ -169,7 +174,7 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.webview.json",
     "test": "vitest run",
     "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies"
   },

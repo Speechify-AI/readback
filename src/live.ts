@@ -18,15 +18,28 @@
  * Text is the truth: at Stop, `last_assistant_message` wins over whatever was
  * held, and a held message the hook never confirmed is dropped in its favour.
  *
+ * Two events are about the person rather than the reply. Notification with
+ * `permission_prompt` means a permission prompt has waited about six seconds
+ * unanswered (Claude Code's own threshold); the last PreToolUse of that
+ * session names the tool it is about, so the alert can say what Claude
+ * wants to do. UserPromptSubmit means the person has typed the next prompt:
+ * whatever was being read to them has been read.
+ *
  * Pure apart from the timers and the clock, which are injected so tests
  * need neither.
  */
+
+import type { ToolUse } from "./turns.ts";
 
 /** What released a held message as a progress note. */
 export type Released = "tool" | "message" | "timeout";
 
 export type LiveEvent =
   | { kind: "progress"; key: string; markdown: string; cwd: string | null; via: Released; heldMs: number }
+  /** A permission prompt has been waiting. `tool` is the call it is about, when PreToolUse named one. */
+  | { kind: "alert"; session: string | null; cwd: string | null; message: string; tool: ToolUse | null }
+  /** The person submitted the next prompt. */
+  | { kind: "prompt"; session: string | null; cwd: string | null }
   | {
       kind: "final";
       key: string | null;
@@ -71,6 +84,10 @@ function cwdOf(payload: Payload): string | null {
   return typeof payload.cwd === "string" ? payload.cwd : null;
 }
 
+function sessionOf(payload: Payload): string | null {
+  return typeof payload.session_id === "string" ? payload.session_id : null;
+}
+
 interface Held {
   markdown: string;
   cwd: string | null;
@@ -85,6 +102,8 @@ export class LiveTurns {
   private held = new Map<string, Held>();
   /** The last note read per turn, so Stop can tell when the reply was already heard. */
   private lastRead = new Map<string, string>();
+  /** The last tool call per session: what a permission prompt that follows is about. */
+  private lastTool = new Map<string, ToolUse>();
 
   constructor(
     private readonly emit: (event: LiveEvent) => void,
@@ -93,7 +112,7 @@ export class LiveTurns {
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** A hook payload, of any event. Only MessageDisplay, PreToolUse and Stop do anything. */
+  /** A hook payload, of any event. MessageDisplay, PreToolUse, Notification, UserPromptSubmit and Stop do something; the rest are ignored. */
   accept(payload: unknown): void {
     if (typeof payload !== "object" || payload === null) return;
     const p = payload as Payload;
@@ -104,8 +123,24 @@ export class LiveTurns {
       case "PreToolUse": {
         const key = turnKey(p);
         if (key !== null) this.release(key, "tool");
+        this.rememberTool(p);
         return;
       }
+      case "Notification":
+        if (p.notification_type === "permission_prompt") {
+          const session = sessionOf(p);
+          this.emit({
+            kind: "alert",
+            session,
+            cwd: cwdOf(p),
+            message: typeof p.message === "string" ? p.message : "",
+            tool: session === null ? null : this.lastTool.get(session) ?? null,
+          });
+        }
+        return;
+      case "UserPromptSubmit":
+        this.emit({ kind: "prompt", session: sessionOf(p), cwd: cwdOf(p) });
+        return;
       // A payload without an event name is taken as Stop, as before.
       case "Stop":
       case undefined:
@@ -136,6 +171,17 @@ export class LiveTurns {
     this.release(key, "message");
     const timer = this.timers.set(() => this.release(key, "timeout"), this.graceMs);
     this.held.set(key, { markdown: text, cwd: cwdOf(p), timer, since: this.now() });
+  }
+
+  private rememberTool(p: Payload): void {
+    const session = sessionOf(p);
+    if (session === null || typeof p.tool_name !== "string") return;
+    this.lastTool.delete(session);
+    this.lastTool.set(session, { name: p.tool_name, input: p.tool_input });
+    if (this.lastTool.size > MAX_PARTIAL) {
+      const oldest = this.lastTool.keys().next().value;
+      if (oldest !== undefined) this.lastTool.delete(oldest);
+    }
   }
 
   /** Read a held message as a progress note. */

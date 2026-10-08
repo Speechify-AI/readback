@@ -139,6 +139,13 @@ button.action:hover { background: var(--vscode-button-hoverBackground); }
   gap: 6px;
   margin-bottom: 4px;
 }
+.turn-head time {
+  flex: none;
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.8;
+}
 .turn-head .para.lead {
   flex: 1;
   margin: 0;
