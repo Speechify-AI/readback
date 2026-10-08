@@ -168,7 +168,45 @@ the tier shape you want and I'll apply it in Atlas".
 - None of this has been heard through the player. The checks were unit
   tests and direct runs of `condense`.
 
+## Verified on 2026-10-08 (unreleased)
+
+- **Non-English voices.** Speechify's language-support guide and the
+  `/v1/audio/speech` reference (read 2026-10-08): `simba-3.2` is English
+  only and answers 400 for a non-English voice; `simba-3.0` speaks en,
+  de-DE, es-ES, es-MX, fr-FR, it-IT, pt-BR; `language` is optional,
+  `es-ES` form, and when omitted the voice's locale is used. So until now
+  the picker listed English voices only. The model now follows the voice
+  (`modelFor`): English or no locale on `readback.model`, anything else on
+  `simba-3.0`, and `language` is sent from the voice's locale
+  (`languageFor`). The lead-in dropped "in" ("14:32, readback.") so it
+  reads in any language; the catch-up lead is still English.
+- **Claude Code's `language` setting** ("Preferred language for Claude
+  responses and voice dictation", free text such as `"spanish"`, in the
+  2.1.294 binary's settings schema) is read from `~/.claude/settings.json`
+  and each folder's `.claude/settings.json` and `settings.local.json`,
+  later wins. Mapped to the six simba-3.0 languages (`languageCode`). While
+  `readback.voice` is unset in every scope, a non-English value picks the
+  first stock voice in that language; nothing is written. The picker puts
+  that language first and says so when the current voice speaks another.
+  The hint was seen live with `"language": "spanish"` and `geffen_32`.
+- **Condensing keeps the reply's language** (Sonnet, the flags in
+  `src/summary.ts`, 3 runs per brief). A Spanish reply through `BRIEF`:
+  Spanish 3 of 3 with or without the new language clause. Two Spanish
+  replies through `CATCH_UP_BRIEF`, whose headers are English: English 3
+  of 3 without the clause, Spanish 3 of 3 with it.
+
 ## Open
+
+- **Non-English on a live key: verified 2026-10-08.** The catalogue grew
+  from 131 to 1,059 voices once non-English ones were listed. `aitana`
+  rendered on `simba-3.0 (es-MX)`, English and Spanish text, highlight
+  followed to the end by eye. `geffen_32` rendered on `simba-3.2 (en-US)`,
+  so the language field is accepted there. Not yet measured: the last
+  mark's end against the text's length on `simba-3.0`.
+- **The default voice from Claude's `language`** has not run live: unset
+  `readback.voice` in every scope, set `"language": "spanish"`, play a
+  turn, expect `on simba-3.0 (es-…)` in the log.
+- The log line "N voices for simba-3.2" now counts voices on both models.
 
 - **Speech marks on cloned voices.** Stock off-roster voices are fine
   again (see Verified, 2026-09-22). Render one sentence on a personal

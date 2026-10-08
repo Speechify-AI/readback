@@ -23,12 +23,12 @@ import { posix, win32 } from "node:path";
 export const BRIEF =
   "Condense this finished coding-agent reply for someone hearing it read aloud a moment after it landed, possibly away from the screen. " +
   "One to three short sentences of plain prose: what was done, and what is still open or needs their decision, if anything. " +
-  "Past tense. No markdown, lists, code, links, file paths, hashes or version ids unless a sentence makes no sense without them.";
+  "Past tense, in the language the reply is written in. No markdown, lists, code, links, file paths, hashes or version ids unless a sentence makes no sense without them.";
 
 export const CATCH_UP_BRIEF =
   "These are the replies a coding agent finished while the person was away from the screen, oldest first, each headed by its time and project. " +
   "Brief them in three to six short sentences of plain prose for someone hearing it read aloud: what landed, what is still open, and what waits on their decision. " +
-  "Group by project when there is more than one. Past tense. " +
+  "Group by project when there is more than one. Past tense, in the language the replies are written in, the language of most of them when they differ. " +
   "No markdown, lists, code, links, file paths, hashes or version ids unless a sentence makes no sense without them.";
 
 /**

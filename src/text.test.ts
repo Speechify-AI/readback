@@ -148,7 +148,7 @@ describe("truncate", () => {
 describe("entryLead", () => {
   it("names the time and the project", () => {
     const at = new Date("2026-09-04T14:32:00Z");
-    expect(entryLead(at, "customers", "UTC")).toBe("14:32, in customers.");
+    expect(entryLead(at, "customers", "UTC")).toBe("14:32, customers.");
   });
 
   it("drops the project when there is not one", () => {

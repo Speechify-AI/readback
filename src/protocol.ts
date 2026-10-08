@@ -16,8 +16,8 @@ export type HostMessage =
   | { kind: "clear" }
   /** Open the voice picker. */
   | { kind: "showVoices" }
-  /** The catalogue for the current model, or why it could not be fetched. */
-  | { kind: "voices"; voices: Voice[]; error: string | null }
+  /** The catalogue for the current model, or why it could not be fetched. `claudeLanguage` is Claude Code's `language` as a code ("es"), or null. */
+  | { kind: "voices"; voices: Voice[]; error: string | null; claudeLanguage: string | null }
   /** A voice sample: the catalogue's preview or a synthesized line, or why neither came. */
   | { kind: "sample"; voiceId: string; audio: string | null; error: string | null };
 

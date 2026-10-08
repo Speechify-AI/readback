@@ -1,5 +1,21 @@
-import { describe, expect, it } from "vitest";
-import { normalizeVoicePage, sortVoices, toVoice } from "./speechify.ts";
+import { describe, expect, it, vi } from "vitest";
+import { languageFor, listVoices, modelFor, normalizeVoicePage, sortVoices, synthesize, toVoice } from "./speechify.ts";
+
+describe("modelFor and languageFor", () => {
+  it("keeps English on the configured model and moves every other language to simba-3.0", () => {
+    expect(modelFor("en-US", "simba-3.2")).toBe("simba-3.2");
+    expect(modelFor("en_GB", "simba-3.2")).toBe("simba-3.2");
+    expect(modelFor("", "simba-3.2")).toBe("simba-3.2");
+    expect(modelFor("es-ES", "simba-3.2")).toBe("simba-3.0");
+    expect(modelFor("de-DE", "simba-3.0")).toBe("simba-3.0");
+  });
+
+  it("spells the locale the way the API takes it, and sends none for a voice without one", () => {
+    expect(languageFor("es-MX")).toBe("es-MX");
+    expect(languageFor("pt_BR")).toBe("pt-BR");
+    expect(languageFor("")).toBeUndefined();
+  });
+});
 
 describe("toVoice", () => {
   it("keeps what the picker groups and samples by", () => {
@@ -53,5 +69,44 @@ describe("normalizeVoicePage and sortVoices", () => {
     const m = "simba-3.2";
     const voices = [toVoice({ id: "z", type: "personal" }, m)!, toVoice({ id: "b" }, m)!, toVoice({ id: "a" }, m)!, toVoice({ id: "wyatt_32" }, m)!];
     expect(sortVoices(voices).map((v) => v.id)).toEqual(["wyatt_32", "a", "b", "z"]);
+  });
+});
+
+describe("listVoices", () => {
+  it("offers English voices on the configured model and the rest on simba-3.0", async () => {
+    const catalogue = [
+      { id: "harper_32", locale: "en-US", models: [{ name: "simba-3.2" }] },
+      { id: "old_en", locale: "en-US", models: [{ name: "simba-3.0" }] },
+      { id: "lucia", locale: "es-ES", models: [{ name: "simba-3.0" }] },
+      { id: "bad_es", locale: "es-ES", models: [{ name: "simba-3.2" }] },
+    ];
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify(catalogue)));
+    try {
+      const voices = await listVoices({ apiBase: "http://x", apiKey: "k", model: "simba-3.2" });
+      expect(voices.map((v) => v.id).sort()).toEqual(["harper_32", "lucia"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("synthesize", () => {
+  it("sends the language when it has one and leaves the field out when not", async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ audio_data: "", speech_marks: [] }));
+    });
+    try {
+      const cfg = { apiBase: "http://x", apiKey: "k", voiceId: "lucia", model: "simba-3.0" };
+      await synthesize("Hola.", { ...cfg, language: "es-ES" });
+      await synthesize("Hola.", cfg);
+      expect(bodies).toEqual([
+        { input: "Hola.", voice_id: "lucia", model: "simba-3.0", language: "es-ES", audio_format: "mp3" },
+        { input: "Hola.", voice_id: "lucia", model: "simba-3.0", audio_format: "mp3" },
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

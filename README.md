@@ -82,11 +82,41 @@ that arrive before that queue up.
 | `readback.autoplay` | `true` | Play each new reply as it arrives; off lists them and waits for play |
 | `readback.summarize` | `claude` | Condense replies with `claude -p`, or `off` to read them in full |
 | `readback.progress` | `true` | Read the notes Claude writes between tool calls as they arrive |
-| `readback.voice` | `harper_32` | Speechify voice id. Per project when set from the picker |
-| `readback.model` | `simba-3.2` | Speechify model |
+| `readback.voice` | `harper_32` | Speechify voice id. Per project when set from the picker. Unset, and Claude Code's `language` is German, Spanish, French, Italian or Portuguese, a voice in that language is used |
+| `readback.model` | `simba-3.2` | Speechify model for English voices. Other voices render on `simba-3.0`, the model that speaks their language |
 | `readback.speed` | `1` | Playback rate. Per project when cycled from the player |
 | `readback.minChars` | `80` | Replies shorter than this are skipped |
 | `readback.maxChars` | `4000` | Longer replies are cut at a sentence and end with "and more" |
+
+## Languages
+
+Readback speaks whatever language Claude writes in, as long as the voice
+speaks it too. Voices exist for English, German, Spanish (Spain and
+Mexico), French, Italian and Brazilian Portuguese. English voices render
+on `simba-3.2`; the others on `simba-3.0`, which is the model that speaks
+them. The voice's locale goes with every request.
+
+To have Claude answer in Spanish, add `language` to
+`~/.claude/settings.json`, or to a project's `.claude/settings.json` for
+that project only:
+
+```json
+{
+  "language": "spanish"
+}
+```
+
+Claude Code applies it straight away. Readback reads the same setting:
+
+- If you have not picked a voice, it uses one in that language.
+- If you have, it keeps yours. The voice picker lists that language first
+  and says when your voice speaks a different one. Pick a voice from that
+  group.
+
+The condensed summary is written in the reply's language, so it matches
+what Claude wrote. The catch-up lead-in ("Catching up on 3 replies") is
+still English. If Claude writes in a language no voice speaks, such as
+Japanese, the reply is read by your voice anyway and will not sound right.
 
 ## Several windows
 

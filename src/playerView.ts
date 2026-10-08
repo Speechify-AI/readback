@@ -18,13 +18,20 @@
  * for the current model and, on request, a sample of one voice: the
  * catalogue's own preview when it has one, else one short line synthesized
  * in that voice, which goes through the render cache so it bills once.
+ *
+ * Every render looks its voice up in the same catalogue, because the voice's
+ * locale picks the model and the language sent (`modelFor`, `languageFor`).
+ * Until a voice is chosen, Claude Code's own `language` setting picks the
+ * default one (`claudeLanguage.ts`).
  */
 import { Buffer } from "node:buffer";
+import { homedir } from "node:os";
 import * as vscode from "vscode";
+import { defaultVoice, languageCode, readClaudeLanguage } from "./claudeLanguage.ts";
 import { readSettings, SECRET_KEY, writeSetting } from "./config.ts";
 import { isWebMessage, type CodexState, type HostMessage, type WebCommand } from "./protocol.ts";
 import { renderParagraph, type RenderCache } from "./render.ts";
-import { listVoices, TtsError, type Voice } from "./speechify.ts";
+import { languageFor, listVoices, modelFor, TtsError, type TtsConfig, type Voice } from "./speechify.ts";
 import type { Turn } from "./turns.ts";
 
 const KEEP_TURNS = 50;
@@ -46,6 +53,8 @@ export class PlayerView implements vscode.WebviewViewProvider {
   /** Turns pushed while the page was not ready; they autoplay on arrival. */
   private awaiting = new Set<string>();
   private voices: { at: number; scope: string; list: Voice[] } | null = null;
+  /** A catalogue fetch under way, shared by everything that asks meanwhile. */
+  private fetchingVoices: { scope: string; job: Promise<Voice[]> } | null = null;
   /** The picker was asked for before the page was ready; open it on ready. */
   private showVoicesWhenReady = false;
 
@@ -210,6 +219,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
   /** The key changed: the catalogue it listed no longer applies. */
   forgetVoices(): void {
     this.voices = null;
+    this.fetchingVoices = null;
   }
 
   /** A line in the bar while something is happening off screen. */
@@ -223,7 +233,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
     this.post({
       kind: "state",
       keyOk: Boolean(key),
-      voice: settings.voice,
+      voice: key ? await this.voiceId(key) : settings.voice,
       speed: settings.speed,
       autoplay: settings.autoplay,
       hookInstalled: this.hookInstalled(),
@@ -237,26 +247,81 @@ export class PlayerView implements vscode.WebviewViewProvider {
 
   private async sendVoices(): Promise<void> {
     const settings = readSettings();
+    const claudeLanguage = this.claudeLanguage();
     const apiKey = await this.context.secrets.get(SECRET_KEY);
     if (!apiKey) {
-      this.post({ kind: "voices", voices: [], error: "Set your Speechify API key first." });
-      return;
-    }
-    const scope = `${settings.apiBase} ${settings.model}`;
-    const cached = this.voices;
-    if (cached && cached.scope === scope && Date.now() - cached.at < VOICES_TTL_MS) {
-      this.post({ kind: "voices", voices: cached.list, error: null });
+      this.post({ kind: "voices", voices: [], error: "Set your Speechify API key first.", claudeLanguage });
       return;
     }
     try {
-      const list = await listVoices({ apiBase: settings.apiBase, apiKey, model: settings.model });
-      this.voices = { at: Date.now(), scope, list };
-      this.log.info(`${list.length} voices for ${settings.model}, ${list.filter((v) => v.preview).length} with previews`);
-      this.post({ kind: "voices", voices: list, error: list.length === 0 ? `No voice on this key can render ${settings.model}.` : null });
+      const list = await this.catalogue(apiKey);
+      this.post({ kind: "voices", voices: list, error: list.length === 0 ? `No voice on this key can render ${settings.model}.` : null, claudeLanguage });
     } catch (err) {
       this.log.error(`voices failed: ${describe(err)}`);
-      this.post({ kind: "voices", voices: cached?.list ?? [], error: describe(err) });
+      this.post({ kind: "voices", voices: this.voices?.list ?? [], error: describe(err), claudeLanguage });
     }
+  }
+
+  /** Claude Code's `language` as a code a voice here speaks ("es"), or null. Read fresh: the person may change it any time. */
+  private claudeLanguage(): string | null {
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+    const value = readClaudeLanguage(homedir(), folders);
+    return value === null ? null : languageCode(value);
+  }
+
+  /**
+   * The voice to speak in: the one chosen in any settings scope, else a
+   * stock voice in Claude's language when that is not English, else the
+   * `readback.voice` default. Nothing is written; picking a voice ends it.
+   */
+  private async voiceId(apiKey: string): Promise<string> {
+    const settings = readSettings();
+    const set = vscode.workspace.getConfiguration("readback").inspect<string>("voice");
+    if (set?.globalValue ?? set?.workspaceValue ?? set?.workspaceFolderValue) return settings.voice;
+    const code = this.claudeLanguage();
+    if (code === null || code === "en") return settings.voice;
+    try {
+      return defaultVoice(await this.catalogue(apiKey), code)?.id ?? settings.voice;
+    } catch {
+      return settings.voice;
+    }
+  }
+
+  /** The voices this key can render, fetched at most once per `VOICES_TTL_MS`. Throws when Speechify cannot be reached. */
+  private catalogue(apiKey: string): Promise<Voice[]> {
+    const settings = readSettings();
+    const scope = `${settings.apiBase} ${settings.model}`;
+    const cached = this.voices;
+    if (cached && cached.scope === scope && Date.now() - cached.at < VOICES_TTL_MS) return Promise.resolve(cached.list);
+    if (this.fetchingVoices?.scope === scope) return this.fetchingVoices.job;
+    const job = listVoices({ apiBase: settings.apiBase, apiKey, model: settings.model }).then((list) => {
+      this.voices = { at: Date.now(), scope, list };
+      this.log.info(`${list.length} voices for ${settings.model}, ${list.filter((v) => v.preview).length} with previews`);
+      return list;
+    });
+    const fetching = { scope, job };
+    this.fetchingVoices = fetching;
+    const done = () => {
+      if (this.fetchingVoices === fetching) this.fetchingVoices = null;
+    };
+    job.then(done, done);
+    return job;
+  }
+
+  /**
+   * What to render this voice with: its model and language come from its
+   * locale in the catalogue. A voice the catalogue lacks, or no catalogue,
+   * renders on the configured model with no language, as before.
+   */
+  private async ttsConfig(apiKey: string, voiceId: string): Promise<TtsConfig> {
+    const settings = readSettings();
+    let locale = "";
+    try {
+      locale = (await this.catalogue(apiKey)).find((v) => v.id === voiceId)?.locale ?? "";
+    } catch (err) {
+      this.log.warn(`no catalogue for ${voiceId}, rendering on ${settings.model}: ${describe(err)}`);
+    }
+    return { apiBase: settings.apiBase, apiKey, voiceId, model: modelFor(locale, settings.model), language: languageFor(locale) };
   }
 
   private async sample(voiceId: string): Promise<void> {
@@ -265,7 +330,6 @@ export class PlayerView implements vscode.WebviewViewProvider {
       this.post({ kind: "sample", voiceId, audio: null, error: "Set your Speechify API key first." });
       return;
     }
-    const settings = readSettings();
     const voice = this.voices?.list.find((v) => v.id === voiceId);
     const started = Date.now();
     try {
@@ -277,12 +341,7 @@ export class PlayerView implements vscode.WebviewViewProvider {
         audio = new Uint8Array(await res.arrayBuffer());
         source = "preview";
       } else {
-        const rendered = await renderParagraph(SAMPLE_LINE, {
-          apiBase: settings.apiBase,
-          apiKey,
-          voiceId,
-          model: settings.model,
-        }, this.cache);
+        const rendered = await renderParagraph(SAMPLE_LINE, await this.ttsConfig(apiKey, voiceId), this.cache);
         audio = rendered.audio;
         source = "synthesized";
       }
@@ -312,16 +371,11 @@ export class PlayerView implements vscode.WebviewViewProvider {
       this.post({ kind: "error", turnId, index, message: "Set your Speechify API key first." });
       return;
     }
-    const settings = readSettings();
+    const cfg = await this.ttsConfig(apiKey, await this.voiceId(apiKey));
     const started = Date.now();
     try {
-      const rendered = await renderParagraph(text, {
-        apiBase: settings.apiBase,
-        apiKey,
-        voiceId: settings.voice,
-        model: settings.model,
-      }, this.cache);
-      this.log.info(`rendered ${id(turnId, index)} in ${Date.now() - started} ms, ${rendered.durationMs} ms of audio, ${rendered.marks.length} marks`);
+      const rendered = await renderParagraph(text, cfg, this.cache);
+      this.log.info(`rendered ${id(turnId, index)} on ${cfg.model}${cfg.language ? ` (${cfg.language})` : ""} in ${Date.now() - started} ms, ${rendered.durationMs} ms of audio, ${rendered.marks.length} marks`);
       this.post({
         kind: "audio",
         turnId,

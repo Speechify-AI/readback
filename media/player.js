@@ -96,7 +96,7 @@ const state = {
   // Which panel covers the list: null, "settings" or "voices".
   panel: null,
   // The voice picker.
-  picker: { voices: null, error: null, asked: false, query: "", chip: "all", sampling: null, rows: new Map() },
+  picker: { voices: null, error: null, claudeLanguage: null, asked: false, query: "", chip: "all", sampling: null, rows: new Map() },
 };
 
 const audio = new Audio();
@@ -154,6 +154,7 @@ window.addEventListener("message", (event) => {
     case "voices":
       state.picker.voices = msg.voices;
       state.picker.error = msg.error;
+      state.picker.claudeLanguage = msg.claudeLanguage;
       renderSettings();
       if (state.panel === "voices") renderVoices();
       return;
@@ -869,7 +870,7 @@ function renderVoices() {
     for (const v of featured) els.voiceList.appendChild(voiceRow(v, "featured"));
   }
 
-  // Grouped by language, the current voice's language first, then A to Z.
+  // Grouped by language: Claude's language first, then the current voice's, then A to Z.
   const groups = new Map();
   for (const v of shown) {
     const name = languageOf(v.locale);
@@ -877,11 +878,17 @@ function renderVoices() {
     groups.get(name).push(v);
   }
   const currentLanguage = languageOf(voices.find((v) => v.id === state.voiceId)?.locale ?? "");
-  const names = [...groups.keys()].sort((a, b) => (a === currentLanguage ? -1 : b === currentLanguage ? 1 : a.localeCompare(b)));
+  const claudeLanguage = state.picker.claudeLanguage ? languageOf(state.picker.claudeLanguage) : null;
+  const rank = (name) => (name === claudeLanguage ? 0 : name === currentLanguage ? 1 : 2);
+  const names = [...groups.keys()].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
   for (const name of names) {
     const list = groups.get(name);
     els.voiceList.appendChild(groupHeading(name, list.length, null));
     for (const v of list) els.voiceList.appendChild(voiceRow(v, "language"));
+  }
+  // Claude Code was told to answer in one language and this voice speaks another.
+  if (claudeLanguage && voices.some((v) => v.id === state.voiceId) && claudeLanguage !== currentLanguage) {
+    els.voiceList.prepend(hint(`Claude replies in ${claudeLanguage}; this voice speaks ${currentLanguage}.`));
   }
   if (error) els.voiceList.prepend(hint(error));
 }

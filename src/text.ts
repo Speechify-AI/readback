@@ -149,5 +149,6 @@ export function clock(at: Date, timeZone?: string): string {
 
 export function entryLead(at: Date, project: string | null, timeZone?: string): string {
   const time = clock(at, timeZone);
-  return project ? `${time}, in ${project}.` : `${time}.`;
+  // No "in": the voice may not speak English, and a bare name reads in any language.
+  return project ? `${time}, ${project}.` : `${time}.`;
 }

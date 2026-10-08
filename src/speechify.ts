@@ -16,6 +16,8 @@ export interface TtsConfig {
   apiKey: string;
   voiceId: string;
   model: string;
+  /** The voice's locale as the API spells it ("es-ES"); omitted, Speechify uses the voice's own. */
+  language?: string;
 }
 
 export interface TtsResult {
@@ -63,6 +65,7 @@ export async function synthesize(input: string, cfg: TtsConfig): Promise<TtsResu
         input,
         voice_id: cfg.voiceId,
         model: cfg.model,
+        ...(cfg.language ? { language: cfg.language } : {}),
         audio_format: "mp3",
       }),
     });
@@ -122,6 +125,24 @@ export interface Voice {
  */
 export function isFeatured(id: string, model: string | undefined): boolean {
   return model === "simba-3.2" && /_32$/.test(id);
+}
+
+/**
+ * simba-3.2 is English only: a non-English voice on it answers 400. simba-3.0
+ * speaks English plus de-DE, es-ES, es-MX, fr-FR, it-IT and pt-BR (Speechify's
+ * language-support guide, read 2026-10-08). So the model follows the voice:
+ * an English voice, or one with no locale, renders on the configured model,
+ * any other on simba-3.0.
+ */
+export const MULTILINGUAL_MODEL = "simba-3.0";
+
+export function modelFor(locale: string, model: string): string {
+  return locale === "" || /^en([-_]|$)/i.test(locale) ? model : MULTILINGUAL_MODEL;
+}
+
+/** "es-ES" for es-ES or es_ES; undefined when the voice has no locale. */
+export function languageFor(locale: string): string | undefined {
+  return locale === "" ? undefined : locale.replace("_", "-");
 }
 
 export interface RawVoice {
@@ -189,7 +210,7 @@ export function sortVoices(voices: Voice[]): Voice[] {
   return [...voices].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-/** Voices on this key that can render `model`, walking every page. */
+/** Voices on this key that can render on their model (`modelFor`, given the configured one), walking every page. */
 export async function listVoices(cfg: Omit<TtsConfig, "voiceId">): Promise<Voice[]> {
   const out: Voice[] = [];
   let cursor: string | null = null;
@@ -202,8 +223,9 @@ export async function listVoices(cfg: Omit<TtsConfig, "voiceId">): Promise<Voice
 
     const { rows, cursor: next } = normalizeVoicePage(await res.json());
     for (const raw of rows) {
-      if (!(raw.models ?? []).some((m) => m.name === cfg.model)) continue;
-      const voice = toVoice(raw, cfg.model);
+      const model = modelFor(raw.locale ?? "", cfg.model);
+      if (!(raw.models ?? []).some((m) => m.name === model)) continue;
+      const voice = toVoice(raw, model);
       if (voice) out.push(voice);
     }
     cursor = next;

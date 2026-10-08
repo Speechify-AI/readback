@@ -111,6 +111,7 @@ this repo.
 - `src/live.ts` — the stream: MessageDisplay, PreToolUse and Stop payloads → progress notes and the finished reply
 - `src/summary.ts` — the condensing run: the two briefs, flags, finding and spawning `claude` (`.exe` or npm `.cmd` shim on Windows)
 - `src/windows.ts` — the project rule, pure
+- `src/claudeLanguage.ts` — Claude Code's `language` setting → the default voice and the picker hint
 - `src/playerView.ts` — the WebviewViewProvider, on-demand rendering, the voice catalogue and samples
 - `src/render.ts` — chunk, synthesize, stitch, fill gaps, cache
 - `src/fileCache.ts` — renders on disk under global storage
