@@ -4,11 +4,11 @@ Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
 ## Status (2026-10-08)
 
-**0.7.0 packaged, not yet installed or uploaded; 0.6.0 is installed here;
-0.5.0 is on the VS Code Marketplace.** 0.7.0 adds permission alerts, stop
+**0.7.0 packaged and installed here (VS Code, 2026-10-08), not yet
+uploaded; 0.5.0 is on the VS Code Marketplace.** 0.7.0 adds permission alerts, stop
 on the next prompt, the one-word lead-in and the webview in TypeScript,
-built and unit-tested, not yet heard (see Verified, 2026-10-08, later, and
-Open). The hook now registers five events, so after installing 0.7.0 the
+all four seen working in the Readback log on 2026-10-08 at 15:43 to 15:47
+(see Verified, 2026-10-08, later); what remains is by ear, see Open. The hook now registers five events, so after installing 0.7.0 the
 "Install the hook" card shows again until it is pressed once. It carries
 0.6.0, which was never uploaded either: non-English voices on simba-3.0 and the
 default voice from Claude Code's `language`; see Verified, 2026-10-08. It
@@ -221,6 +221,22 @@ the tier shape you want and I'll apply it in Atlas".
   and in 8 ms the one time it was cached. The first content paragraph
   rendered in 1,840 to 5,573 ms alongside it. The lead is now the project
   name alone, so it is cached after the first turn of a project.
+- **0.7.0 through the player** (Readback log, window 4, 15:43 to 15:47 on
+  2026-10-08; Claude Code 2.1.294). The hook card came back after the
+  install and "Install the hook" wrote the five events to
+  `~/.claude/settings.json` at 15:43:09. Then, live from this session's
+  own hooks: the lead "readback." rendered in 1,159 ms on the first turn
+  and 6 ms on the next (cached); `UserPromptSubmit` logged "a new prompt
+  in readback; stopped reading" at 15:43:12 and 15:44:06, the second while
+  an 18.9 s paragraph was playing. Then, from payloads posted straight to
+  the listener in the documented shapes: a short reply listed and playing
+  (lead 7 ms, body 2,911 ms), PreToolUse `Bash npm install` followed by a
+  `permission_prompt` Notification gave "alert: Claude is waiting for your
+  permission to run npm install, in readback.", "listed, autoplay yes,
+  urgent", rendered in 1,823 ms (4.5 s of audio); a 700-character Stop
+  followed 1.5 s later by UserPromptSubmit gave "stopped reading",
+  "condense ok in 3882 ms", "the person has moved on since this reply;
+  listing it without playing", "listed, autoplay no".
 - 138 unit tests, 11 of them on `src/webview/playlist.ts` (queue order,
   runs stopping at `fullFrom`, growth, urgent turns, autoplay off, stop)
   and 2 on sentence stepping. The page script is bundled from
@@ -230,19 +246,15 @@ the tier shape you want and I'll apply it in Atlas".
 
 ## Open
 
-- **The four changes of 2026-10-08 through the player.** Install the
-  package, reload, press "Install the hook" (the card is back: two events
-  were added), click once for sound, then: (1) start a turn and expect the
-  lead to play from the cache ("rendered …#0 … in 8 ms" from the second
-  turn of a project on) with the time shown in the header; (2) run a turn
-  that asks permission for a Bash command and do not answer for ten
-  seconds, expect "alert: Claude is waiting for your permission to run …"
-  in the log and the sentence spoken over whatever was playing, which then
-  resumes; (3) type the next prompt while a reply is being read, expect "a
-  new prompt in …; stopped reading" and silence, and a reply condensed
-  after that listed without playing; (4) the transport, the full-reply
-  section, the voice picker and samples behave as before, since the page
-  was ported.
+- **0.7.0 by ear, partly.** Shaun heard the 15:46 alert cut in and the
+  reply carry on and called it good (2026-10-08). Not yet looked at: the
+  time in the turn header next to the one-word lead, and the transport,
+  full-reply section, voice picker and samples, which were ported with the
+  page and have had one clear-list press, nothing more.
+- **A real `permission_prompt` Notification.** The alert was driven by a
+  payload posted to the listener in the documented shape; no interactive
+  session has left a prompt waiting six seconds with the hook installed.
+  One such turn settles whether the live `message` and `tool_input` match.
 - **Non-English on a live key: verified 2026-10-08.** The catalogue grew
   from 131 to 1,059 voices once non-English ones were listed. `aitana`
   rendered on `simba-3.0 (es-MX)`, English and Spanish text, highlight
