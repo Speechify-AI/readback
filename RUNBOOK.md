@@ -4,13 +4,14 @@ Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
 ## Status (2026-10-08)
 
-**0.7.0 packaged and installed here (VS Code, 2026-10-08), not yet
-uploaded; 0.5.0 is on the VS Code Marketplace.** 0.7.0 adds permission alerts, stop
+**0.7.0 is on the VS Code Marketplace (uploaded by hand through the
+manage page on 2026-10-08) and installed here.** 0.7.0 adds permission alerts, stop
 on the next prompt, the one-word lead-in and the webview in TypeScript,
 all four seen working in the Readback log on 2026-10-08 at 15:43 to 15:47
-(see Verified, 2026-10-08, later); what remains is by ear, see Open. The hook now registers five events, so after installing 0.7.0 the
-"Install the hook" card shows again until it is pressed once. It carries
-0.6.0, which was never uploaded either: non-English voices on simba-3.0 and the
+(see Verified, 2026-10-08, later); what remains is by ear, see Open. The
+hook now registers five events, so after installing 0.7.0 the "Install the
+hook" card shows again until it is pressed once. It carries 0.6.0, which
+was never uploaded on its own: non-English voices on simba-3.0 and the
 default voice from Claude Code's `language`; see Verified, 2026-10-08. It
 carries 0.5.1, which was never uploaded: the condense run that answered
 the brief, condensing on Sonnet, short replies read as they stand
@@ -293,8 +294,8 @@ the tier shape you want and I'll apply it in Atlas".
   TXT record) so the listing gets the verified badge. 0.2.4 was uploaded
   by hand through the manage page on 2026-09-10 (listing:
   <https://marketplace.visualstudio.com/items?itemName=speechify.readback>);
-  0.3.3, 0.4.0 and 0.4.1 the same way on 2026-09-10 and 2026-09-11, and
-  0.5.0 on 2026-09-22.
+  0.3.3, 0.4.0 and 0.4.1 the same way on 2026-09-10 and 2026-09-11,
+  0.5.0 on 2026-09-22, and 0.7.0 on 2026-10-08.
   No access token exists yet, so `vsce publish` and CI cannot release;
   nothing is on Open VSX (checked 2026-09-22), so Cursor, Windsurf and
   VSCodium users cannot install it from their marketplaces.
