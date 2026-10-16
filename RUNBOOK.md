@@ -2,10 +2,14 @@
 
 Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
-## Status (2026-10-08)
+## Status (2026-10-16)
 
-**0.7.0 is on the VS Code Marketplace (uploaded by hand through the
-manage page on 2026-10-08) and installed here.** 0.7.0 adds permission alerts, stop
+**0.7.1 packaged, not yet installed or uploaded; 0.7.0 is on the VS Code
+Marketplace (uploaded by hand through the manage page on 2026-10-08) and
+installed here.** 0.7.1 is attribution only: `Speechify-Caller` and
+`Speechify-Caller-Version` on every API request and `utm_campaign=readback`
+on the links back to the keys page, see Open. Nothing a listener would
+notice changes. 0.7.0 adds permission alerts, stop
 on the next prompt, the one-word lead-in and the webview in TypeScript,
 all four seen working in the Readback log on 2026-10-08 at 15:43 to 15:47
 (see Verified, 2026-10-08, later); what remains is by ear, see Open. The
@@ -247,6 +251,18 @@ the tier shape you want and I'll apply it in Atlas".
 
 ## Open
 
+- **Attribution headers, not yet seen in PostHog.** Since 2026-10-16 every
+  API request carries `Speechify-Caller: readback` and
+  `Speechify-Caller-Version: <package version>` (`CALLER_HEADERS` in
+  `src/speechify.ts`, the version read from `package.json` at build time),
+  per Mate's Slack note of 2026-10-13 (<https://speechifyworkspace.slack.com/archives/C0B4KQYN2E6/p1791901808113029?thread_ts=1791901389.073149&cid=C0B4KQYN2E6>) and the public guide
+  at docs.speechify.ai/build/guides/integrations/build-an-integration. The
+  links back to the keys page carry `utm_campaign=readback` with a source
+  per surface (README, the blog draft, the extension itself). Unit-tested,
+  not yet shipped: the first release with them is the one that shows up as
+  `caller=readback` in PostHog, and `first_integration` on a workspace is
+  written once, so workspaces that started on 0.7.0 or earlier will not be
+  back-filled.
 - **0.7.0 by ear, partly.** Shaun heard the 15:46 alert cut in and the
   reply carry on and called it good (2026-10-08). Not yet looked at: the
   time in the turn header next to the one-word lead, and the transport,
@@ -318,12 +334,12 @@ the tier shape you want and I'll apply it in Atlas".
 
 ```sh
 npm run package
-code --install-extension readback-0.7.0.vsix
+code --install-extension readback-0.7.1.vsix
 ```
 
 If `code` on PATH is Cursor's shim, the VS Code binary is
 `/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code`.
-Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only; 0.4.1 the settings panel gains an API key row (status, change, link to the keys page) and an "All Readback settings" link into the filtered Settings editor. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false). Until 2026-09-22 they were also the only voices whose speech marks reached the last word; stock voices are fine again since then; 0.5.0 catch-up (history button and command, focus-based heard rule, `CATCH_UP_BRIEF`), Codex CLI as a Stop-only second source (settings panel row, two commands), Windows hook (PowerShell, exec form), the Featured hint reads "Trained for this model"; 0.5.1 the condensing run reads the reply fenced and must answer inside `spoken` tags (a 0.5.0 run answered the brief instead of condensing), condensing moved from Haiku to Sonnet, replies under 500 characters are read as they stand, TypeScript 7 and vsce 4. 0.6.0 non-English voices: the model follows the voice (English on `readback.model`, the rest on `simba-3.0`) and `language` is sent from the voice's locale; Claude Code's `language` setting picks the default voice and the picker says when they disagree; condensing answers in the reply's language; the lead-in drops "in". 0.7.0 permission alerts (`Notification` hook, `readback.alerts`), stop on `UserPromptSubmit`, the lead-in is the project name alone with the time shown in the header, the webview moved to `src/webview/` in TypeScript with the play order in a tested `Playlist`.
+Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only; 0.4.1 the settings panel gains an API key row (status, change, link to the keys page) and an "All Readback settings" link into the filtered Settings editor. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false). Until 2026-09-22 they were also the only voices whose speech marks reached the last word; stock voices are fine again since then; 0.5.0 catch-up (history button and command, focus-based heard rule, `CATCH_UP_BRIEF`), Codex CLI as a Stop-only second source (settings panel row, two commands), Windows hook (PowerShell, exec form), the Featured hint reads "Trained for this model"; 0.5.1 the condensing run reads the reply fenced and must answer inside `spoken` tags (a 0.5.0 run answered the brief instead of condensing), condensing moved from Haiku to Sonnet, replies under 500 characters are read as they stand, TypeScript 7 and vsce 4. 0.6.0 non-English voices: the model follows the voice (English on `readback.model`, the rest on `simba-3.0`) and `language` is sent from the voice's locale; Claude Code's `language` setting picks the default voice and the picker says when they disagree; condensing answers in the reply's language; the lead-in drops "in". 0.7.0 permission alerts (`Notification` hook, `readback.alerts`), stop on `UserPromptSubmit`, the lead-in is the project name alone with the time shown in the header, the webview moved to `src/webview/` in TypeScript with the play order in a tested `Playlist`. 0.7.1 attribution: `Speechify-Caller: readback` and `Speechify-Caller-Version` on every API request, UTM tags on the links to the keys page; `@types/node` and vitest patch bumps.
 
 Reload VS Code, open the Readback view in the activity bar, set the key,
 install the hook, then run a Claude Code turn in the integrated terminal.
