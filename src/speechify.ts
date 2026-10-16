@@ -10,6 +10,19 @@
 import { Buffer } from "node:buffer";
 import { mp3DurationMs } from "./audio.ts";
 import { flattenMarks, type Mark } from "./marks.ts";
+import { version } from "../package.json";
+
+/**
+ * Attribution on every request, so Speechify can tell Readback's traffic
+ * from the rest: `caller` and `caller_version` on each request in their
+ * analytics. It never gates limits, pricing or access. The slug is fixed for
+ * good; changing it would split the history. The version rides separately,
+ * never inside the slug. See docs.speechify.ai/build/guides/integrations/build-an-integration.
+ */
+const CALLER_HEADERS = {
+  "Speechify-Caller": "readback",
+  "Speechify-Caller-Version": version,
+};
 
 export interface TtsConfig {
   apiBase: string;
@@ -58,6 +71,7 @@ export async function synthesize(input: string, cfg: TtsConfig): Promise<TtsResu
     const res = await fetch(`${cfg.apiBase}/v1/audio/speech`, {
       method: "POST",
       headers: {
+        ...CALLER_HEADERS,
         Authorization: `Bearer ${cfg.apiKey}`,
         "Content-Type": "application/json",
       },
@@ -218,7 +232,7 @@ export async function listVoices(cfg: Omit<TtsConfig, "voiceId">): Promise<Voice
     const url = new URL(`${cfg.apiBase}/v1/voices`);
     url.searchParams.set("page_size", "100");
     if (cursor) url.searchParams.set("cursor", cursor);
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.apiKey}` } });
+    const res = await fetch(url, { headers: { ...CALLER_HEADERS, Authorization: `Bearer ${cfg.apiKey}` } });
     if (!res.ok) throw new TtsError(res.status, (await res.text()).slice(0, 200));
 
     const { rows, cursor: next } = normalizeVoicePage(await res.json());

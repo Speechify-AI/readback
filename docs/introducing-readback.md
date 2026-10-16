@@ -53,7 +53,7 @@ Paste this into Claude Code:
 
 > Install the Readback VS Code extension, then run its "Install the Claude Code hook" command and tell me when it is done.
 
-Or install it by hand from the Marketplace and press "Install the hook" in the Readback view. You need a Speechify API key from [platform.speechify.ai/api-keys](https://platform.speechify.ai/api-keys). Readback checks the key against the live API before storing it in VS Code's secret storage, and never writes it anywhere else. Every reply you listen to bills your own workspace.
+Or install it by hand from the Marketplace and press "Install the hook" in the Readback view. You need a Speechify API key from [platform.speechify.ai/api-keys](https://platform.speechify.ai/api-keys?utm_source=blog&utm_medium=docs&utm_campaign=readback). Readback checks the key against the live API before storing it in VS Code's secret storage, and never writes it anywhere else. Every reply you listen to bills your own workspace.
 
 ## What it does not do yet
 

@@ -23,7 +23,7 @@ appears on first start, click **Readback** in the status bar, or run
 **Install the hook** in the Readback view.
 
 You need a Speechify API key. Create one at
-<https://platform.speechify.ai/api-keys>. Readback keeps it in VS Code's
+<https://platform.speechify.ai/api-keys?utm_source=github&utm_medium=readme&utm_campaign=readback>. Readback keeps it in VS Code's
 secret storage and every reply you listen to bills your own workspace.
 
 After a reload, click once anywhere in the VS Code window before you

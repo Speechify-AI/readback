@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { version } from "../package.json";
 import { languageFor, listVoices, modelFor, normalizeVoicePage, sortVoices, synthesize, toVoice } from "./speechify.ts";
 
 describe("modelFor and languageFor", () => {
@@ -84,6 +85,29 @@ describe("listVoices", () => {
     try {
       const voices = await listVoices({ apiBase: "http://x", apiKey: "k", model: "simba-3.2" });
       expect(voices.map((v) => v.id).sort()).toEqual(["harper_32", "lucia"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("attribution", () => {
+  it("names itself and its version on every request, the slug never carrying the version", async () => {
+    const headers: Record<string, string>[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      headers.push(init.headers as Record<string, string>);
+      return new Response(JSON.stringify({ audio_data: "", speech_marks: [] }));
+    });
+    try {
+      const cfg = { apiBase: "http://x", apiKey: "k", model: "simba-3.2" };
+      await synthesize("Hi.", { ...cfg, voiceId: "harper_32" });
+      await listVoices(cfg);
+      expect(headers).toHaveLength(2);
+      for (const h of headers) {
+        expect(h["Speechify-Caller"]).toBe("readback");
+        expect(h["Speechify-Caller-Version"]).toBe(version);
+        expect(h["Speechify-Caller-Version"]).toMatch(/^[A-Za-z0-9.+_-]{1,32}$/);
+      }
     } finally {
       vi.unstubAllGlobals();
     }

@@ -279,13 +279,13 @@ function renderSetup(): void {
 }
 
 /** Where API keys are made. The webview hands http links to the browser. */
-const KEYS_URL = "https://platform.speechify.ai/api-keys";
+const KEYS_URL = "https://platform.speechify.ai/api-keys?utm_source=readback&utm_medium=integration&utm_campaign=readback";
 
 function keysLink(text: string): HTMLAnchorElement {
   const a = document.createElement("a");
   a.href = KEYS_URL;
   a.textContent = text;
-  a.title = KEYS_URL;
+  a.title = "platform.speechify.ai/api-keys";
   // Opened by the host. Stopping the click keeps the row around it from
   // firing too, and preventing the default keeps the page where it is.
   a.addEventListener("click", (ev) => {

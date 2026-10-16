@@ -52,7 +52,7 @@ import {
 } from "./turns.ts";
 import { relatedToWorkspace } from "./windows.ts";
 
-const KEYS_URL = "https://platform.speechify.ai/api-keys";
+const KEYS_URL = "https://platform.speechify.ai/api-keys?utm_source=readback&utm_medium=integration&utm_campaign=readback";
 
 const home = homedir();
 const readbackHome = process.env.READBACK_HOME ?? join(home, ".readback");
