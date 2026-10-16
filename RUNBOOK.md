@@ -249,6 +249,26 @@ the tier shape you want and I'll apply it in Atlas".
   committed; `npm run typecheck` checks it against the DOM lib through
   `tsconfig.webview.json`.
 
+## Verified on 2026-10-16
+
+- **simba-3.5 renders, the catalogue does not know it.** With
+  `readback.model` set to `simba-3.5` (user settings) the picker lost every
+  English voice, Featured included: the log's "966 voices for simba-3.5"
+  is exactly the 966 non-English voices, which `listVoices` routes to
+  simba-3.0. `GET /v1/voices` (simba-compare's key, 1,091 voices, a bare
+  array) lists each English voice on `simba-3.0`, `simba-3.2`,
+  `simba-english` and `simba-multilingual` and nothing on `simba-3.5`; there
+  is no `/v1/models` (404). Yet `/v1/audio/speech` on simba-3.5 answered
+  200 with marks for `geffen_32`, `henry`, `alec` and `aitana`, distinct
+  audio each, and 404 `voice_not_found` for a made-up id, so no silent
+  substitution. `listVoices` now offers every voice that lists any model
+  when no voice in the catalogue lists the configured one. The roster is
+  the eight `_32` ids (`beatrice`, `dominic`, `edmund`, `geffen`, `harper`,
+  `hugh`, `imogen`, `wyatt`); no `_35` id exists, so `isFeatured` keeps the `_32`
+  suffix and drops the model check, and the heading reads "Speechify's
+  roster" since the voices were trained for 3.2 whatever renders them.
+  Whether 3.5's marks reach the last word on stock voices was not checked.
+
 ## Open
 
 - **Attribution headers, not yet seen in PostHog.** Since 2026-10-16 every

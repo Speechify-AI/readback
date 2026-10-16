@@ -48,10 +48,12 @@ describe("toVoice", () => {
     });
   });
 
-  it("features the roster suffix on simba-3.2 only, never a clone", () => {
+  it("features the roster suffix on any model, never a clone", () => {
     expect(toVoice({ id: "wyatt_32" }, "simba-3.2")?.featured).toBe(true);
-    expect(toVoice({ id: "wyatt_32" }, "simba-3.0")?.featured).toBe(false);
+    expect(toVoice({ id: "wyatt_32" }, "simba-3.5")?.featured).toBe(true);
+    expect(toVoice({ id: "wyatt_32" }, "simba-3.0")?.featured).toBe(true);
     expect(toVoice({ id: "wyatt" }, "simba-3.2")?.featured).toBe(false);
+    expect(toVoice({ id: "wyatt_35" }, "simba-3.5")?.featured).toBe(false);
     expect(toVoice({ id: "mine_32", type: "personal" }, "simba-3.2")?.featured).toBe(false);
   });
 
@@ -85,6 +87,22 @@ describe("listVoices", () => {
     try {
       const voices = await listVoices({ apiBase: "http://x", apiKey: "k", model: "simba-3.2" });
       expect(voices.map((v) => v.id).sort()).toEqual(["harper_32", "lucia"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("offers every voice with a model on one the catalogue has not heard of", async () => {
+    const catalogue = [
+      { id: "harper_32", locale: "en-US", models: [{ name: "simba-3.2" }] },
+      { id: "alec", locale: "en-US", models: [{ name: "simba-english" }] },
+      { id: "lucia", locale: "es-ES", models: [{ name: "simba-3.0" }] },
+      { id: "modelless", locale: "en-US", models: [] },
+    ];
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify(catalogue)));
+    try {
+      const voices = await listVoices({ apiBase: "http://x", apiKey: "k", model: "simba-3.5" });
+      expect(voices.map((v) => v.id).sort()).toEqual(["alec", "harper_32", "lucia"]);
     } finally {
       vi.unstubAllGlobals();
     }

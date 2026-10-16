@@ -130,15 +130,15 @@ export interface Voice {
 }
 
 /**
- * The roster: the `*_32` voices on simba-3.2. The catalogue carries no flag
- * for them, but the suffix is how Speechify names the voices trained for
- * that model. Between 2026-09-08 and 2026-09-22 they were also the only
- * voices whose speech marks reached the last word; stock voices are fine
- * again since (RUNBOOK, Verified 2026-09-22), clones still unchecked.
- * Other models have no roster here.
+ * The roster: the eight `*_32` voices Speechify trained for simba-3.2. The
+ * catalogue carries no flag for them, and no later naming: on 2026-10-16 it
+ * held no `_35` id and listed no voice on simba-3.5 at all, yet 3.5 rendered
+ * every stock English voice (RUNBOOK). So the roster stays featured whatever
+ * model is configured. Between 2026-09-08 and 2026-09-22 these were also the
+ * only voices whose speech marks reached the last word.
  */
-export function isFeatured(id: string, model: string | undefined): boolean {
-  return model === "simba-3.2" && /_32$/.test(id);
+export function isFeatured(id: string): boolean {
+  return /_32$/.test(id);
 }
 
 /**
@@ -214,7 +214,7 @@ export function toVoice(raw: RawVoice, model?: string): Voice | null {
     gender: raw.gender === "female" || raw.gender === "male" ? raw.gender : "unspecified",
     tags: Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === "string" && t !== "") : [],
     preview: previewOf(raw, model),
-    featured: raw.type !== "personal" && isFeatured(raw.id, model),
+    featured: raw.type !== "personal" && isFeatured(raw.id),
   };
 }
 
@@ -224,9 +224,19 @@ export function sortVoices(voices: Voice[]): Voice[] {
   return [...voices].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-/** Voices on this key that can render on their model (`modelFor`, given the configured one), walking every page. */
+/**
+ * Voices on this key that can render on their model (`modelFor`, given the
+ * configured one), walking every page.
+ *
+ * A voice is offered when its catalogue entry lists that model. The
+ * catalogue lags the API, though: on 2026-10-16 no voice listed simba-3.5
+ * while 3.5 rendered every stock English voice, so requiring the entry
+ * would have emptied the picker of English. When no voice anywhere in the
+ * catalogue lists the model, the model is taken as newer than the
+ * catalogue and every voice that lists any model is offered on it.
+ */
 export async function listVoices(cfg: Omit<TtsConfig, "voiceId">): Promise<Voice[]> {
-  const out: Voice[] = [];
+  const rows: RawVoice[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < 30; page++) {
     const url = new URL(`${cfg.apiBase}/v1/voices`);
@@ -235,15 +245,21 @@ export async function listVoices(cfg: Omit<TtsConfig, "voiceId">): Promise<Voice
     const res = await fetch(url, { headers: { ...CALLER_HEADERS, Authorization: `Bearer ${cfg.apiKey}` } });
     if (!res.ok) throw new TtsError(res.status, (await res.text()).slice(0, 200));
 
-    const { rows, cursor: next } = normalizeVoicePage(await res.json());
-    for (const raw of rows) {
-      const model = modelFor(raw.locale ?? "", cfg.model);
-      if (!(raw.models ?? []).some((m) => m.name === model)) continue;
-      const voice = toVoice(raw, model);
-      if (voice) out.push(voice);
-    }
-    cursor = next;
+    const batch = normalizeVoicePage(await res.json());
+    rows.push(...batch.rows);
+    cursor = batch.cursor;
     if (!cursor) break;
+  }
+
+  const listed = new Set(rows.flatMap((raw) => (raw.models ?? []).map((m) => m.name)));
+  const out: Voice[] = [];
+  for (const raw of rows) {
+    const model = modelFor(raw.locale ?? "", cfg.model);
+    const models = raw.models ?? [];
+    const renders = listed.has(model) ? models.some((m) => m.name === model) : models.length > 0;
+    if (!renders) continue;
+    const voice = toVoice(raw, model);
+    if (voice) out.push(voice);
   }
   return sortVoices(out);
 }

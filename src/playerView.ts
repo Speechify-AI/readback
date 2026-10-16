@@ -310,7 +310,9 @@ export class PlayerView implements vscode.WebviewViewProvider {
     if (this.fetchingVoices?.scope === scope) return this.fetchingVoices.job;
     const job = listVoices({ apiBase: settings.apiBase, apiKey, model: settings.model }).then((list) => {
       this.voices = { at: Date.now(), scope, list };
-      this.log.info(`${list.length} voices for ${settings.model}, ${list.filter((v) => v.preview).length} with previews`);
+      this.log.info(
+        `${list.length} voices for ${settings.model}, ${list.filter((v) => v.preview).length} with previews, ${list.filter((v) => v.featured).length} featured`,
+      );
       return list;
     });
     const fetching = { scope, job };
