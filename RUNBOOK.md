@@ -2,10 +2,14 @@
 
 Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
-## Status (2026-10-16)
+## Status (2026-10-22)
 
-**0.7.2 packaged and installed in VS Code and Cursor on 2026-10-16, not yet
-reloaded, checked through the player or uploaded; 0.7.0 is on the VS Code
+**0.8.0 packaged, not yet installed, run or uploaded: the default model
+is simba-3.5, a non-English voice stays on it, Claude Code's `language`
+resolves to any of its 48 languages, and a turn from a window with no
+folder open goes to the folderless windows instead of every window** (see
+Open). **0.7.2 packaged and installed in VS Code and Cursor on 2026-10-16,
+not yet reloaded, checked through the player or uploaded; 0.7.0 is on the VS Code
 Marketplace (uploaded by hand through the manage page on 2026-10-08) and
 installed here.** 0.7.2 fixes the picker on a model the catalogue does
 not list yet: with `readback.model` set to `simba-3.5` every English voice
@@ -274,6 +278,33 @@ the tier shape you want and I'll apply it in Atlas".
 
 ## Open
 
+- **A turn from home, by ear.** Shaun saw every window take the updates
+  when Claude ran in a window with no folder open (2026-10-22). The
+  terminal there starts at home, and the rule's "contains a workspace
+  folder" direction took home as a monorepo root. `relatedToWorkspace` now
+  takes the home path: a cwd at or above home matches no folder window and
+  every folderless one. Unit-tested, not yet tried live. Not covered: a cwd
+  below home but above several projects (`~/Development`), which still
+  reaches every window whose folder it contains.
+- **simba-3.5 as the default, not yet heard.** `readback.model` defaults
+  to `simba-3.5` since 2026-10-22 (package.json and `config.ts`). Renders
+  were seen on 2026-10-16 (see Verified); whether its marks reach the last
+  word on stock voices is still unchecked. Speechify's language-support
+  guide (read 2026-10-22) says 3.5 speaks 48 languages with every voice,
+  so `modelFor` now moves a non-English voice to `simba-3.0` only off an
+  English-only model (`simba-3.2`, `simba-english`); on 3.5 the voice
+  renders where it is, `language` sent from its locale as before. Not yet
+  heard on 3.5: a non-English voice, and English text in a non-English
+  voice. `claudeLanguage.ts` now maps Claude Code's `language` to any of
+  3.5's 48, by ICU's English name and endonym (`Intl.DisplayNames`, full
+  ICU in Node and the extension host) plus a few older names (Bengali,
+  Farsi, Tagalog, Mandarin, castellano); the longest name inside the value
+  wins, so "Latin American Spanish" is Spanish. Not checked: whether the
+  catalogue has a stock voice for each (`defaultVoice` falls back to
+  `readback.voice` when not), nor Norwegian's locale there (`nb`, `nn` or
+  `no`; all three are taken as `no`). On a hand-set `simba-3.2` a voice
+  outside 3.0's six would render on 3.0 unsupported; left alone.
+  Anyone who set `simba-3.2` by hand keeps it.
 - **Attribution headers, not yet seen in PostHog.** Since 2026-10-16 every
   API request carries `Speechify-Caller: readback` and
   `Speechify-Caller-Version: <package version>` (`CALLER_HEADERS` in
@@ -357,7 +388,7 @@ the tier shape you want and I'll apply it in Atlas".
 
 ```sh
 npm run package
-code --install-extension readback-0.7.2.vsix
+code --install-extension readback-0.8.0.vsix
 ```
 
 On this Mac `code` on the PATH is Cursor's shim
@@ -368,7 +399,7 @@ had Readback since 0.7.0. VS Code itself is
 "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" --install-extension readback-0.7.2.vsix
 ```
 
-Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only; 0.4.1 the settings panel gains an API key row (status, change, link to the keys page) and an "All Readback settings" link into the filtered Settings editor. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false). Until 2026-09-22 they were also the only voices whose speech marks reached the last word; stock voices are fine again since then; 0.5.0 catch-up (history button and command, focus-based heard rule, `CATCH_UP_BRIEF`), Codex CLI as a Stop-only second source (settings panel row, two commands), Windows hook (PowerShell, exec form), the Featured hint reads "Trained for this model"; 0.5.1 the condensing run reads the reply fenced and must answer inside `spoken` tags (a 0.5.0 run answered the brief instead of condensing), condensing moved from Haiku to Sonnet, replies under 500 characters are read as they stand, TypeScript 7 and vsce 4. 0.6.0 non-English voices: the model follows the voice (English on `readback.model`, the rest on `simba-3.0`) and `language` is sent from the voice's locale; Claude Code's `language` setting picks the default voice and the picker says when they disagree; condensing answers in the reply's language; the lead-in drops "in". 0.7.0 permission alerts (`Notification` hook, `readback.alerts`), stop on `UserPromptSubmit`, the lead-in is the project name alone with the time shown in the header, the webview moved to `src/webview/` in TypeScript with the play order in a tested `Playlist`. 0.7.1 attribution: `Speechify-Caller: readback` and `Speechify-Caller-Version` on every API request, UTM tags on the links to the keys page; `@types/node` and vitest patch bumps. 0.7.2 the picker on a model the catalogue does not list (simba-3.5): every voice with any model is offered, the `_32` roster is featured on every model, the Featured hint reads "Speechify's roster".
+Version history: 0.1.0 had a stroke-only activity bar icon that did not show; 0.1.1 filled paths, status bar entry, first-run key prompt; 0.1.3 the SpeechifyAI mark; 0.2.0 condensed turns, project-aware windows, codicon controls; 0.2.1 autoplay toggle; 0.2.2 fixed the first turn after a reload never autoplaying (posted before the page had loaded), and the player now logs need/render/play events to the Readback output channel; 0.2.3 the voice picker saves per project (workspace settings); 0.2.4 speed too; 0.3.0 progress notes between tool calls via the MessageDisplay hook, turns that grow in the player, `readback.progress` setting; 0.3.1 the "click once to turn sound on" card; 0.3.2 logs the card, the first click and the first successful play so the autoplay question can be settled from the log; 0.3.3 PreToolUse tells a note from the reply, Stop's text is checked against the last note read, timer fallback 5 s; 0.4.0 voice picker in the panel (search, filters, grouped by language, a sample per voice), a clear button and command, new empty-state copy, the bar reduced to transport plus a gear and clear; voice, speed and autoplay live in a settings panel behind the gear. Catalogue tags arrive as `Category:Value` (`Use-Case:Audiobook-Long-Form`, `Age:Middle-Aged`); the picker shows the value only; 0.4.1 the settings panel gains an API key row (status, change, link to the keys page) and an "All Readback settings" link into the filtered Settings editor. "Featured" is the roster, defined in `isFeatured` as the `*_32` ids on simba-3.2: the API has no flag for it (`curated_voices` on the model list is deprecated and always false). Until 2026-09-22 they were also the only voices whose speech marks reached the last word; stock voices are fine again since then; 0.5.0 catch-up (history button and command, focus-based heard rule, `CATCH_UP_BRIEF`), Codex CLI as a Stop-only second source (settings panel row, two commands), Windows hook (PowerShell, exec form), the Featured hint reads "Trained for this model"; 0.5.1 the condensing run reads the reply fenced and must answer inside `spoken` tags (a 0.5.0 run answered the brief instead of condensing), condensing moved from Haiku to Sonnet, replies under 500 characters are read as they stand, TypeScript 7 and vsce 4. 0.6.0 non-English voices: the model follows the voice (English on `readback.model`, the rest on `simba-3.0`) and `language` is sent from the voice's locale; Claude Code's `language` setting picks the default voice and the picker says when they disagree; condensing answers in the reply's language; the lead-in drops "in". 0.7.0 permission alerts (`Notification` hook, `readback.alerts`), stop on `UserPromptSubmit`, the lead-in is the project name alone with the time shown in the header, the webview moved to `src/webview/` in TypeScript with the play order in a tested `Playlist`. 0.7.1 attribution: `Speechify-Caller: readback` and `Speechify-Caller-Version` on every API request, UTM tags on the links to the keys page; `@types/node` and vitest patch bumps. 0.7.2 the picker on a model the catalogue does not list (simba-3.5): every voice with any model is offered, the `_32` roster is featured on every model, the Featured hint reads "Speechify's roster". 0.8.0 simba-3.5 by default; a non-English voice leaves the configured model for simba-3.0 only when that model is English only; Claude Code's `language` maps to any of 3.5's 48 languages by ICU's names; a turn from home or above goes to the folderless windows, not every window.
 
 Reload VS Code, open the Readback view in the activity bar, set the key,
 install the hook, then run a Claude Code turn in the integrated terminal.
