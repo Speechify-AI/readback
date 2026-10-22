@@ -3,12 +3,16 @@ import { version } from "../package.json";
 import { languageFor, listVoices, modelFor, normalizeVoicePage, sortVoices, synthesize, toVoice } from "./speechify.ts";
 
 describe("modelFor and languageFor", () => {
-  it("keeps English on the configured model and moves every other language to simba-3.0", () => {
+  it("moves a non-English voice off an English-only model to simba-3.0 and leaves it elsewhere", () => {
     expect(modelFor("en-US", "simba-3.2")).toBe("simba-3.2");
     expect(modelFor("en_GB", "simba-3.2")).toBe("simba-3.2");
     expect(modelFor("", "simba-3.2")).toBe("simba-3.2");
     expect(modelFor("es-ES", "simba-3.2")).toBe("simba-3.0");
+    expect(modelFor("es-ES", "simba-english")).toBe("simba-3.0");
     expect(modelFor("de-DE", "simba-3.0")).toBe("simba-3.0");
+    expect(modelFor("es-ES", "simba-3.5")).toBe("simba-3.5");
+    expect(modelFor("ja-JP", "simba-3.5")).toBe("simba-3.5");
+    expect(modelFor("", "simba-3.5")).toBe("simba-3.5");
   });
 
   it("spells the locale the way the API takes it, and sends none for a voice without one", () => {

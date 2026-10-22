@@ -13,9 +13,30 @@ describe("languageCode", () => {
     expect(languageCode("English")).toBe("en");
   });
 
-  it("is null for a language no voice here speaks", () => {
-    expect(languageCode("japanese")).toBeNull();
-    expect(languageCode("ja")).toBeNull();
+  it("knows all of simba-3.5's languages, by ICU's names and the older ones", () => {
+    expect(languageCode("japanese")).toBe("ja");
+    expect(languageCode("日本語")).toBe("ja");
+    expect(languageCode("ja")).toBe("ja");
+    expect(languageCode("zh-TW")).toBe("zh");
+    expect(languageCode("Mandarin")).toBe("zh");
+    expect(languageCode("한국어")).toBe("ko");
+    expect(languageCode("Bengali")).toBe("bn");
+    expect(languageCode("Farsi")).toBe("fa");
+    expect(languageCode("Tagalog")).toBe("tl");
+    expect(languageCode("Bahasa Indonesia")).toBe("id");
+    expect(languageCode("nb-NO")).toBe("no");
+    expect(languageCode("Norsk")).toBe("no");
+  });
+
+  it("takes the longest name when a value holds two", () => {
+    expect(languageCode("Latin American Spanish")).toBe("es");
+    expect(languageCode("Swiss German")).toBe("de");
+  });
+
+  it("is null for a language the model does not speak", () => {
+    expect(languageCode("klingon")).toBeNull();
+    expect(languageCode("xx")).toBeNull();
+    expect(languageCode("yue-CN")).toBeNull();
     expect(languageCode("")).toBeNull();
   });
 });
@@ -38,5 +59,10 @@ describe("defaultVoice", () => {
     ];
     expect(defaultVoice(voices, "es")?.id).toBe("aitana");
     expect(defaultVoice(voices, "fr")).toBeUndefined();
+  });
+
+  it("finds a Norwegian voice under nb for the guide's no", () => {
+    const voices = [toVoice({ id: "sigrid", locale: "nb-NO" })!];
+    expect(defaultVoice(voices, "no")?.id).toBe("sigrid");
   });
 });

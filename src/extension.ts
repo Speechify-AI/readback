@@ -186,7 +186,7 @@ function onLive(event: LiveEvent, player: PlayerView, sessions: Sessions, log: v
   const settings = readSettings();
   const open = sessions.openTurns;
   const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-  if (!relatedToWorkspace(event.cwd, folders)) {
+  if (!relatedToWorkspace(event.cwd, folders, home)) {
     log.debug(`a turn from ${event.cwd ?? "?"} is not this window's project`);
     return;
   }

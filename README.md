@@ -97,8 +97,8 @@ that arrive before that queue up.
 | `readback.summarize` | `claude` | Condense replies with `claude -p`, or `off` to read them in full |
 | `readback.progress` | `true` | Read the notes Claude writes between tool calls as they arrive |
 | `readback.alerts` | `true` | Say when Claude has been waiting for your permission for a few seconds, ahead of whatever is playing |
-| `readback.voice` | `harper_32` | Speechify voice id. Per project when set from the picker. Unset, and Claude Code's `language` is German, Spanish, French, Italian or Portuguese, a voice in that language is used |
-| `readback.model` | `simba-3.2` | Speechify model for English voices. Other voices render on `simba-3.0`, the model that speaks their language |
+| `readback.voice` | `harper_32` | Speechify voice id. Per project when set from the picker. Unset, and Claude Code's `language` is one the model speaks, a voice in that language is used |
+| `readback.model` | `simba-3.5` | Speechify model. On an English-only model (`simba-3.2`) other voices render on `simba-3.0` instead |
 | `readback.speed` | `1` | Playback rate. Per project when cycled from the player |
 | `readback.minChars` | `80` | Replies shorter than this are skipped |
 | `readback.maxChars` | `4000` | Longer replies are cut at a sentence and end with "and more" |
@@ -106,10 +106,11 @@ that arrive before that queue up.
 ## Languages
 
 Readback speaks whatever language Claude writes in, as long as the voice
-speaks it too. Voices exist for English, German, Spanish (Spain and
-Mexico), French, Italian and Brazilian Portuguese. English voices render
-on `simba-3.2`; the others on `simba-3.0`, which is the model that speaks
-them. The voice's locale goes with every request.
+speaks it too. On `simba-3.5`, the default, every voice speaks its 48
+languages. On `simba-3.2`, which is English only, a voice in another
+language renders on `simba-3.0`, which speaks German, Spanish (Spain and
+Mexico), French, Italian and Brazilian Portuguese. The voice's locale goes
+with every request.
 
 To have Claude answer in Spanish, add `language` to
 `~/.claude/settings.json`, or to a project's `.claude/settings.json` for

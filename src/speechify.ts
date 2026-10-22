@@ -142,16 +142,20 @@ export function isFeatured(id: string): boolean {
 }
 
 /**
- * simba-3.2 is English only: a non-English voice on it answers 400. simba-3.0
- * speaks English plus de-DE, es-ES, es-MX, fr-FR, it-IT and pt-BR (Speechify's
- * language-support guide, read 2026-10-08). So the model follows the voice:
- * an English voice, or one with no locale, renders on the configured model,
- * any other on simba-3.0.
+ * simba-3.2 and simba-english are English only: a non-English voice on them
+ * answers 400. simba-3.5 speaks 48 languages with every voice, simba-3.0
+ * English plus de-DE, es-ES, es-MX, fr-FR, it-IT and pt-BR (Speechify's
+ * language-support guide, read 2026-10-22). So the model follows the voice
+ * only when it has to: an English voice, or one with no locale, renders on
+ * the configured model; any other does too unless that model is English
+ * only, when it renders on simba-3.0.
  */
 export const MULTILINGUAL_MODEL = "simba-3.0";
+const ENGLISH_ONLY_MODELS = new Set(["simba-3.2", "simba-english"]);
 
 export function modelFor(locale: string, model: string): string {
-  return locale === "" || /^en([-_]|$)/i.test(locale) ? model : MULTILINGUAL_MODEL;
+  const english = locale === "" || /^en([-_]|$)/i.test(locale);
+  return english || !ENGLISH_ONLY_MODELS.has(model) ? model : MULTILINGUAL_MODEL;
 }
 
 /** "es-ES" for es-ES or es_ES; undefined when the voice has no locale. */
