@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LiveTurns, type LiveEvent, type Timers } from "./live.ts";
+import { LiveTurns, isPlanningNote, type LiveEvent, type Timers } from "./live.ts";
 
 /** Timers that fire only when told to, and a clock that moves only when pushed. */
 function fakeClock() {
@@ -54,6 +54,18 @@ describe("LiveTurns", () => {
     expect(events).toEqual([
       { kind: "progress", key: "s1/p1", markdown: "I'll check the settings file first.", cwd: "/Users/me/code/app", via: "tool", heldMs: 400 },
     ]);
+    expect(clock.pending()).toBe(0);
+  });
+
+  it("drops a planning list but still releases the note before it", () => {
+    const { events, clock, live } = setup();
+    live.accept(display({ message_id: "m1", index: 0, delta: "I'll check the functions first.", final: true }));
+    live.accept(display({ message_id: "m2", index: 0, delta: "Private list — all independent reads, firing together: (1) each function's trigger type; (2) the shared utils.", final: true }));
+    expect(events).toEqual([expect.objectContaining({ kind: "progress", markdown: "I'll check the functions first.", via: "message" })]);
+    live.accept(tool());
+    clock.advance(5000);
+    clock.fire();
+    expect(events).toHaveLength(1);
     expect(clock.pending()).toBe(0);
   });
 
@@ -202,5 +214,15 @@ describe("LiveTurns", () => {
       ["final", "s2/p1"],
       ["progress", "s1/p1"],
     ]);
+  });
+});
+
+describe("isPlanningNote", () => {
+  it("matches the harness-prompted list on its first line only", () => {
+    expect(isPlanningNote("Private list — all independent reads, firing together: (1) a; (2) b.")).toBe(true);
+    expect(isPlanningNote("  private list: the three files I need")).toBe(true);
+    expect(isPlanningNote("Privately, I think this is fine.")).toBe(false);
+    expect(isPlanningNote("Here is the private list you asked for.")).toBe(false);
+    expect(isPlanningNote("Done.\nPrivate list — next reads.")).toBe(false);
   });
 });

@@ -46,7 +46,9 @@ this repo.
   after the message headless and 1.5 s in an interactive session, and a
   1.5 s window read one reply twice. Stop's text is also checked against
   the last note read, so a reply already heard is not read again. At Stop,
-  `last_assistant_message` wins over anything held. A turn is listed on its
+  `last_assistant_message` wins over anything held. A message whose first
+  line is Claude's harness-prompted "Private list" of what to fetch next
+  is dropped, not read (`isPlanningNote`). A turn is listed on its
   first note and grows; the webview is told what was appended and where,
   never handed a rewritten turn.
 - **A waiting permission prompt is said at once; the next prompt stops the

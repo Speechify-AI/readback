@@ -45,6 +45,19 @@ under Verified.
 | Render cache | `<globalStorage>/speechify.readback/cache/<model>/<voice>/<sha256>.{mp3,json}` |
 | API key | VS Code SecretStorage, key `readback.speechifyApiKey` |
 
+## Verified on 2026-10-24
+
+- **Claude Code 2.1.310 emits a planning message before parallel tool
+  calls.** A harness instruction asks Claude to "first privately list what
+  you need next", and Claude answers it as an assistant message opening
+  "Private list — all independent reads, firing together: (1) ...". It
+  arrives through MessageDisplay with PreToolUse behind it, so Readback
+  read it as a progress note; Shaun heard several from another project's
+  session this afternoon. `isPlanningNote` in `src/live.ts` now drops a
+  completed message whose first line starts "Private list" (the message
+  before it is still released as a note). Unit-tested, not yet heard
+  through the player. Not yet packaged.
+
 ## Verified on 2026-09-10
 
 - 63 unit tests: marks (copied evidence), text, settings merge, turns,

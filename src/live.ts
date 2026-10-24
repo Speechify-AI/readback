@@ -72,6 +72,21 @@ export const GRACE_MS = 5000;
 /** Messages still streaming with no final flush yet; more than this and the oldest is dropped. */
 const MAX_PARTIAL = 50;
 
+/**
+ * Since Claude Code 2.1.310 (seen 2026-10-24) a harness instruction asks
+ * Claude to "first privately list what you need next" before a batch of
+ * tool calls, and Claude answers it as an assistant message that opens
+ * "Private list — ...". It reaches MessageDisplay like any note and is
+ * about tool calls, not the work, so it is not read. The phrasing comes
+ * from a fixed instruction; this matches the first line only.
+ */
+const PLANNING_NOTE = /^\s*private list\b/i;
+
+/** A completed message that is Claude's list of what to fetch next, not a note for the person. */
+export function isPlanningNote(markdown: string): boolean {
+  return PLANNING_NOTE.test(markdown);
+}
+
 type Payload = Record<string, unknown>;
 
 /** One turn of one session: what MessageDisplay, PreToolUse and Stop share. */
@@ -169,6 +184,7 @@ export class LiveTurns {
     if (text.trim() === "") return;
     // A second message completing means the first was not the reply.
     this.release(key, "message");
+    if (isPlanningNote(text)) return;
     const timer = this.timers.set(() => this.release(key, "timeout"), this.graceMs);
     this.held.set(key, { markdown: text, cwd: cwdOf(p), timer, since: this.now() });
   }
