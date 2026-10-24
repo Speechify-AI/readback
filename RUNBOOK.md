@@ -4,9 +4,10 @@ Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
 ## Status (2026-10-24)
 
-**0.8.1 packaged and installed in VS Code on 2026-10-24, not yet reloaded, run or uploaded; Cursor still has 0.7.2: a message opening
-"Private list", Claude Code 2.1.310's planning list before a batch of tool
-calls, is dropped instead of read as a note (see Verified, 2026-10-24).
+**0.8.2 packaged and installed in VS Code on 2026-10-24, not yet
+reloaded, run or uploaded; Cursor still has 0.7.2: Claude Code 2.1.310's
+planning list before a batch of tool calls, in both shapes heard today, is
+dropped instead of read as a note (see Verified, 2026-10-24).
 It carries 0.8.0, never installed or uploaded: the default model
 is simba-3.5, a non-English voice stays on it, Claude Code's `language`
 resolves to any of its 48 languages, and a turn from a window with no
@@ -56,10 +57,15 @@ under Verified.
   "Private list — all independent reads, firing together: (1) ...". It
   arrives through MessageDisplay with PreToolUse behind it, so Readback
   read it as a progress note; Shaun heard several from another project's
-  session this afternoon. `isPlanningNote` in `src/live.ts` now drops a
-  completed message whose first line starts "Private list" (the message
-  before it is still released as a note). Unit-tested, not yet heard
-  through the player. Packaged as 0.8.1.
+  session this afternoon. A second shape followed with 0.8.1 installed:
+  no opener, just "(A) ...; (B) ...; (C) .... Three calls, issued
+  together." `isPlanningNote` in `src/live.ts` drops a completed message
+  whose first line starts "Private list", or that holds two or more
+  "(1)"/"(A)" markers and either opens with one or names the batch
+  ("together", "in parallel", "independent", "in one response"). The
+  message before it is still released as a note. Unit-tested against both
+  heard shapes and five ordinary notes, not yet heard through the player.
+  Packaged as 0.8.2.
 
 ## Verified on 2026-09-10
 

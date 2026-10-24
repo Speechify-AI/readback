@@ -218,11 +218,30 @@ describe("LiveTurns", () => {
 });
 
 describe("isPlanningNote", () => {
-  it("matches the harness-prompted list on its first line only", () => {
+  it("matches the harness-prompted list by its opener, on the first line only", () => {
     expect(isPlanningNote("Private list — all independent reads, firing together: (1) a; (2) b.")).toBe(true);
     expect(isPlanningNote("  private list: the three files I need")).toBe(true);
     expect(isPlanningNote("Privately, I think this is fine.")).toBe(false);
     expect(isPlanningNote("Here is the private list you asked for.")).toBe(false);
     expect(isPlanningNote("Done.\nPrivate list — next reads.")).toBe(false);
+  });
+
+  it("matches the bare enumeration when it opens the message or names the batch", () => {
+    expect(
+      isPlanningNote(
+        "(A) the deployed-function inventory — runtime, generation, trigger type; (B) Cloud Run services, since Gen2 functions live there; (C) per-function log-entry counts over the last 30 days. Three calls, issued together.",
+      ),
+    ).toBe(true);
+    expect(isPlanningNote("(1) each function's imports; (2) the shared utils.")).toBe(true);
+    expect(isPlanningNote("Three independent reads: (a) the config, (b) the entry point.")).toBe(true);
+    expect(isPlanningNote("Firing these together: (1) the hook script, (2) the settings file.")).toBe(true);
+  });
+
+  it("leaves ordinary notes alone", () => {
+    expect(isPlanningNote("I'll check the settings file first.")).toBe(false);
+    expect(isPlanningNote("Two things stand out: (1) the key is never stored, which is right.")).toBe(false);
+    expect(isPlanningNote("The merge keeps (1) our entries and (2) everything else, so the file is safe.")).toBe(false);
+    expect(isPlanningNote("Running the tests together with the build now.")).toBe(false);
+    expect(isPlanningNote("The hook fires at once, and the listener answers in 15 ms.")).toBe(false);
   });
 });
