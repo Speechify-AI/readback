@@ -2,9 +2,12 @@
 
 Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
-## Status (2026-10-22)
+## Status (2026-10-24)
 
-**0.8.0 packaged, not yet installed, run or uploaded: the default model
+**0.8.1 packaged, not yet installed, run or uploaded: a message opening
+"Private list", Claude Code 2.1.310's planning list before a batch of tool
+calls, is dropped instead of read as a note (see Verified, 2026-10-24).
+It carries 0.8.0, never installed or uploaded: the default model
 is simba-3.5, a non-English voice stays on it, Claude Code's `language`
 resolves to any of its 48 languages, and a turn from a window with no
 folder open goes to the folderless windows instead of every window** (see
@@ -56,7 +59,7 @@ under Verified.
   session this afternoon. `isPlanningNote` in `src/live.ts` now drops a
   completed message whose first line starts "Private list" (the message
   before it is still released as a note). Unit-tested, not yet heard
-  through the player. Not yet packaged.
+  through the player. Packaged as 0.8.1.
 
 ## Verified on 2026-09-10
 
