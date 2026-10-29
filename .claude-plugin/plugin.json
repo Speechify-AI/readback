@@ -1,0 +1,17 @@
+{
+  "name": "readback",
+  "version": "0.8.2",
+  "description": "Hear Claude's replies in a Speechify voice, with each word lit above the prompt as it is spoken.",
+  "author": { "name": "Speechify" },
+  "license": "MIT",
+  "homepage": "https://github.com/Speechify-AI/readback#readme",
+  "repository": "https://github.com/Speechify-AI/readback",
+  "userConfig": {
+    "speechify_api_key": {
+      "type": "string",
+      "title": "Speechify API key",
+      "description": "Readback reads Claude's replies aloud in a Speechify voice. Create a key for free at https://platform.speechify.ai/api-keys?utm_source=readback&utm_medium=claude-code&utm_campaign=readback",
+      "sensitive": true
+    }
+  }
+}

@@ -15,3 +15,7 @@ node_modules/**
 dist/**/*.map
 *.vsix
 tsconfig.webview.json
+.claude-plugin/**
+hooks/**
+mod/**
+tsconfig.mod.json

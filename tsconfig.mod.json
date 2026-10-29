@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "lib": ["ES2023"],
+    "paths": {
+      "claude-code": ["./.claude-plugin/types/claude-code/index.d.ts"],
+      "claude-code/testing": ["./.claude-plugin/types/claude-code/index.d.ts"]
+    }
+  },
+  "include": ["hooks/**/*.ts"],
+  "exclude": []
+}

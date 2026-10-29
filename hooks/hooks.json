@@ -1,0 +1,1 @@
+{ "description": "Readback: read Claude's replies aloud", "modules": ["./readback.ts"] }
