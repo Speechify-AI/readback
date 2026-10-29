@@ -18,17 +18,45 @@ const SHARED = [
 
 const here = dirname(new URL(import.meta.url).pathname);
 
+/**
+ * Every module specifier a source pulls in at runtime: `from "x"` (multi-line
+ * imports included), bare `import "x"` and `import("x")`. Type-only
+ * statements are erased by the compiler and are dropped first.
+ */
+export function runtimeSpecifiers(src: string): string[] {
+  const runtime = src.replace(/\b(?:import|export)\s+type\b[^;]*?;/g, "");
+  const found: string[] = [];
+  for (const re of [
+    /\bfrom\s+["']([^"']+)["']/g,
+    /\bimport\s*["']([^"']+)["']/g,
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+  ]) {
+    for (const m of runtime.matchAll(re)) found.push(m[1] as string);
+  }
+  return found;
+}
+
+describe("runtimeSpecifiers", () => {
+  it("sees multi-line, side-effect and dynamic imports, and skips type imports", () => {
+    const src = [
+      'import {\n  a,\n  b,\n} from "./speechify.ts";',
+      'import "node:fs";',
+      'const x = await import("node:os");',
+      'import type {\n  T,\n} from "./types.ts";',
+      'export * from "./y.ts";',
+    ].join("\n");
+    expect(runtimeSpecifiers(src).sort()).toEqual(["./speechify.ts", "./y.ts", "node:fs", "node:os"]);
+  });
+});
+
 describe("shared modules", () => {
   it("shared modules load without Node", () => {
     for (const file of SHARED) {
       const src = readFileSync(join(here, file), "utf8");
-      expect(src, file).not.toMatch(/from\s+["']node:/);
       expect(src, file).not.toMatch(/package\.json/);
-
-      for (const line of src.split("\n")) {
-        if (/^\s*import\s+type\b/.test(line)) continue;
-        const spec = /^\s*(?:import|export)\b.*\bfrom\s+["'](\.{1,2}\/[^"']+)["']/.exec(line)?.[1];
-        if (!spec) continue;
+      for (const spec of runtimeSpecifiers(src)) {
+        expect(spec.startsWith("node:"), `${file} imports ${spec}`).toBe(false);
+        if (!spec.startsWith(".")) continue;
         const target = normalize(join(dirname(file), spec));
         expect(SHARED, `${file} imports ${spec}`).toContain(target);
       }
