@@ -55,6 +55,8 @@ type AppState = {
   pickerVoice: string;
   /** The voices this key renders on the model, fetched once. */
   voices: Voice[] | null;
+  /** The busy spinner's frame, advanced by the tick. */
+  frame: number;
 };
 
 type App = {
@@ -82,7 +84,7 @@ function build(
   platform: string,
   enabled: boolean,
 ): App {
-  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", voices: null };
+  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", voices: null, frame: 0 };
   const http: Http = (url, init) => $.http.fetch(url, init);
   const sleep: Sleep = (ms) => $.clock.sleep(ms);
   const run: Run = (argv, init) => $.process.run(argv, init);
@@ -123,8 +125,8 @@ function build(
     () => $.clock.now(),
   );
 
-  // Two clocks: the highlight tick only while sound plays, the heartbeat
-  // also while loading or condensing, when the floor is held in silence.
+  // Two clocks: the tick (the highlight while sound plays, the spinner while
+  // loading or condensing) and the heartbeat, which holds the floor.
   let tick: { cancel(): void } | null = null;
   let heartbeat: { cancel(): void } | null = null;
   const stopTimers = () => {
@@ -143,6 +145,7 @@ function build(
     const now = player.view().state;
     if (tickWanted(now)) {
       tick ??= $.clock.every(100, () => {
+        state.frame++;
         void player.tick().then(() => $.ui.invalidate("ui.render"));
       });
     } else if (tick) {
@@ -336,7 +339,7 @@ export const register: Register = (on, options) => {
         close,
       ) as ReturnType<typeof next>;
     }
-    return band(a.player.view(), els, a.actions) as ReturnType<typeof next>;
+    return band(a.player.view(), els, a.actions, a.state.frame) as ReturnType<typeof next>;
   });
 
   on("session.end", async ($, e, next) => {

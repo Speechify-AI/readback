@@ -10,6 +10,8 @@ export type Els = {
 export type BandActions = { toggle(): void; stop(): void; full(): void };
 
 const REFUSED = "#d75f5f";
+const BUSY = "#d77757";
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 function clock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -17,16 +19,24 @@ function clock(ms: number): string {
 }
 
 function meta(view: View): string {
-  if (view.state === "waiting") return "condensing…";
-  // Idle there is no clock to show; the keys are drawn on the buttons.
-  if (view.state === "idle") return "";
+  // Idle there is no clock to show; waiting, the busy row says it all.
+  if (view.state === "idle" || view.state === "waiting") return "";
   const parts: string[] = [view.kind ?? ""];
   if (view.paragraphs > 1) parts.push(`${view.paragraph}/${view.paragraphs}`);
-  parts.push(`${clock(view.positionMs)} / ${clock(view.durationMs)}`);
+  // Loading, the clock would read 0:00 / 0:00; the busy row stands in.
+  if (view.state !== "loading") parts.push(`${clock(view.positionMs)} / ${clock(view.durationMs)}`);
   return parts.filter(Boolean).join(" · ");
 }
 
-export function band(view: View, els: Els, actions: BandActions): unknown {
+/** What the busy row says while nothing sounds yet, or null when not busy. */
+function busy(view: View): string | null {
+  if (view.state === "waiting") return "Condensing the reply…";
+  if (view.state === "loading") return "Getting the voice from Speechify…";
+  return null;
+}
+
+/** `frame` turns the spinner; the caller advances it on its clock. */
+export function band(view: View, els: Els, actions: BandActions, frame = 0): unknown {
   const { Box, Text, Button } = els;
   const loaded = view.state !== "idle";
   // The label says what a press does: waiting or loading, it cancels.
@@ -49,7 +59,15 @@ export function band(view: View, els: Els, actions: BandActions): unknown {
   controls.push(Text({ dimColor: true, children: meta(view) }));
 
   const rows: unknown[] = [Box({ flexDirection: "row", gap: 1, children: controls })];
-  if (view.sentence) {
+  const wait = busy(view);
+  if (wait) {
+    rows.push(
+      Text({
+        color: BUSY,
+        children: [Text({ bold: true, children: SPINNER[frame % SPINNER.length] }), ` ${wait}`],
+      }),
+    );
+  } else if (view.sentence) {
     const s = view.sentence;
     rows.push(
       Text({

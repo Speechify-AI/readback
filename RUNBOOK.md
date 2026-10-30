@@ -73,7 +73,8 @@ Pending, the manual check (none run yet):
 
 1. `claude --plugin-dir .` with a key: welcome toast once, `/readback`
    turns on, band appears.
-2. A long reply: "condensing..." in the band, after pressing 1 during
+2. A long reply: the spinner row "Condensing the reply…" in the band,
+   then "Getting the voice from Speechify…" while it renders; after pressing 1 during
    condensing, the summary starts when it lands, the word lit. 1 pauses and resumes at the sentence start; 3 plays the
    full reply; 2 stops.
 3. `1` in an empty prompt plays when idle; a `1` typed after other text

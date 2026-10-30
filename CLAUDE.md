@@ -148,8 +148,9 @@ and shares none of the extension's host code.
   text from the rendered paragraph; only whitespace may be dropped.
 - **Band layout is fixed.** A blank top row; then one controls row (Readback,
   Play/Pause/Resume, Stop only while loaded, Full reply, a dim meta);
-  then the current sentence with every word dim but the spoken one. No
-  progress bar, by the person's decision.
+  then the current sentence with every word dim but the spoken one. While
+  condensing or rendering, a spinner row in Claude's orange says which, in
+  place of the sentence. No progress bar, by the person's decision.
 - **`READBACK_HOOK` guard.** The condensing run sets it, and a session that
   sees it (or is not interactive) turns every hook off. Same reason as the
   extension's hook script.

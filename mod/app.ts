@@ -182,7 +182,7 @@ export function timersWanted(state: State): boolean {
 
 /** The 100 ms tick that moves the band's highlight runs only while sound plays; it does nothing otherwise. */
 export function tickWanted(state: State): boolean {
-  return state === "playing";
+  return state === "playing" || state === "loading" || state === "waiting";
 }
 
 export function isRefusal(err: unknown): boolean {

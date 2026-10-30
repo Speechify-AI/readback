@@ -44,7 +44,17 @@ describe("band", () => {
     const [play] = buttons(b);
     expect(play!.props.label).toBe("Cancel");
     expect(play!.props.hotkey).toBe("1");
-    expect(txt(row1(b).props.children.at(-1))).toBe("condensing…");
+    expect(txt(row1(b).props.children.at(-1))).toBe("");
+    expect(txt(kids(b)[1]!)).toBe("⠋ Condensing the reply…");
+  });
+
+  it("loading band spins and drops the empty clock", () => {
+    const b = band(view({ state: "loading", kind: "summary", paragraph: 1, paragraphs: 2 }), els, actions, 2) as El;
+    expect(txt(row1(b).props.children.at(-1))).toBe("summary · 1/2");
+    const row = kids(b)[1]!;
+    expect(row.props.color).toBe("#d77757");
+    expect(txt(row)).toBe("⠹ Getting the voice from Speechify…");
+    expect(txt(kids(band(view({ state: "loading" }), els, actions, 12) as El)[1]!)).toContain("⠹");
   });
 
   it("loading band labels 1 \"Cancel\" with the hotkey armed", () => {

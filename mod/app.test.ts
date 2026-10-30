@@ -226,8 +226,8 @@ describe("playback wiring", () => {
 
   it("the highlight tick runs only while playing, not while loading or condensing", () => {
     expect(tickWanted("playing")).toBe(true);
-    expect(tickWanted("loading")).toBe(false);
-    expect(tickWanted("waiting")).toBe(false);
+    expect(tickWanted("loading")).toBe(true);
+    expect(tickWanted("waiting")).toBe(true);
     expect(tickWanted("paused")).toBe(false);
     expect(tickWanted("idle")).toBe(false);
   });
