@@ -73,9 +73,15 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
 
 /** Why turning on failed, said so the person knows what to do. */
 export function keyCheckText(check: Extract<KeyCheck, { ok: false }>): string {
-  if (check.reason === "Speechify refused that key.") return REFUSED;
-  if (check.reason.startsWith("Could not reach")) return check.reason;
-  return `${check.reason} ${CHANGE_KEY}`;
+  switch (check.kind) {
+    case "refused":
+      return REFUSED;
+    case "unreachable":
+      return check.reason;
+    case "invalid":
+    case "no-voice":
+      return `${check.reason} ${CHANGE_KEY}`;
+  }
 }
 
 export type TurnEvent = { answer: string; turnId: string; isAborted: boolean; agentId?: string };

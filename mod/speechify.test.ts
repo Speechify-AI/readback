@@ -76,6 +76,7 @@ describe("checkKey", () => {
     const { http } = fake([{ status: 401, body: "no" }]);
     expect(await checkKey(key, { apiBase: cfg.apiBase, model: cfg.model }, http, "9.9.9")).toEqual({
       ok: false,
+      kind: "refused",
       reason: "Speechify refused that key.",
     });
   });

@@ -100,11 +100,11 @@ describe("/readback", () => {
   });
 
   it("a refused key says where to change it; other failures say why", () => {
-    expect(keyCheckText({ ok: false, reason: "Speechify refused that key." })).toBe(REFUSED);
-    expect(keyCheckText({ ok: false, reason: "That does not look like an API key." })).toBe(
+    expect(keyCheckText({ ok: false, kind: "refused", reason: "Speechify refused that key." })).toBe(REFUSED);
+    expect(keyCheckText({ ok: false, kind: "invalid", reason: "That does not look like an API key." })).toBe(
       "That does not look like an API key. Change it in /plugin → readback → configure.",
     );
-    expect(keyCheckText({ ok: false, reason: "Could not reach Speechify to check that key. Try again." })).toBe(
+    expect(keyCheckText({ ok: false, kind: "unreachable", reason: "Could not reach Speechify to check that key. Try again." })).toBe(
       "Could not reach Speechify to check that key. Try again.",
     );
   });

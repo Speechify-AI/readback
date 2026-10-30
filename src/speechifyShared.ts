@@ -1,12 +1,14 @@
 /**
  * The Node-free half of the Speechify client: types, the request body, the
- * voice catalogue's normalising and sorting, and the local key checks. The
+ * voice catalogue's normalising and sorting, the key checks, and the three
+ * calls themselves with their transport passed in (`SpeechifyIo`). The
  * Claude Code mod cannot load a module that imports a Node built-in or
  * the package manifest, so everything it needs from `speechify.ts` lives here and
- * `speechify.ts` re-exports it. The fetching, the Buffer and the caller
- * headers (which carry the package version) stay in `speechify.ts`.
+ * `speechify.ts` re-exports it. `speechify.ts` binds the calls to fetch,
+ * setTimeout, Buffer and the package version; the mod binds them to `$`.
  */
-import type { Mark } from "./marks.ts";
+import { mp3DurationMs } from "./audio.ts";
+import { flattenMarks, type Mark } from "./marks.ts";
 
 export interface TtsConfig {
   apiBase: string;
@@ -193,6 +195,153 @@ export function keyProblem(trimmed: string): string | null {
   return null;
 }
 
+/** Why a key was not taken, as a kind to branch on and a sentence to show. */
 export type KeyCheck =
   | { ok: true; voices: Voice[] }
-  | { ok: false; reason: string };
+  | { ok: false; kind: "invalid" | "refused" | "unreachable" | "no-voice"; reason: string };
+
+/**
+ * What the calls need from their host. Each host has its own HTTP, timer and
+ * base64, and the version comes from a manifest only Node can import, so
+ * all four arrive from the caller.
+ */
+export type Http = (
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string },
+) => Promise<{ ok: boolean; status: number; text: string }>;
+
+export interface SpeechifyIo {
+  http: Http;
+  sleep(ms: number): Promise<void>;
+  /** The package version, for the caller headers. */
+  version: string;
+  decodeBase64(base64: string): Uint8Array;
+}
+
+/**
+ * Attribution on every request, so Speechify can tell Readback's traffic
+ * from the rest: `caller` and `caller_version` on each request in their
+ * analytics. It never gates limits, pricing or access. The slug is fixed for
+ * good; changing it would split the history. The version rides separately,
+ * never inside the slug. See docs.speechify.ai/build/guides/integrations/build-an-integration.
+ */
+export function callerHeaders(version: string): Record<string, string> {
+  return { "Speechify-Caller": "readback", "Speechify-Caller-Version": version };
+}
+
+interface SpeechResponse {
+  audio_data?: unknown;
+  billable_characters_count?: unknown;
+  speech_marks?: unknown;
+}
+
+function isSpeechResponse(value: unknown): value is SpeechResponse {
+  return typeof value === "object" && value !== null;
+}
+
+export async function synthesize(input: string, cfg: TtsConfig, io: SpeechifyIo): Promise<TtsResult> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await io.http(`${cfg.apiBase}/v1/audio/speech`, {
+      method: "POST",
+      headers: {
+        ...callerHeaders(io.version),
+        Authorization: `Bearer ${cfg.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: speechBody(input, cfg),
+    });
+
+    if (!res.ok) {
+      const body = res.text.slice(0, 300);
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (TRANSIENT.has(res.status) && delay !== undefined) {
+        await io.sleep(delay);
+        continue;
+      }
+      throw new TtsError(res.status, body);
+    }
+
+    const json: unknown = JSON.parse(res.text);
+    if (!isSpeechResponse(json) || typeof json.audio_data !== "string") {
+      throw new TtsError(0, "missing audio_data in response");
+    }
+
+    const audio = io.decodeBase64(json.audio_data);
+    return {
+      audio,
+      charsBilled:
+        typeof json.billable_characters_count === "number"
+          ? json.billable_characters_count
+          : input.length,
+      durationMs: mp3DurationMs(audio),
+      marks: flattenMarks(json.speech_marks),
+    };
+  }
+}
+
+/**
+ * Voices on this key that can render on their model (`modelFor`, given the
+ * configured one), walking every page.
+ *
+ * A voice is offered when its catalogue entry lists that model. The
+ * catalogue lags the API, though: on 2026-10-16 no voice listed simba-3.5
+ * while 3.5 rendered every stock English voice, so requiring the entry
+ * would have emptied the picker of English. When no voice anywhere in the
+ * catalogue lists the model, the model is taken as newer than the
+ * catalogue and every voice that lists any model is offered on it.
+ */
+export async function listVoices(
+  cfg: Omit<TtsConfig, "voiceId">,
+  io: Pick<SpeechifyIo, "http" | "version">,
+): Promise<Voice[]> {
+  const rows: RawVoice[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 30; page++) {
+    const url = new URL(`${cfg.apiBase}/v1/voices`);
+    url.searchParams.set("page_size", "100");
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const res = await io.http(url.toString(), {
+      headers: { ...callerHeaders(io.version), Authorization: `Bearer ${cfg.apiKey}` },
+    });
+    if (!res.ok) throw new TtsError(res.status, res.text.slice(0, 200));
+
+    const batch = normalizeVoicePage(JSON.parse(res.text));
+    rows.push(...batch.rows);
+    cursor = batch.cursor;
+    if (!cursor) break;
+  }
+
+  return voicesOnModel(rows, cfg.model);
+}
+
+/**
+ * Is this a working Speechify key, and can it render our model?
+ *
+ * Run before the key is stored, because the key is the admission test: an
+ * unchecked key would leave a player that silently cannot speak, and the
+ * person would have no way to tell whether they had mistyped or we were
+ * broken. Checking also tells us which voices to offer.
+ */
+export async function checkKey(
+  apiKey: string,
+  apiBase: string,
+  model: string,
+  io: Pick<SpeechifyIo, "http" | "version">,
+): Promise<KeyCheck> {
+  const trimmed = apiKey.trim();
+  const problem = keyProblem(trimmed);
+  if (problem) return { ok: false, kind: "invalid", reason: problem };
+  let voices: Voice[];
+  try {
+    voices = await listVoices({ apiBase, apiKey: trimmed, model }, io);
+  } catch (err) {
+    if (err instanceof TtsError && (err.status === 401 || err.status === 403)) {
+      return { ok: false, kind: "refused", reason: "Speechify refused that key." };
+    }
+    return { ok: false, kind: "unreachable", reason: "Could not reach Speechify to check that key. Try again." };
+  }
+  if (voices.length === 0) {
+    return { ok: false, kind: "no-voice", reason: `That key works, but no voice on it can render ${model}.` };
+  }
+  return { ok: true, voices };
+}
