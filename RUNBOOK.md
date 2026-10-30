@@ -73,8 +73,8 @@ Pending, the manual check (none run yet):
 
 1. `claude --plugin-dir .` with a key: welcome toast once, `/readback`
    turns on, band appears.
-2. A long reply: "condensing..." in the band, the summary plays by itself,
-   the word lit. 1 pauses and resumes at the sentence start; 3 plays the
+2. A long reply: "condensing..." in the band, after pressing 1 during
+   condensing, the summary starts when it lands, the word lit. 1 pauses and resumes at the sentence start; 3 plays the
    full reply; 2 stops.
 3. A bare `1` typed idle reaches Claude. Ctrl+X Tab focuses the band and
    1 then plays.
@@ -108,6 +108,9 @@ Open:
 - **A reload or a key change in `/plugin` reruns `register` in a fresh
   environment**, so a clip already sounding cannot be stopped by the new
   one: 2 does nothing until it ends, and the floor claim expires after 3 s.
+- **The floor's heartbeat is read-then-write**, with no compare-and-set in
+  `$.store`: in a few-ms window a session's heartbeat can overwrite a newer
+  claim. The other session then pauses and the person presses 1 again.
 - A turn that lands while Readback is off is not remembered; turning on has
   nothing to play until the next reply.
 - A `language` change mid-session takes effect next session unless a voice

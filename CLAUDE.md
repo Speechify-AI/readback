@@ -133,7 +133,9 @@ and shares none of the extension's host code.
 - **One speaker across sessions.** A claim record under `$.store`'s `floor`
   key (`mod/floor.ts`), refreshed every second and free after 3 s without a
   heartbeat, so a crashed session never holds the floor. Pressing play
-  takes it; losing it pauses without releasing anything.
+  takes it; losing it pauses without releasing anything. A session waiting
+  on condensing holds the floor with nothing sounding, and another
+  session's play cancels that wait.
 - **The key lives only in the sensitive `userConfig` field
   `speechify_api_key`.** Never in `$.store`, a file, a log, a toast or the
   band. The install dialog cannot be hooked, so the key is checked live when

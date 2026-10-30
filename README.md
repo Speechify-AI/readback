@@ -39,15 +39,13 @@ later, in the terminal. Whether the desktop app draws the band is not yet
 confirmed, and Claude Code's declarations say that place is terminal only.
 
 ```
-/plugin install readback --marketplace Speechify-AI/readback
-```
-
-On an older Claude Code, add the marketplace first, then install:
-
-```
 /plugin marketplace add Speechify-AI/readback
 /plugin install readback@readback
 ```
+
+On Claude Code 2.1.275 or later the one-step form
+`/plugin install readback --marketplace Speechify-AI/readback` should also
+work; it has not been tried.
 
 The install dialog asks for your Speechify API key. Create one for free at
 <https://platform.speechify.ai/api-keys?utm_source=github&utm_medium=readme&utm_campaign=readback>.
@@ -56,6 +54,8 @@ workspace; change it any time in `/plugin`.
 
 - `/readback` turns Readback on or off. It checks the key against the live
   API when you turn it on. Nothing plays or bills until you press play.
+  On or off is read when a session starts, so turning it off in one
+  terminal leaves sessions already open on until they restart.
 - `/readback voice` opens a voice picker in the band.
 - Keys 1, 2 and 3 play or pause, stop, and play the full reply. They work
   only while the prompt is empty and a clip is loaded, so a bare "1" typed
