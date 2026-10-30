@@ -58,9 +58,8 @@ workspace; change it any time in `/plugin`.
   terminal leaves sessions already open on until they restart.
 - `/readback voice` opens a voice picker in the band.
 - Keys 1, 2 and 3 play or pause, stop, and play the full reply. They work
-  only while the prompt is empty and a clip is loaded, so a bare "1" typed
-  in answer to Claude still reaches Claude. Idle, press Ctrl+X Tab to focus
-  the band, then Enter, or click Play.
+  only while the prompt is empty: a "1" typed as the first character of a
+  message goes to Readback, not to Claude.
 - A long reply is condensed to a few spoken sentences with `claude -p` on
   your own Claude subscription, when the turn ends. The full reply is one
   press of 3 away. Condensing needs the `claude` CLI and has been checked

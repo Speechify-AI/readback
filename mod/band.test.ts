@@ -18,14 +18,15 @@ const txt = (e: El): string => (typeof e === "string" ? e : [e.props.children].f
 const playing = view({ state: "playing", kind: "summary", paragraph: 1, paragraphs: 3, positionMs: 12000, durationMs: 48000 });
 
 describe("band", () => {
-  it("idle band has no hotkeys", () => {
+  it("idle band arms 1 and 3", () => {
     const b = band(idle, els, actions) as El;
-    for (const btn of buttons(b)) expect("hotkey" in btn.props).toBe(false);
-    expect(buttons(b).map((x) => x.props.label)).toEqual(["Play", "Full reply"]);
+    expect(buttons(b).map((x) => [x.props.label, x.props.hotkey])).toEqual([
+      ["Play", "1"],
+      ["Full reply", "3"],
+    ]);
     // Ctrl+X Tab lands the ring on Play, so Enter plays.
     expect(buttons(b)[0]!.props.autoFocus).toBe(true);
-    // Unarmed buttons draw no key, so the meta says how to start.
-    expect(txt(row1(b).props.children.at(-1))).toBe("ctrl+x tab, enter to play");
+    expect(txt(row1(b).props.children.at(-1))).toBe("");
   });
 
   it("playing band arms 1, 2 and 3", () => {

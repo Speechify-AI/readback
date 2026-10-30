@@ -141,8 +141,9 @@ and shares none of the extension's host code.
   band. The install dialog cannot be hooked, so the key is checked live when
   the person turns Readback on, and a 401 or 403 on a later render turns it
   off with a notice pointing at `/plugin`.
-- **Digits are armed only while a track is loaded.** Idle, the buttons are
-  drawn without hotkeys, so a bare "1" typed to Claude still reaches Claude.
+- **1, 2 and 3 are always armed**, by the person's choice (2026-10-29). A
+  bare digit in an empty prompt goes to the band, so a message cannot
+  start with 1 or 3 typed first; accepted.
 - **What is shown is what is spoken, in the band too.** The band draws only
   text from the rendered paragraph; only whitespace may be dropped.
 - **Band layout is fixed.** A blank top row; then one controls row (Readback,

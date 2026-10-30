@@ -18,8 +18,8 @@ function clock(ms: number): string {
 
 function meta(view: View): string {
   if (view.state === "waiting") return "condensing…";
-  // Idle, no button carries a hotkey, so nothing else says how to start.
-  if (view.state === "idle") return "ctrl+x tab, enter to play";
+  // Idle there is no clock to show; the keys are drawn on the buttons.
+  if (view.state === "idle") return "";
   const parts: string[] = [view.kind ?? ""];
   if (view.paragraphs > 1) parts.push(`${view.paragraph}/${view.paragraphs}`);
   parts.push(`${clock(view.positionMs)} / ${clock(view.durationMs)}`);
@@ -38,16 +38,14 @@ export function band(view: View, els: Els, actions: BandActions): unknown {
         : view.state === "paused"
           ? "Resume"
           : "Play";
-  // A hotkey is armed only while something is loaded or pending. Idle, the
-  // ring starts on Play when the band takes the keyboard, so Enter plays.
-  const key = (k: string) => (loaded ? { hotkey: k } : {});
-
+  // 1, 2 and 3 are always armed, by the person's choice: a bare digit in an
+  // empty prompt goes to the band, not to Claude.
   const controls: unknown[] = [
     Text({ bold: true, children: "Readback" }),
-    Button({ key: "play", label, plain: true, autoFocus: true, ...key("1"), onPress: () => actions.toggle() }),
+    Button({ key: "play", label, plain: true, autoFocus: true, hotkey: "1", onPress: () => actions.toggle() }),
   ];
-  if (loaded) controls.push(Button({ key: "stop", label: "Stop", plain: true, ...key("2"), onPress: () => actions.stop() }));
-  controls.push(Button({ key: "full", label: "Full reply", plain: true, ...key("3"), onPress: () => actions.full() }));
+  if (loaded) controls.push(Button({ key: "stop", label: "Stop", plain: true, hotkey: "2", onPress: () => actions.stop() }));
+  controls.push(Button({ key: "full", label: "Full reply", plain: true, hotkey: "3", onPress: () => actions.full() }));
   controls.push(Text({ dimColor: true, children: meta(view) }));
 
   const rows: unknown[] = [Box({ flexDirection: "row", gap: 1, children: controls })];
