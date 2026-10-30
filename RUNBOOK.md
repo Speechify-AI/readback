@@ -76,8 +76,8 @@ Pending, the manual check (none run yet):
 2. A long reply: "condensing..." in the band, after pressing 1 during
    condensing, the summary starts when it lands, the word lit. 1 pauses and resumes at the sentence start; 3 plays the
    full reply; 2 stops.
-3. A bare `1` typed idle reaches Claude. Ctrl+X Tab focuses the band and
-   1 then plays.
+3. A bare `1` typed idle reaches Claude. Ctrl+X Tab focuses the band on
+   Play and Enter then plays.
 4. Two terminals: play in B pauses A within about 1 s. A's voice survives
    B's play (`$.store` keys not clobbered).
 5. Replay of the same reply makes no network request.

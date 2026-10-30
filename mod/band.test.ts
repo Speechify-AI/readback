@@ -22,6 +22,8 @@ describe("band", () => {
     const b = band(idle, els, actions) as El;
     for (const btn of buttons(b)) expect("hotkey" in btn.props).toBe(false);
     expect(buttons(b).map((x) => x.props.label)).toEqual(["Play", "Full reply"]);
+    // Ctrl+X Tab lands the ring on Play, so Enter plays.
+    expect(buttons(b)[0]!.props.autoFocus).toBe(true);
   });
 
   it("playing band arms 1, 2 and 3", () => {
@@ -40,6 +42,13 @@ describe("band", () => {
     expect(play!.props.label).toBe("Cancel");
     expect(play!.props.hotkey).toBe("1");
     expect(txt(row1(b).props.children.at(-1))).toBe("condensing…");
+  });
+
+  it("loading band labels 1 \"Cancel\" with the hotkey armed", () => {
+    const b = band(view({ state: "loading", kind: "summary", paragraph: 1, paragraphs: 2 }), els, actions) as El;
+    const [play] = buttons(b);
+    expect(play!.props.label).toBe("Cancel");
+    expect(play!.props.hotkey).toBe("1");
   });
 
   it("the sentence row dims all but the word", () => {

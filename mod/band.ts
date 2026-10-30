@@ -27,14 +27,22 @@ function meta(view: View): string {
 export function band(view: View, els: Els, actions: BandActions): unknown {
   const { Box, Text, Button } = els;
   const loaded = view.state !== "idle";
+  // The label says what a press does: waiting or loading, it cancels.
   const label =
-    view.state === "waiting" ? "Cancel" : view.state === "playing" ? "Pause" : view.state === "paused" ? "Resume" : "Play";
-  // A hotkey is armed only while something is loaded or pending.
+    view.state === "waiting" || view.state === "loading"
+      ? "Cancel"
+      : view.state === "playing"
+        ? "Pause"
+        : view.state === "paused"
+          ? "Resume"
+          : "Play";
+  // A hotkey is armed only while something is loaded or pending. Idle, the
+  // ring starts on Play when the band takes the keyboard, so Enter plays.
   const key = (k: string) => (loaded ? { hotkey: k } : {});
 
   const controls: unknown[] = [
     Text({ bold: true, children: "Readback" }),
-    Button({ key: "play", label, plain: true, ...key("1"), onPress: () => actions.toggle() }),
+    Button({ key: "play", label, plain: true, autoFocus: true, ...key("1"), onPress: () => actions.toggle() }),
   ];
   if (loaded) controls.push(Button({ key: "stop", label: "Stop", plain: true, ...key("2"), onPress: () => actions.stop() }));
   controls.push(Button({ key: "full", label: "Full reply", plain: true, ...key("3"), onPress: () => actions.full() }));
