@@ -32,13 +32,6 @@ export class Floor {
     await this.store.set(FLOOR_KEY, { session: this.session, at: await this.now() });
   }
 
-  /** Refresh our claim; never takes the floor back. */
-  async heartbeat(): Promise<void> {
-    const rec = await this.current();
-    if (rec?.session !== this.session) return;
-    await this.store.set(FLOOR_KEY, { session: this.session, at: await this.now() });
-  }
-
   /** Clear our own claim only. */
   async release(): Promise<void> {
     const rec = await this.current();
@@ -46,10 +39,17 @@ export class Floor {
     await this.store.set(FLOOR_KEY, null);
   }
 
-  /** Another session holds a fresh claim. */
-  async lost(): Promise<boolean> {
+  /**
+   * The once-a-second check, in one read: "lost" when another session holds
+   * a fresh claim, "held" when the claim is ours (and is refreshed), "free"
+   * otherwise. Never takes the floor back.
+   */
+  async beat(): Promise<"lost" | "held" | "free"> {
     const rec = await this.current();
-    if (!rec || rec.session === this.session) return false;
-    return (await this.now()) - rec.at < STALE_MS;
+    if (!rec) return "free";
+    const now = await this.now();
+    if (rec.session !== this.session) return now - rec.at < STALE_MS ? "lost" : "free";
+    await this.store.set(FLOOR_KEY, { session: this.session, at: now });
+    return "held";
   }
 }

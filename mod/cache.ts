@@ -12,7 +12,6 @@ import { fromBase64, toBase64 } from "./bytes.ts";
 export type Files = {
   read(path: string): Promise<string>;
   write(path: string, text: string): Promise<void>;
-  exists(path: string): Promise<boolean>;
 };
 
 /** Under `$HOME`; the caller joins it. */
@@ -28,7 +27,7 @@ export function diskCache(files: Files, dir: string): RenderCache {
   return {
     async get(key) {
       try {
-        if (!(await files.exists(path(key)))) return null;
+        // A missing file rejects like a corrupt one: both are a miss.
         const j = JSON.parse(await files.read(path(key)));
         if (typeof j?.audio !== "string" || !Array.isArray(j.marks) || typeof j.durationMs !== "number") return null;
         return { audio: fromBase64(j.audio), marks: j.marks, durationMs: j.durationMs };
@@ -51,6 +50,8 @@ export async function renderParagraph(text: string, cfg: TtsConfig, cache: Rende
   const cached = await cache.get(key);
   if (cached) return cached;
   const rendered = await renderChunks(text, cfg, synth);
-  await cache.put(key, rendered);
+  // Not awaited: the write is a few hundred KB of base64 and the paragraph
+  // should not wait on it to play. `put` swallows its own failures.
+  void cache.put(key, rendered);
   return rendered;
 }

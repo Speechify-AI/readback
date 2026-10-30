@@ -11,12 +11,14 @@ const recorder = (reply: (argv: string[]) => Promise<{ exitCode: number; stdout:
   };
   return { run, calls };
 };
+/** A clock that stands still: no run looks like a timeout. */
+const now = async () => 0;
 const ok = async () => ({ exitCode: 0, stdout: "<spoken> Done. </spoken>" });
 
 describe("condenseReply", () => {
   it("runs claude -p with the brief on stdin and READBACK_HOOK=1", async () => {
     const { run, calls } = recorder(ok);
-    const out = await condenseReply("the reply", { run, home: "/h", platform: "darwin" });
+    const out = await condenseReply("the reply", { run, home: "/h", platform: "darwin", now });
     expect(out).toBe("Done.");
     expect(calls.length).toBe(1);
     expect(calls[0]!.argv).toEqual(["claude", ...CLAUDE_ARGS]);
@@ -28,25 +30,25 @@ describe("condenseReply", () => {
       if (argv[0] === "claude") throw new Error("ENOENT");
       return ok();
     });
-    expect(await condenseReply("x", { run, home: "/h", platform: "darwin" })).toBe("Done.");
+    expect(await condenseReply("x", { run, home: "/h", platform: "darwin", now })).toBe("Done.");
     expect(calls.map((c) => c.argv[0])).toEqual(["claude", "/h/.local/bin/claude"]);
   });
 
   it("no spoken tags → null", async () => {
     const { run } = recorder(async () => ({ exitCode: 0, stdout: "I understand." }));
-    expect(await condenseReply("x", { run, home: "/h", platform: "darwin" })).toBeNull();
+    expect(await condenseReply("x", { run, home: "/h", platform: "darwin", now })).toBeNull();
   });
 
   it("exit 1 → null", async () => {
     const { run } = recorder(async () => ({ exitCode: 1, stdout: "<spoken>Done.</spoken>" }));
-    expect(await condenseReply("x", { run, home: "/h", platform: "darwin" })).toBeNull();
+    expect(await condenseReply("x", { run, home: "/h", platform: "darwin", now })).toBeNull();
   });
 
   it("every path missing → null", async () => {
     const { run, calls } = recorder(async () => {
       throw new Error("ENOENT");
     });
-    expect(await condenseReply("x", { run, home: "/h", platform: "linux" })).toBeNull();
+    expect(await condenseReply("x", { run, home: "/h", platform: "linux", now })).toBeNull();
     expect(calls.map((c) => c.argv[0])).toEqual(claudePaths("/h"));
   });
 
@@ -56,13 +58,13 @@ describe("condenseReply", () => {
       t += 60_000; // the timeout kills the child and the call rejects
       throw new Error("timed out");
     });
-    expect(await condenseReply("x", { run, home: "/h", platform: "darwin", now: () => t })).toBeNull();
+    expect(await condenseReply("x", { run, home: "/h", platform: "darwin", now: async () => t })).toBeNull();
     expect(calls.length).toBe(1);
   });
 
   it("win32 → null and run never called", async () => {
     const { run, calls } = recorder(ok);
-    expect(await condenseReply("x", { run, home: "C:\\h", platform: "win32" })).toBeNull();
+    expect(await condenseReply("x", { run, home: "C:\\h", platform: "win32", now })).toBeNull();
     expect(calls.length).toBe(0);
   });
 });

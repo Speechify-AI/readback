@@ -111,14 +111,13 @@ export function storedVoice(v: unknown): StoredVoice | null {
 }
 
 /**
- * The voice to speak in: the one picked with `/readback voice`, else a stock
- * voice in Claude Code's `language` when that is not English, else
- * harper_32. As the extension does, English keeps harper_32 rather than the
- * catalogue's first English voice.
+ * The voice to speak in when none was picked with `/readback voice` (the
+ * caller reads that first, `storedVoice`): a stock voice in Claude Code's
+ * `language` when that is not English, else harper_32. As the extension
+ * does, English keeps harper_32 rather than the catalogue's first English
+ * voice.
  */
-export function chooseVoice(stored: unknown, voices: readonly Voice[] | null, language: unknown): StoredVoice {
-  const picked = storedVoice(stored);
-  if (picked) return picked;
+export function chooseVoice(voices: readonly Voice[] | null, language: unknown): StoredVoice {
   const code = typeof language === "string" ? languageCode(language) : null;
   if (code !== null && code !== "en" && voices) {
     const v = defaultVoice(voices, code);
@@ -147,9 +146,17 @@ export function claimsFloor(state: State, action: "toggle" | "full", hasLatest: 
   return (state === "idle" && hasLatest) || state === "paused";
 }
 
-/** The 100 ms tick and the floor heartbeat run while sound is playing or about to. */
+/**
+ * The floor heartbeat runs while sound is playing or about to: a session
+ * waiting on condensing holds the floor with nothing sounding.
+ */
 export function timersWanted(state: State): boolean {
   return state === "playing" || state === "loading" || state === "waiting";
+}
+
+/** The 100 ms tick that moves the band's highlight runs only while sound plays; it does nothing otherwise. */
+export function tickWanted(state: State): boolean {
+  return state === "playing";
 }
 
 export function isRefusal(err: unknown): boolean {

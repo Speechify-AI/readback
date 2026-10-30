@@ -24,7 +24,7 @@ function meta(view: View): string {
   return parts.filter(Boolean).join(" · ");
 }
 
-export function band(view: View, els: Els, actions: BandActions, notice: string | null): unknown {
+export function band(view: View, els: Els, actions: BandActions): unknown {
   const { Box, Text, Button } = els;
   const loaded = view.state !== "idle";
   const label =
@@ -53,18 +53,17 @@ export function band(view: View, els: Els, actions: BandActions, notice: string 
       }),
     );
   }
-  if (notice) rows.push(Text({ color: REFUSED, children: notice }));
   return Box({ flexDirection: "column", paddingTop: 1, children: rows });
 }
 
-/** Readback off with a refused key: the notice and nothing to press. */
+/** Readback off with a refused key: the notice and nothing to press. The only place a notice is drawn. */
 export function noticeBand(notice: string, els: Els): unknown {
   const { Box, Text } = els;
   return Box({ flexDirection: "column", paddingTop: 1, children: [Text({ color: REFUSED, children: notice })] });
 }
 
 export function voicePicker(
-  voices: { id: string; name: string; featured: boolean }[],
+  voices: { id: string; name: string }[],
   current: string,
   els: Els,
   pick: (id: string) => void,

@@ -24,7 +24,6 @@ const memoryFiles = (): Files & { store: Map<string, string> } => {
       return v;
     },
     write: async (p, t) => void store.set(p, t),
-    exists: async (p) => store.has(p),
   };
 };
 

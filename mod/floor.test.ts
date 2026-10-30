@@ -31,17 +31,17 @@ describe("Floor", () => {
     const { a, b } = setup();
     await a.claim();
     await b.claim();
-    expect(await a.lost()).toBe(true);
-    expect(await b.lost()).toBe(false);
+    expect(await a.beat()).toBe("lost");
+    expect(await b.beat()).toBe("held");
   });
 
   it("a claim with no heartbeat for 3 s is not lost to", async () => {
     const { a, b, advance } = setup();
     await b.claim();
     advance(STALE_MS - 1);
-    expect(await a.lost()).toBe(true);
+    expect(await a.beat()).toBe("lost");
     advance(1);
-    expect(await a.lost()).toBe(false);
+    expect(await a.beat()).toBe("free");
   });
 
   it("release does not clear another session's claim", async () => {
@@ -49,27 +49,33 @@ describe("Floor", () => {
     await a.claim();
     await b.claim();
     await a.release();
-    expect(await a.lost()).toBe(true);
+    expect(await a.beat()).toBe("lost");
     await b.release();
-    expect(await a.lost()).toBe(false);
+    expect(await a.beat()).toBe("free");
   });
 
-  it("a heartbeat after another session claimed does not take the floor back", async () => {
-    const { a, b, advance } = setup();
+  it("a beat after another session claimed does not take the floor back", async () => {
+    const { a, b, store, advance } = setup();
     await a.claim();
     await b.claim();
     advance(500);
-    await a.heartbeat();
-    expect(await a.lost()).toBe(true);
-    expect(await b.lost()).toBe(false);
+    expect(await a.beat()).toBe("lost");
+    expect(store.data.get("floor")).toMatchObject({ session: "b" });
+    expect(await b.beat()).toBe("held");
   });
 
-  it("a heartbeat keeps the claim fresh", async () => {
+  it("a beat keeps our claim fresh", async () => {
     const { a, b, advance } = setup();
     await a.claim();
     advance(2500);
-    await a.heartbeat();
+    expect(await a.beat()).toBe("held");
     advance(2500);
-    expect(await b.lost()).toBe(true);
+    expect(await b.beat()).toBe("lost");
+  });
+
+  it("an empty floor is free and stays empty", async () => {
+    const { a, store } = setup();
+    expect(await a.beat()).toBe("free");
+    expect(store.data.get("floor")).toBeUndefined();
   });
 });

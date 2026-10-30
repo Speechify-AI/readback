@@ -19,13 +19,13 @@ const playing = view({ state: "playing", kind: "summary", paragraph: 1, paragrap
 
 describe("band", () => {
   it("idle band has no hotkeys", () => {
-    const b = band(idle, els, actions, null) as El;
+    const b = band(idle, els, actions) as El;
     for (const btn of buttons(b)) expect("hotkey" in btn.props).toBe(false);
     expect(buttons(b).map((x) => x.props.label)).toEqual(["Play", "Full reply"]);
   });
 
   it("playing band arms 1, 2 and 3", () => {
-    const b = band(playing, els, actions, null) as El;
+    const b = band(playing, els, actions) as El;
     expect(buttons(b).map((x) => [x.props.key, x.props.label, x.props.hotkey])).toEqual([
       ["play", "Pause", "1"],
       ["stop", "Stop", "2"],
@@ -35,7 +35,7 @@ describe("band", () => {
   });
 
   it("waiting band arms 1 so the wait can be cancelled", () => {
-    const b = band(view({ state: "waiting" }), els, actions, null) as El;
+    const b = band(view({ state: "waiting" }), els, actions) as El;
     const [play] = buttons(b);
     expect(play!.props.label).toBe("Cancel");
     expect(play!.props.hotkey).toBe("1");
@@ -43,7 +43,7 @@ describe("band", () => {
   });
 
   it("the sentence row dims all but the word", () => {
-    const b = band(view({ ...playing, sentence: { before: "Hello ", word: "big", after: " world." } }), els, actions, null) as El;
+    const b = band(view({ ...playing, sentence: { before: "Hello ", word: "big", after: " world." } }), els, actions) as El;
     const row = kids(b)[1]!;
     const parts = row.props.children as El[];
     expect(parts.map((p) => [p.props.children, p.props.dimColor ?? false, p.props.inverse ?? false])).toEqual([
@@ -54,17 +54,12 @@ describe("band", () => {
   });
 
   it("top padding is one row", () => {
-    expect((band(idle, els, actions, null) as El).props.paddingTop).toBe(1);
+    expect((band(idle, els, actions) as El).props.paddingTop).toBe(1);
   });
 
   it("no stop button when nothing is loaded", () => {
-    const b = band(idle, els, actions, null) as El;
+    const b = band(idle, els, actions) as El;
     expect(buttons(b).some((x) => x.props.key === "stop")).toBe(false);
-  });
-
-  it("a notice is drawn red", () => {
-    const b = band(idle, els, actions, "Key refused") as El;
-    expect(kids(b).at(-1)!.props).toMatchObject({ color: "#d75f5f", children: "Key refused" });
   });
 });
 
@@ -80,7 +75,7 @@ describe("noticeBand", () => {
 describe("voicePicker", () => {
   it("lists voices as given, preselects current, has Cancel", () => {
     let picked = "";
-    const p = voicePicker([{ id: "a", name: "Ann", featured: true }, { id: "b", name: "Bo", featured: false }], "b", els, (id) => (picked = id), () => {}) as El;
+    const p = voicePicker([{ id: "a", name: "Ann" }, { id: "b", name: "Bo" }], "b", els, (id) => (picked = id), () => {}) as El;
     const [sel, cancel] = kids(p);
     expect(sel!.props.options).toEqual([{ value: "a", label: "Ann" }, { value: "b", label: "Bo" }]);
     expect(sel!.props.value).toBe("b");

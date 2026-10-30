@@ -20,6 +20,7 @@ import {
   replyTurn,
   storedVoice,
   summaryFrom,
+  tickWanted,
   timersWanted,
   ttsConfig,
   versionFrom,
@@ -139,19 +140,15 @@ describe("turns", () => {
 });
 
 describe("voice", () => {
-  it("a stored voice wins", () => {
-    expect(chooseVoice({ id: "lucia_32", locale: "es-ES" }, VOICES, "French")).toEqual({ id: "lucia_32", locale: "es-ES" });
-  });
-
-  it("else a stock voice in Claude's language", () => {
-    expect(chooseVoice(undefined, VOICES, "Spanish")).toEqual({ id: "lucia_32", locale: "es-ES" });
+  it("with none picked, a stock voice in Claude's language", () => {
+    expect(chooseVoice(VOICES, "Spanish")).toEqual({ id: "lucia_32", locale: "es-ES" });
   });
 
   it("else harper_32, with its locale when the catalogue has it", () => {
-    expect(chooseVoice(undefined, VOICES, undefined)).toEqual({ id: "harper_32", locale: "en-US" });
-    expect(chooseVoice(undefined, VOICES, "English")).toEqual({ id: "harper_32", locale: "en-US" });
-    expect(chooseVoice(undefined, VOICES, "Klingon")).toEqual({ id: "harper_32", locale: "en-US" });
-    expect(chooseVoice(undefined, null, "Spanish")).toEqual({ id: "harper_32", locale: "" });
+    expect(chooseVoice(VOICES, undefined)).toEqual({ id: "harper_32", locale: "en-US" });
+    expect(chooseVoice(VOICES, "English")).toEqual({ id: "harper_32", locale: "en-US" });
+    expect(chooseVoice(VOICES, "Klingon")).toEqual({ id: "harper_32", locale: "en-US" });
+    expect(chooseVoice(null, "Spanish")).toEqual({ id: "harper_32", locale: "" });
   });
 
   it("a malformed stored voice is ignored", () => {
@@ -195,6 +192,14 @@ describe("playback wiring", () => {
     expect(timersWanted("waiting")).toBe(true);
     expect(timersWanted("paused")).toBe(false);
     expect(timersWanted("idle")).toBe(false);
+  });
+
+  it("the highlight tick runs only while playing, not while loading or condensing", () => {
+    expect(tickWanted("playing")).toBe(true);
+    expect(tickWanted("loading")).toBe(false);
+    expect(tickWanted("waiting")).toBe(false);
+    expect(tickWanted("paused")).toBe(false);
+    expect(tickWanted("idle")).toBe(false);
   });
 
   it("401 and 403 are refusals", () => {
