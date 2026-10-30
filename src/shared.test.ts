@@ -24,7 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
  * imports included), bare `import "x"` and `import("x")`. Type-only
  * statements are erased by the compiler and are dropped first.
  */
-export function runtimeSpecifiers(src: string): string[] {
+function runtimeSpecifiers(src: string): string[] {
   const runtime = src.replace(/\b(?:import|export)\s+type\b[^;]*?;/g, "");
   const found: string[] = [];
   for (const re of [
