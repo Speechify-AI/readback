@@ -43,6 +43,7 @@ const LONG = "This reply is long enough to be read aloud, since it runs well pas
 describe("setup", () => {
   it("the key is a non-empty string option, else none", () => {
     expect(apiKeyFrom({ speechify_api_key: "abc" })).toBe("abc");
+    expect(apiKeyFrom({ speechify_api_key: " abc\n" })).toBe("abc");
     expect(apiKeyFrom({ speechify_api_key: "" })).toBeNull();
     expect(apiKeyFrom({ speechify_api_key: "   " })).toBeNull();
     expect(apiKeyFrom({})).toBeNull();
@@ -112,15 +113,17 @@ describe("/readback", () => {
 });
 
 describe("turns", () => {
-  const e = { answer: LONG, turnId: "t1", isAborted: false };
+  const e = { answer: LONG, turnId: "t1", isAborted: false, reason: "answer" };
 
   it("a main-loop answer becomes the latest turn", () => {
     expect(replyTurn(e)).toEqual({ id: "t1", summary: [], full: [LONG], condensing: false });
   });
 
-  it("subagent, aborted, empty and short turns are ignored", () => {
+  it("subagent, aborted, failed, refused, empty and short turns are ignored", () => {
     expect(replyTurn({ ...e, agentId: "a1" })).toBeNull();
     expect(replyTurn({ ...e, isAborted: true })).toBeNull();
+    expect(replyTurn({ ...e, reason: "error" })).toBeNull();
+    expect(replyTurn({ ...e, reason: "refusal" })).toBeNull();
     expect(replyTurn({ ...e, answer: "" })).toBeNull();
     expect(replyTurn({ ...e, answer: "Done." })).toBeNull();
   });

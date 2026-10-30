@@ -31,10 +31,12 @@ export const USAGE = "/readback turns Readback on or off; /readback voice picks 
 export const PICK = "Pick a voice above the prompt.";
 export const NO_VOICES = "Could not reach Speechify for the voice list. Try again.";
 
-/** The key from the plugin's options: a non-empty string, or none. */
+/** The key from the plugin's options, trimmed: a non-empty string, or none. */
 export function apiKeyFrom(options: Readonly<Record<string, unknown>>): string | null {
   const v = options[KEY_OPTION];
-  return typeof v === "string" && v.trim() !== "" ? v : null;
+  // Trimmed as the extension stores it: a pasted newline is no header.
+  const t = typeof v === "string" ? v.trim() : "";
+  return t === "" ? null : t;
 }
 
 /** True when this process must leave Readback out: the condensing child, or any `-p` run. */
@@ -84,11 +86,15 @@ export function keyCheckText(check: Extract<KeyCheck, { ok: false }>): string {
   }
 }
 
-export type TurnEvent = { answer: string; turnId: string; isAborted: boolean; agentId?: string };
+export type TurnEvent = { answer: string; turnId: string; isAborted: boolean; reason: string; agentId?: string };
 
-/** The main loop's finished answer as the latest turn, or null when it is not one to read. */
+/**
+ * The main loop's finished answer as the latest turn, or null when it is not
+ * one to read. Only a turn that ended normally is: one that died on an error
+ * or a refusal can still carry the text written before it did.
+ */
 export function replyTurn(e: TurnEvent): ReplyTurn | null {
-  if (e.agentId !== undefined || e.isAborted || e.answer.trim() === "") return null;
+  if (e.agentId !== undefined || e.isAborted || e.reason !== "answer" || e.answer.trim() === "") return null;
   if (decideMessage(e.answer, null, LIMITS).kind === "skip") return null;
   const { full } = replyParagraphs({ markdown: e.answer, limits: LIMITS });
   if (full.length === 0) return null;
