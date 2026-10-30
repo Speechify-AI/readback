@@ -126,10 +126,7 @@ export class Player {
       case "paused": {
         if (!this.track) return;
         // A second press while the resume waits for the clock: stay paused.
-        if (this.resuming) {
-          this.gen++;
-          return;
-        }
+        if (this.cancelResume()) return;
         const gen = ++this.gen;
         this.resumeGen = gen;
         await this.playFrom(this.positionMs, gen);
@@ -153,7 +150,7 @@ export class Player {
   /** Another session took the floor: pause where a press of 1 would. */
   preempt(): void {
     if (this.state === "playing") this.detach(this.pause());
-    else if (this.state === "paused" && this.resuming) this.gen++; // the resume never starts
+    else if (this.state === "paused") this.cancelResume();
     else if (this.state === "waiting" || this.state === "loading") this.unload();
   }
 
@@ -265,18 +262,22 @@ export class Player {
     this.state = "playing";
     this.resumeGen = -1;
     this.deps.onChange();
-    this.detach(this.follow(this.deps.play(bytes, abort.signal), abort, gen));
+    this.detach(this.follow(this.deps.play(bytes, abort.signal), gen));
   }
 
-  /** When the paragraph plays out, the next one in the run, or idle. */
-  private async follow(done: Promise<void>, abort: AbortController, gen: number): Promise<void> {
+  /**
+   * When the paragraph plays out, the next one in the run, or idle. Every
+   * abort comes after a `gen` bump (pause, unload), so the gen check also
+   * covers a clip that ended because it was aborted.
+   */
+  private async follow(done: Promise<void>, gen: number): Promise<void> {
     try {
       await done;
     } catch (err) {
-      if (!abort.signal.aborted && gen === this.gen) this.fail(err);
+      if (gen === this.gen) this.fail(err);
       return;
     }
-    if (abort.signal.aborted || gen !== this.gen) return;
+    if (gen !== this.gen) return;
     await this.enter(this.playlist.next(), gen);
   }
 
@@ -304,6 +305,13 @@ export class Player {
 
   private get resuming(): boolean {
     return this.resumeGen === this.gen;
+  }
+
+  /** A resume waiting for the clock never starts; true when there was one. */
+  private cancelResume(): boolean {
+    if (!this.resuming) return false;
+    this.gen++;
+    return true;
   }
 
   /** The start of the sentence playing at `ms`, inside the paragraph. */
