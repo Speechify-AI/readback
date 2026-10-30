@@ -58,10 +58,9 @@ Claude Code 2.1.312 (declarations written by 2.1.277), macOS.
 
 Verified on 2026-10-29:
 
-- `npm test` (23 files, 243 tests at Task 10) and the three type-check
+- `npm test` (23 files, 243 tests on 2026-10-29) and the three type-check
   configs pass. `claude plugin validate .` passes; the warnings left are no
-  icon (`ICON_MISSING`) and `.DS_Store` (not committed). The README now has
-  the marketplace install line it asked for.
+  icon (`ICON_MISSING`) and `.DS_Store` (not committed).
 - A condense run (`claude -p`, the flags in `mod/condense.ts`) from inside
   a Claude Code session with `CLAUDECODE=1` returned `<spoken>` in 2.9 s;
   no override of that variable is needed.
@@ -70,14 +69,15 @@ Verified on 2026-10-29:
   pause/resume by cutting the MP3. Sensitive `userConfig` is asked for at
   install and editable in `/plugin`; it is not a row in `/config`.
 
-Pending, the manual check (steps in the Task 10 list; none run yet):
+Pending, the manual check (none run yet):
 
 1. `claude --plugin-dir .` with a key: welcome toast once, `/readback`
    turns on, band appears.
 2. A long reply: "condensing..." in the band, the summary plays by itself,
    the word lit. 1 pauses and resumes at the sentence start; 3 plays the
    full reply; 2 stops.
-3. A bare `1` typed idle reaches Claude.
+3. A bare `1` typed idle reaches Claude. Ctrl+X Tab focuses the band and
+   1 then plays.
 4. Two terminals: play in B pauses A within about 1 s. A's voice survives
    B's play (`$.store` keys not clobbered).
 5. Replay of the same reply makes no network request.

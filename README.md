@@ -239,7 +239,7 @@ Press F5 in VS Code to run the extension in a development host.
 
 The Claude Code plugin is `.claude-plugin/`, `hooks/` and `mod/`. Try it
 with `claude --plugin-dir .` and check it with `claude plugin validate .`,
-which `npm test` runs.
+which `npm test` runs when `claude` is on your PATH.
 
 MIT. Built by Speechify. The player's icons are VS Code's
 [codicons](https://github.com/microsoft/vscode-codicons) (CC BY 4.0).

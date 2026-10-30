@@ -143,6 +143,10 @@ and shares none of the extension's host code.
   drawn without hotkeys, so a bare "1" typed to Claude still reaches Claude.
 - **What is shown is what is spoken, in the band too.** The band draws only
   text from the rendered paragraph; only whitespace may be dropped.
+- **Band layout is fixed.** A blank top row; then one controls row (Readback,
+  Play/Pause/Resume, Stop only while loaded, Full reply, a dim meta);
+  then the current sentence with every word dim but the spoken one. No
+  progress bar, by the person's decision.
 - **`READBACK_HOOK` guard.** The condensing run sets it, and a session that
   sees it (or is not interactive) turns every hook off. Same reason as the
   extension's hook script.
@@ -192,6 +196,7 @@ and shares none of the extension's host code.
 
 ## Commands
 
-- `npm run typecheck` (both configs: `tsconfig.json` for the host, `tsconfig.webview.json` with the DOM lib for `src/webview/`) / `npm test` / `npm run build`
+- `npm run typecheck` (three configs: `tsconfig.json` for the host, `tsconfig.webview.json` with the DOM lib for `src/webview/`, `tsconfig.mod.json` for `mod/` and `hooks/`) / `npm test` / `npm run build`
+- `npm test` is vitest, then `claude plugin validate .` when `claude` is on PATH (skipped otherwise); the validator is the only check of `hooks/readback.ts` against Claude Code's declarations
 - `npm run package` — runs all three then `vsce package`
 - `code --install-extension readback-<version>.vsix` to try it here
