@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // The Claude Code mod cannot load a module that imports node:* or package.json,
@@ -16,7 +17,7 @@ const SHARED = [
   "webview/playlist.ts",
 ];
 
-const here = dirname(new URL(import.meta.url).pathname);
+const here = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Every module specifier a source pulls in at runtime: `from "x"` (multi-line

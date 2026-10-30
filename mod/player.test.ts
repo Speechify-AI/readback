@@ -103,6 +103,13 @@ const SUMMARY = ["Sum one. Sum two.", "Sum three.", "Sum four.", "Sum five."];
 const FULL = ["Full one is long. Full two.", "Full three."];
 
 describe("Player", () => {
+  it("hasLatest is true once a turn has landed", () => {
+    const f = fake();
+    expect(f.player.hasLatest).toBe(false);
+    f.player.setLatest(turn("a", SUMMARY, FULL));
+    expect(f.player.hasLatest).toBe(true);
+  });
+
   it("toggle from idle plays the latest turn's summary run", async () => {
     const f = fake();
     f.player.setLatest(turn("a", SUMMARY, FULL));

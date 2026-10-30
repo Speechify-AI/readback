@@ -11,6 +11,8 @@
  */
 import { BRIEF, CLAUDE_ARGS, condensePrompt, spokenFrom } from "../src/summaryShared.ts";
 
+const TIMEOUT_MS = 60_000;
+
 export type Run = (
   argv: string[],
   init: { stdin: string; env: Record<string, string>; timeoutMs: number },
@@ -22,17 +24,23 @@ export function claudePaths(home: string): string[] {
 }
 
 /** The condensed reply, or null when it cannot be had: the caller reads the full reply. */
-export async function condenseReply(text: string, deps: { run: Run; home: string; platform: string }): Promise<string | null> {
+export async function condenseReply(text: string, deps: { run: Run; home: string; platform: string; now?: () => number }): Promise<string | null> {
   if (deps.platform === "win32") return null;
+  const now = deps.now ?? Date.now;
   for (const path of claudePaths(deps.home)) {
+    const started = now();
     let result: { exitCode: number; stdout: string };
     try {
       result = await deps.run([path, ...CLAUDE_ARGS], {
         stdin: condensePrompt(BRIEF, text),
         env: { READBACK_HOOK: "1" },
-        timeoutMs: 60_000,
+        timeoutMs: TIMEOUT_MS,
       });
     } catch {
+      // A timeout and a missing binary both reject; the clock tells them apart.
+      // A run that used its whole timeout was a claude that ran: the other
+      // paths are the same binary, so stop rather than bill it again.
+      if (now() - started >= TIMEOUT_MS) return null;
       continue; // not here
     }
     return result.exitCode === 0 ? spokenFrom(result.stdout) : null;

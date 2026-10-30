@@ -50,6 +50,16 @@ describe("condenseReply", () => {
     expect(calls.map((c) => c.argv[0])).toEqual(claudePaths("/h"));
   });
 
+  it("a run that timed out is not followed by a second path", async () => {
+    let t = 0;
+    const { run, calls } = recorder(async () => {
+      t += 60_000; // the timeout kills the child and the call rejects
+      throw new Error("timed out");
+    });
+    expect(await condenseReply("x", { run, home: "/h", platform: "darwin", now: () => t })).toBeNull();
+    expect(calls.length).toBe(1);
+  });
+
   it("win32 → null and run never called", async () => {
     const { run, calls } = recorder(ok);
     expect(await condenseReply("x", { run, home: "C:\\h", platform: "win32" })).toBeNull();

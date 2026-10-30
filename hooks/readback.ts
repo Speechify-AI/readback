@@ -57,6 +57,8 @@ type App = {
   condense(text: string): Promise<string | null>;
   report(err: unknown): void;
   stopTimers(): void;
+  /** Stop the player, cancel its timers, give up the floor; never throws. */
+  close(): Promise<void>;
 };
 
 let off = true;
@@ -66,7 +68,6 @@ let notice: string | null = null;
 let picking = false;
 let pickerVoice = "";
 let voices: Voice[] | null = null;
-let hasLatest = false;
 let app: App | null = null;
 
 function build($: EngineInterface, apiKey: string | null, session: string, home: string, platform: string): App {
@@ -172,7 +173,7 @@ function build($: EngineInterface, apiKey: string | null, session: string, home:
   });
 
   const press = async (action: "toggle" | "full") => {
-    if (claimsFloor(player.view().state, action, hasLatest)) await floor.claim();
+    if (claimsFloor(player.view().state, action, player.hasLatest)) await floor.claim();
     if (action === "toggle") await player.toggle();
     else await player.playFull();
   };
@@ -193,6 +194,15 @@ function build($: EngineInterface, apiKey: string | null, session: string, home:
     condense: (text) => condenseReply(text, { run, home, platform }),
     report,
     stopTimers,
+    close: async () => {
+      try {
+        player.stop();
+        stopTimers();
+        await floor.release();
+      } catch {
+        // a failed teardown must not throw out of the hook
+      }
+    },
   };
 }
 
@@ -216,6 +226,12 @@ export const register: Register = (on, options) => {
     enabled = (await $.store.get("enabled")) === true && apiKey !== null;
     const home = homeFrom(await $.env.get("HOME"), await $.env.get("USERPROFILE"));
     const platform = platformFrom(await $.env.get("OS"));
+    // A second start in this module (/clear gives a new session id): the old
+    // player's timers and floor claim must not outlive it.
+    const old = app;
+    app = null;
+    voices = null;
+    await old?.close();
     app = build($, apiKey, await $.session.id(), home, platform);
     $.ui.invalidate("ui.render");
     return result;
@@ -228,7 +244,6 @@ export const register: Register = (on, options) => {
     if (turn) {
       const a = app;
       a.player.setLatest(turn);
-      hasLatest = true;
       if (turn.condensing) {
         a.condense(e.answer).then(
           (summary) => a.player.summaryReady(turn.id, summaryFrom(summary)),

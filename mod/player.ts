@@ -89,6 +89,11 @@ export class Player {
     return this.state !== "idle";
   }
 
+  /** A finished turn has landed, so a press of 1 has something to play. */
+  get hasLatest(): boolean {
+    return this.latest !== null;
+  }
+
   /** The latest finished turn. Never interrupts; a pending wait moves to it. */
   setLatest(turn: ReplyTurn): void {
     this.latest = copy(turn);
