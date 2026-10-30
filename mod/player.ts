@@ -80,6 +80,8 @@ export class Player {
   private resumeGen = -1;
   /** A pause still waiting for the clock to place the sentence start. */
   private pausing: Promise<void> | null = null;
+  /** Preempted while loading: the render, when it lands, is held paused at 0. */
+  private pauseOnLoad = false;
 
   constructor(private readonly deps: PlayerDeps) {
     this.playlist.autoplay = false;
@@ -147,11 +149,16 @@ export class Player {
     await this.load(turn, turn.summary.length);
   }
 
-  /** Another session took the floor: pause where a press of 1 would. */
+  /**
+   * Another session took the floor: pause where a press of 1 would. A
+   * pending render is kept and lands paused at the start of its paragraph;
+   * a wait on condensing is cancelled.
+   */
   preempt(): void {
     if (this.state === "playing") this.detach(this.pause());
     else if (this.state === "paused") this.cancelResume();
-    else if (this.state === "waiting" || this.state === "loading") this.unload();
+    else if (this.state === "loading") this.pauseOnLoad = true;
+    else if (this.state === "waiting") this.unload();
   }
 
   async tick(): Promise<void> {
@@ -206,6 +213,7 @@ export class Player {
 
   private load(turn: ReplyTurn, index: number): Promise<void> {
     this.unload(false);
+    this.pauseOnLoad = false;
     const gen = this.gen;
     const fullFrom = turn.summary.length > 0 ? turn.summary.length : null;
     const paragraphs = [...turn.summary, ...turn.full];
@@ -244,6 +252,13 @@ export class Player {
     if (gen !== this.gen) return;
     const text = turn.paragraphs[index]!;
     this.track = { text, rendered, sentences: timeSentences(text, rendered.marks) };
+    if (this.pauseOnLoad) {
+      this.pauseOnLoad = false;
+      this.state = "paused";
+      this.positionMs = 0;
+      this.deps.onChange();
+      return;
+    }
     await this.playFrom(0, gen);
   }
 
@@ -328,6 +343,7 @@ export class Player {
   /** Back to idle with nothing loaded. */
   private unload(notify = true): void {
     this.gen++;
+    this.pauseOnLoad = false;
     this.abort?.abort();
     this.abort = null;
     this.playlist.stop();

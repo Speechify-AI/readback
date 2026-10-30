@@ -429,7 +429,55 @@ describe("Player in-flight races", () => {
 
   it("stop while a render is pending ignores the late render", pending((p) => p.stop()));
   it("toggle while a render is pending cancels, and the late render plays nothing", pending((p) => void p.toggle()));
-  it("preempt while a render is pending cancels, and the late render plays nothing", pending((p) => p.preempt()));
+
+  it("preempt while a render is pending leaves it paused at 0 once the render lands; toggle resumes it", async () => {
+    const late = deferred<Rendered>();
+    const f = fake({ render: () => late.promise });
+    f.player.setLatest(turn("a", [], ["One. Two."]));
+    const started = f.player.toggle();
+    await settle();
+    expect(f.player.view().state).toBe("loading");
+    f.player.preempt();
+    const r = rendered("One. Two.");
+    late.resolve(r);
+    await started;
+    await settle();
+    expect(f.player.view()).toMatchObject({ state: "paused", kind: "full", positionMs: 0 });
+    expect(f.plays).toEqual([]);
+    await f.player.toggle();
+    expect(f.player.view().state).toBe("playing");
+    expect(f.plays[0]!.bytes).toEqual(r.audio);
+  });
+
+  it("preempt while the full reply's render is pending keeps the full reply", async () => {
+    const late = deferred<Rendered>();
+    const f = fake({ render: () => late.promise });
+    f.player.setLatest(turn("a", ["Sum one."], ["Full one.", "Full two."]));
+    const started = f.player.playFull();
+    await settle();
+    f.player.preempt();
+    late.resolve(rendered("Full one."));
+    await started;
+    await settle();
+    expect(f.player.view()).toMatchObject({ state: "paused", kind: "full", paragraph: 1 });
+  });
+
+  it("stop after a preempt while loading still unloads", async () => {
+    const late = deferred<Rendered>();
+    const f = fake({ render: () => late.promise });
+    f.player.setLatest(turn("a", [], ["One. Two."]));
+    const started = f.player.toggle();
+    await settle();
+    f.player.preempt();
+    f.player.stop();
+    late.resolve(rendered("One. Two."));
+    await started;
+    await settle();
+    expect(f.player.view().state).toBe("idle");
+    // A fresh play is not caught by the stale preempt.
+    await f.player.toggle();
+    expect(f.player.view().state).toBe("playing");
+  });
 
   it("preempt during a resume leaves it paused at the sentence start", async () => {
     const f = fake();
