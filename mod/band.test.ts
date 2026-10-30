@@ -26,7 +26,8 @@ describe("band", () => {
     ]);
     // Ctrl+X Tab lands the ring on Play, so Enter plays.
     expect(buttons(b)[0]!.props.autoFocus).toBe(true);
-    expect(txt(row1(b).props.children.at(-1))).toBe("");
+    // No meta at all: nothing to time yet.
+    expect(row1(b).props.children.at(-1).type).toBe("Button");
   });
 
   it("playing band arms 1, 2 and 3", () => {
@@ -44,17 +45,20 @@ describe("band", () => {
     const [play] = buttons(b);
     expect(play!.props.label).toBe("Cancel");
     expect(play!.props.hotkey).toBe("1");
-    expect(txt(row1(b).props.children.at(-1))).toBe("");
-    expect(txt(kids(b)[1]!)).toBe("⠋ Condensing the reply…");
+    const last = row1(b).props.children.at(-1);
+    expect(last.props.color).toBe("#d77757");
+    expect(txt(last)).toBe("⠋ condensing");
+    expect(kids(b)).toHaveLength(1);
   });
 
-  it("loading band spins and drops the empty clock", () => {
+  it("loading band spins where the clock goes", () => {
     const b = band(view({ state: "loading", kind: "summary", paragraph: 1, paragraphs: 2 }), els, actions, 2) as El;
-    expect(txt(row1(b).props.children.at(-1))).toBe("summary · 1/2");
-    const row = kids(b)[1]!;
-    expect(row.props.color).toBe("#d77757");
-    expect(txt(row)).toBe("⠹ Getting the voice from Speechify…");
-    expect(txt(kids(band(view({ state: "loading" }), els, actions, 12) as El)[1]!)).toContain("⠹");
+    const [info, spin] = row1(b).props.children.slice(-2);
+    expect(txt(info)).toBe("summary · 1/2");
+    expect(spin.props.color).toBe("#d77757");
+    expect(txt(spin)).toBe("⠹");
+    expect(kids(b)).toHaveLength(1);
+    expect(txt(row1(band(view({ state: "loading" }), els, actions, 12) as El).props.children.at(-1))).toBe("⠹");
   });
 
   it("loading band labels 1 \"Cancel\" with the hotkey armed", () => {

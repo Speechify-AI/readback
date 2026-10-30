@@ -19,20 +19,12 @@ function clock(ms: number): string {
 }
 
 function meta(view: View): string {
-  // Idle there is no clock to show; waiting, the busy row says it all.
+  // Idle there is no clock to show; busy, the spinner stands in for it.
   if (view.state === "idle" || view.state === "waiting") return "";
   const parts: string[] = [view.kind ?? ""];
   if (view.paragraphs > 1) parts.push(`${view.paragraph}/${view.paragraphs}`);
-  // Loading, the clock would read 0:00 / 0:00; the busy row stands in.
   if (view.state !== "loading") parts.push(`${clock(view.positionMs)} / ${clock(view.durationMs)}`);
   return parts.filter(Boolean).join(" · ");
-}
-
-/** What the busy row says while nothing sounds yet, or null when not busy. */
-function busy(view: View): string | null {
-  if (view.state === "waiting") return "Condensing the reply…";
-  if (view.state === "loading") return "Getting the voice from Speechify…";
-  return null;
 }
 
 /** `frame` turns the spinner; the caller advances it on its clock. */
@@ -56,18 +48,16 @@ export function band(view: View, els: Els, actions: BandActions, frame = 0): unk
   ];
   if (loaded) controls.push(Button({ key: "stop", label: "Stop", plain: true, hotkey: "2", onPress: () => actions.stop() }));
   controls.push(Button({ key: "full", label: "Full reply", plain: true, hotkey: "3", onPress: () => actions.full() }));
-  controls.push(Text({ dimColor: true, children: meta(view) }));
+  const info = meta(view);
+  if (info) controls.push(Text({ dimColor: true, children: info }));
+  // Where the clock goes: the spinner while the voice renders, and with
+  // "condensing" while the reply is condensed.
+  const spin = SPINNER[frame % SPINNER.length];
+  if (view.state === "loading") controls.push(Text({ color: BUSY, children: spin }));
+  if (view.state === "waiting") controls.push(Text({ color: BUSY, children: `${spin} condensing` }));
 
   const rows: unknown[] = [Box({ flexDirection: "row", gap: 1, children: controls })];
-  const wait = busy(view);
-  if (wait) {
-    rows.push(
-      Text({
-        color: BUSY,
-        children: [Text({ bold: true, children: SPINNER[frame % SPINNER.length] }), ` ${wait}`],
-      }),
-    );
-  } else if (view.sentence) {
+  if (view.sentence) {
     const s = view.sentence;
     rows.push(
       Text({
