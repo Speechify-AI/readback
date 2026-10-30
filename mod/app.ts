@@ -132,6 +132,26 @@ export function chooseVoice(voices: readonly Voice[] | null, language: unknown):
   return { id: DEFAULT_VOICE, locale: voices?.find((v) => v.id === DEFAULT_VOICE)?.locale ?? "" };
 }
 
+/**
+ * `chooseVoice` over Claude Code's `language` and the catalogue, kept for
+ * the session once the catalogue was had. A failed fetch gives harper_32
+ * for that render only, so one dropped request does not fix the voice.
+ */
+export function fallbackVoice(
+  language: () => Promise<unknown>,
+  catalogue: () => Promise<readonly Voice[]>,
+): () => Promise<StoredVoice> {
+  let kept: StoredVoice | null = null;
+  return async () => {
+    if (kept) return kept;
+    const lang = await language().catch(() => undefined);
+    const list = await catalogue().catch(() => null);
+    const voice = chooseVoice(list, lang);
+    if (list !== null) kept = voice;
+    return voice;
+  };
+}
+
 export function pickedVoice(voices: readonly Voice[], id: string): StoredVoice {
   return { id, locale: voices.find((v) => v.id === id)?.locale ?? "" };
 }

@@ -10,6 +10,7 @@ import {
   chooseVoice,
   claimsFloor,
   errorText,
+  fallbackVoice,
   homeFrom,
   isRefusal,
   keyCheckText,
@@ -152,6 +153,32 @@ describe("voice", () => {
     expect(chooseVoice(VOICES, "English")).toEqual({ id: "harper_32", locale: "en-US" });
     expect(chooseVoice(VOICES, "Klingon")).toEqual({ id: "harper_32", locale: "en-US" });
     expect(chooseVoice(null, "Spanish")).toEqual({ id: "harper_32", locale: "" });
+  });
+
+  it("the fallback is kept once the catalogue loads, and asked again after a failure", async () => {
+    let fail = true;
+    let fetches = 0;
+    const voice = fallbackVoice(
+      async () => "Spanish",
+      async () => {
+        fetches++;
+        if (fail) throw new Error("offline");
+        return VOICES;
+      },
+    );
+    expect(await voice()).toEqual({ id: "harper_32", locale: "" });
+    fail = false;
+    expect(await voice()).toEqual({ id: "lucia_32", locale: "es-ES" });
+    expect(await voice()).toEqual({ id: "lucia_32", locale: "es-ES" });
+    expect(fetches).toBe(2);
+  });
+
+  it("a settings read that fails counts as no language", async () => {
+    const voice = fallbackVoice(
+      () => Promise.reject(new Error("no settings")),
+      async () => VOICES,
+    );
+    expect(await voice()).toEqual({ id: "harper_32", locale: "en-US" });
   });
 
   it("a malformed stored voice is ignored", () => {

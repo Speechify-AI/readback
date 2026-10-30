@@ -19,9 +19,9 @@ import {
   WELCOME,
   apiKeyFrom,
   bandMode,
-  chooseVoice,
   claimsFloor,
   errorText,
+  fallbackVoice,
   homeFrom,
   isRefusal,
   keyCheckText,
@@ -107,16 +107,14 @@ function build(
     return state.voices;
   };
 
-  let fallback: Promise<StoredVoice> | null = null;
+  const fallback = fallbackVoice(
+    async () => ((await $.settings.read()) as { language?: unknown }).language,
+    catalogue,
+  );
   const currentVoice = async (): Promise<StoredVoice> => {
     const stored = storedVoice(await $.store.get("voice"));
     if (stored) return stored;
-    fallback ??= (async () => {
-      const settings = await $.settings.read().catch(() => ({}) as Record<string, unknown>);
-      const list = await catalogue().catch(() => null);
-      return chooseVoice(list, (settings as { language?: unknown }).language);
-    })();
-    return fallback;
+    return fallback();
   };
 
   const floor = new Floor(
