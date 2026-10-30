@@ -12,15 +12,14 @@
  * turn you stop after one sentence costs one sentence.
  */
 import { createHash } from "node:crypto";
-import { renderChunks, type RenderCache, type Rendered, type Synth } from "./renderShared.ts";
+import { renderChunks, renderKeyFrom, type RenderCache, type Rendered, type Synth } from "./renderShared.ts";
 import { synthesize, type TtsConfig } from "./speechify.ts";
 
 export type { RenderCache, Rendered, Synth } from "./renderShared.ts";
 export { renderChunks } from "./renderShared.ts";
 
 export function renderKey(text: string, voiceId: string, model: string): string {
-  const hash = createHash("sha256").update(text).digest("hex");
-  return `${model}/${voiceId}/${hash}`;
+  return renderKeyFrom(createHash("sha256").update(text).digest("hex"), voiceId, model);
 }
 
 export async function renderParagraph(

@@ -1,9 +1,9 @@
 /**
  * The Node-free half of rendering: chunk, synthesize, stitch, fill gaps. The
  * Claude Code mod cannot load a module that imports `node:*`, so the part of
- * `renderParagraph` that needs neither the cache key (sha256) nor the cache
- * lives here and the mod passes its own `Synth`. `render.ts` keeps the key and
- * the cache around it and re-exports these types.
+ * `renderParagraph` that needs neither sha256 nor the cache lives here, with
+ * the key's format, and the mod passes its own `Synth` and hash. `render.ts`
+ * keeps the hash and the cache around it and re-exports these types.
  */
 import { mergeMp3, mp3DurationMs, stripId3 } from "./audio.ts";
 import { fillGaps, type Mark } from "./marks.ts";
@@ -23,6 +23,11 @@ export interface RenderCache {
 }
 
 export type Synth = (input: string, cfg: TtsConfig) => Promise<TtsResult>;
+
+/** A render's cache key, from the paragraph's sha256 (each host hashes its own way). */
+export function renderKeyFrom(hash: string, voiceId: string, model: string): string {
+  return `${model}/${voiceId}/${hash}`;
+}
 
 export async function renderChunks(text: string, cfg: TtsConfig, synth: Synth): Promise<Rendered> {
   // One call per chunk. Ranges (not strings) so a mark's offset inside a

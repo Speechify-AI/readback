@@ -5,7 +5,7 @@
  * bills and switching voice re-renders. Audio is stored as base64 inside
  * the JSON, since `$.fs` reads and writes text.
  */
-import { renderChunks, type RenderCache, type Rendered, type Synth } from "../src/renderShared.ts";
+import { renderChunks, renderKeyFrom, type RenderCache, type Rendered, type Synth } from "../src/renderShared.ts";
 import type { TtsConfig } from "../src/speechifyShared.ts";
 import { fromBase64, toBase64 } from "./bytes.ts";
 
@@ -47,7 +47,7 @@ export function diskCache(files: Files, dir: string): RenderCache {
 }
 
 export async function renderParagraph(text: string, cfg: TtsConfig, cache: RenderCache, synth: Synth): Promise<Rendered> {
-  const key = `${cfg.model}/${cfg.voiceId}/${await sha256Hex(text)}`;
+  const key = renderKeyFrom(await sha256Hex(text), cfg.voiceId, cfg.model);
   const cached = await cache.get(key);
   if (cached) return cached;
   const rendered = await renderChunks(text, cfg, synth);
