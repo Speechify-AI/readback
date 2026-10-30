@@ -120,6 +120,46 @@ this repo.
   refused run on the first click. There is no way round the click; do not
   pretend there is.
 
+## Claude Code mod
+
+The same product as a Claude Code plugin (`.claude-plugin/`, `hooks/`,
+`mod/`), one repo and one version with the extension (`plugin.json` and
+`package.json` must agree; a test holds them). It reuses the pure files
+and shares none of the extension's host code.
+
+- **On demand only.** Nothing plays or bills until the person presses play.
+  Turning on runs `GET /v1/voices` and nothing else. Condensing runs at
+  turn end on their Claude subscription, as in the extension.
+- **One speaker across sessions.** A claim record under `$.store`'s `floor`
+  key (`mod/floor.ts`), refreshed every second and free after 3 s without a
+  heartbeat, so a crashed session never holds the floor. Pressing play
+  takes it; losing it pauses without releasing anything.
+- **The key lives only in the sensitive `userConfig` field
+  `speechify_api_key`.** Never in `$.store`, a file, a log, a toast or the
+  band. The install dialog cannot be hooked, so the key is checked live when
+  the person turns Readback on, and a 401 or 403 on a later render turns it
+  off with a notice pointing at `/plugin`.
+- **Digits are armed only while a track is loaded.** Idle, the buttons are
+  drawn without hotkeys, so a bare "1" typed to Claude still reaches Claude.
+- **What is shown is what is spoken, in the band too.** The band draws only
+  text from the rendered paragraph; only whitespace may be dropped.
+- **`READBACK_HOOK` guard.** The condensing run sets it, and a session that
+  sees it (or is not interactive) turns every hook off. Same reason as the
+  extension's hook script.
+- **No Node in the mod.** Everything goes through `$`, spelled
+  `$.noun.verb(...)` at the call site (a bare `$.http.fetch` reference is
+  rejected by `claude plugin validate`). The `*Shared.ts` files and the
+  other files the mod imports from `src/` must stay free of `node:*` and
+  `package.json`; `src/shared.test.ts` enforces it.
+- **A `command.run` hook answers and never calls `next`**: the validator
+  lists one that does as a gating hook without a catch.
+- **No `claude plugin test`.** With the repo root as the plugin root it
+  runs every `*.test.ts` in the repo and the vitest suites fail there; it
+  also raises no `session.start` and has no `$.fs`. Logic lives in `mod/`
+  under vitest with fakes; `hooks/readback.ts` stays thin wiring, checked by
+  `claude plugin validate`, the type-checks and the manual check in
+  RUNBOOK.md.
+
 ## Structure
 
 - `src/extension.ts` — activation, commands, the window-selection rule
@@ -143,6 +183,12 @@ this repo.
 - `media/player.js` — the bundled page script, built from `src/webview/` by esbuild, not committed
 - `media/player.css` — the webview's stylesheet
 - `media/codicons/` — copied from `@vscode/codicons` by the build, not committed
+- `.claude-plugin/plugin.json`, `marketplace.json` — the plugin manifest (with the sensitive key field) and the marketplace entry pinned to the release tag
+- `hooks/readback.ts` — the mod's wiring: session, turn, command, band; decides nothing itself
+- `mod/app.ts` — the wiring's decisions as pure helpers (command text, key check text, reply to turn, voice choice)
+- `mod/player.ts`, `mod/floor.ts`, `mod/band.ts` — the player state machine, the cross-session speaker claim, the band drawing
+- `mod/condense.ts`, `mod/speechify.ts`, `mod/cache.ts`, `mod/sentence.ts`, `mod/bytes.ts` — condensing run, API calls over `$.http`, render cache over `$.fs`, sentence steps, base64
+- `src/*Shared.ts` — the Node-free halves of the extension's modules, imported by both
 
 ## Commands
 

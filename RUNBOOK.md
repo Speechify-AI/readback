@@ -49,6 +49,72 @@ under Verified.
 | Render cache | `<globalStorage>/speechify.readback/cache/<model>/<voice>/<sha256>.{mp3,json}` |
 | API key | VS Code SecretStorage, key `readback.speechifyApiKey` |
 
+## Claude Code mod (2026-10-29)
+
+**0.9.0 is the first release with the Claude Code plugin; built and
+validated, not yet run by a person in a real session, and not tagged.** The
+marketplace entry pins `ref: v0.9.0`, which does not exist until release.
+Claude Code 2.1.312 (declarations written by 2.1.277), macOS.
+
+Verified on 2026-10-29:
+
+- `npm test` (23 files, 243 tests at Task 10) and the three type-check
+  configs pass. `claude plugin validate .` passes; the warnings left are no
+  icon (`ICON_MISSING`) and `.DS_Store` (not committed). The README now has
+  the marketplace install line it asked for.
+- A condense run (`claude -p`, the flags in `mod/condense.ts`) from inside
+  a Claude Code session with `CLAUDECODE=1` returned `<spoken>` in 2.9 s;
+  no override of that variable is needed.
+- A throwaway spike, live, the same day: sound through `$.audio.play`, stop,
+  the spoken word lit in step, digit hotkeys from an empty prompt, and
+  pause/resume by cutting the MP3. Sensitive `userConfig` is asked for at
+  install and editable in `/plugin`; it is not a row in `/config`.
+
+Pending, the manual check (steps in the Task 10 list; none run yet):
+
+1. `claude --plugin-dir .` with a key: welcome toast once, `/readback`
+   turns on, band appears.
+2. A long reply: "condensing..." in the band, the summary plays by itself,
+   the word lit. 1 pauses and resumes at the sentence start; 3 plays the
+   full reply; 2 stops.
+3. A bare `1` typed idle reaches Claude.
+4. Two terminals: play in B pauses A within about 1 s. A's voice survives
+   B's play (`$.store` keys not clobbered).
+5. Replay of the same reply makes no network request.
+6. No key, bad key, and a key revoked mid-session: the notices, and
+   Readback off.
+7. The condensing child shows no welcome and no band (the loop guard).
+8. **Desktop app: does the band show?** The declarations say `AbovePrompt`
+   is raised on the terminal surface only, so the README says terminal only
+   until this is seen.
+9. **MP3 bitrate of Speechify's renders**, from `mp3DurationMs` against the
+   byte length of one real render. It sets how long a paragraph fits in a
+   cache file: `$.fs` rejects files over 4 MiB and a render is stored as
+   base64 JSON, so seconds ~ 4,194,304 * 3/4 * 8 / bitrate in bits per
+   second, about 196 s at 128 kbps (a formula until measured). A longer
+   render still plays; it is only not cached.
+10. The voice picker draws the whole catalogue in one `Select`; check it is
+    usable with hundreds of voices.
+
+Open:
+
+- **No cache pruning.** `~/.readback/claude-code/renders` only grows, and a
+  render over 4 MiB is never cached (the write fails and is swallowed, with
+  no log).
+- **Windows untested.** The condensing child is macOS-checked; without
+  `claude` the full reply is read.
+- **Progressive sentence rendering is the first follow-up.** A paragraph is
+  rendered whole before it plays.
+- **A reload or a key change in `/plugin` reruns `register` in a fresh
+  environment**, so a clip already sounding cannot be stopped by the new
+  one: 2 does nothing until it ends, and the floor claim expires after 3 s.
+- A turn that lands while Readback is off is not remembered; turning on has
+  nothing to play until the next reply.
+- A `language` change mid-session takes effect next session unless a voice
+  is picked.
+- `command.run` never calls `next` (the validator reads it as a gating hook
+  without a catch), so the command is registered only when Readback can run.
+
 ## Verified on 2026-10-24
 
 - **Claude Code 2.1.310 emits a planning message before parallel tool

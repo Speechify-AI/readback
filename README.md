@@ -31,6 +31,47 @@ expect to hear anything. The browser inside VS Code keeps audio silent
 until then, and the player shows a card until it has played once. Replies
 that arrive before that queue up.
 
+## Claude Code
+
+Readback is also a Claude Code plugin: a band above the prompt shows the
+reply and lights each word as it is spoken. It needs Claude Code 2.1.275 or
+later, in the terminal. Whether the desktop app draws the band is not yet
+confirmed, and Claude Code's declarations say that place is terminal only.
+
+```
+/plugin install readback --marketplace Speechify-AI/readback
+```
+
+On an older Claude Code, add the marketplace first, then install:
+
+```
+/plugin marketplace add Speechify-AI/readback
+/plugin install readback@readback
+```
+
+The install dialog asks for your Speechify API key. Create one for free at
+<https://platform.speechify.ai/api-keys?utm_source=github&utm_medium=readme&utm_campaign=readback>.
+The key is stored as a sensitive plugin setting and billed to your own
+workspace; change it any time in `/plugin`.
+
+- `/readback` turns Readback on or off. It checks the key against the live
+  API when you turn it on. Nothing plays or bills until you press play.
+- `/readback voice` opens a voice picker in the band.
+- Keys 1, 2 and 3 play or pause, stop, and play the full reply. They work
+  only while the prompt is empty and a clip is loaded, so a bare "1" typed
+  in answer to Claude still reaches Claude. Idle, press Ctrl+X Tab to focus
+  the band, then 1, or click Play.
+- A long reply is condensed to a few spoken sentences with `claude -p` on
+  your own Claude subscription, when the turn ends. The full reply is one
+  press of 3 away. Condensing needs the `claude` CLI and has been checked
+  on macOS only; on Windows the full reply is read.
+- Several Claude Code sessions share one speaker: pressing play in one
+  pauses another.
+- Renders are cached under `~/.readback/claude-code/renders`, so replaying
+  costs nothing.
+
+The VS Code extension and the plugin are independent; use either or both.
+
 ## How it works
 
 - Five hooks in `~/.claude/settings.json`, `MessageDisplay`, `PreToolUse`,
@@ -195,6 +236,10 @@ npm run package        # readback-<version>.vsix
 ```
 
 Press F5 in VS Code to run the extension in a development host.
+
+The Claude Code plugin is `.claude-plugin/`, `hooks/` and `mod/`. Try it
+with `claude --plugin-dir .` and check it with `claude plugin validate .`,
+which `npm test` runs.
 
 MIT. Built by Speechify. The player's icons are VS Code's
 [codicons](https://github.com/microsoft/vscode-codicons) (CC BY 4.0).
