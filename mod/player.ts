@@ -76,6 +76,10 @@ export class Player {
   private abort: AbortController | null = null;
   /** Bumped by every change of course; a continuation from an older one does nothing. */
   private gen = 0;
+  /** The generation of a resume still waiting for the clock; stale once `gen` moves on. */
+  private resumeGen = -1;
+  /** A pause still waiting for the clock to place the sentence start. */
+  private pausing: Promise<void> | null = null;
 
   constructor(private readonly deps: PlayerDeps) {
     this.playlist.autoplay = false;
@@ -101,6 +105,8 @@ export class Player {
 
   /** Key 1: play the latest turn, pause, or resume. Waiting or loading, it cancels. */
   async toggle(): Promise<void> {
+    // A press during a pause acts on the paused position, not the last tick's.
+    if (this.pausing) await this.pausing;
     switch (this.state) {
       case "idle":
         if (this.latest) await this.startLatest();
@@ -114,7 +120,13 @@ export class Player {
         return;
       case "paused": {
         if (!this.track) return;
+        // A second press while the resume waits for the clock: stay paused.
+        if (this.resuming) {
+          this.gen++;
+          return;
+        }
         const gen = ++this.gen;
+        this.resumeGen = gen;
         await this.playFrom(this.positionMs, gen);
         return;
       }
@@ -136,6 +148,7 @@ export class Player {
   /** Another session took the floor: pause where a press of 1 would. */
   preempt(): void {
     if (this.state === "playing") this.detach(this.pause());
+    else if (this.state === "paused" && this.resuming) this.gen++; // the resume never starts
     else if (this.state === "waiting" || this.state === "loading") this.unload();
   }
 
@@ -245,6 +258,7 @@ export class Player {
     const abort = new AbortController();
     this.abort = abort;
     this.state = "playing";
+    this.resumeGen = -1;
     this.deps.onChange();
     this.detach(this.follow(this.deps.play(bytes, abort.signal), abort, gen));
   }
@@ -267,11 +281,30 @@ export class Player {
     this.abort?.abort();
     this.abort = null;
     this.state = "paused";
-    const now = await this.deps.now();
-    if (gen !== this.gen || !this.track) return;
-    const at = this.clamp(this.fromMs + (now - this.t0));
-    this.positionMs = this.clamp(sentenceAtMs(this.track.sentences, at)?.startMs ?? 0);
-    this.deps.onChange();
+    // Snap from the last tick before yielding, then refine from the clock.
+    this.positionMs = this.sentenceStart(this.positionMs);
+    const placing = (async () => {
+      const now = await this.deps.now();
+      if (gen !== this.gen || !this.track) return;
+      this.positionMs = this.sentenceStart(this.fromMs + (now - this.t0));
+      this.deps.onChange();
+    })();
+    this.pausing = placing;
+    try {
+      await placing;
+    } finally {
+      if (this.pausing === placing) this.pausing = null;
+    }
+  }
+
+  private get resuming(): boolean {
+    return this.resumeGen === this.gen;
+  }
+
+  /** The start of the sentence playing at `ms`, inside the paragraph. */
+  private sentenceStart(ms: number): number {
+    if (!this.track) return 0;
+    return this.clamp(sentenceAtMs(this.track.sentences, this.clamp(ms))?.startMs ?? 0);
   }
 
   private fail(err: unknown): void {

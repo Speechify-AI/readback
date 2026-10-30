@@ -30,6 +30,9 @@ interface PlayCall {
 
 function fake(opts: { render?: (text: string) => Promise<Rendered> } = {}) {
   const clock = { t: 1000 };
+  /** `now()` calls still to hold open, and the held ones waiting for `releaseNow`. */
+  let hold = 0;
+  const held: Array<() => void> = [];
   const renders: string[] = [];
   const plays: PlayCall[] = [];
   const errors: unknown[] = [];
@@ -44,7 +47,11 @@ function fake(opts: { render?: (text: string) => Promise<Rendered> } = {}) {
         signal.addEventListener("abort", () => resolve());
         plays.push({ bytes, signal, finish: resolve, fail: reject });
       }),
-    now: async () => clock.t,
+    now: () => {
+      if (hold === 0) return Promise.resolve(clock.t);
+      hold--;
+      return new Promise<number>((resolve) => held.push(() => resolve(clock.t)));
+    },
     onChange: () => {
       changes++;
     },
@@ -53,11 +60,35 @@ function fake(opts: { render?: (text: string) => Promise<Rendered> } = {}) {
     },
   };
   const player = new Player(deps);
-  return { player, clock, renders, plays, errors, changes: () => changes };
+  return {
+    player,
+    clock,
+    renders,
+    plays,
+    errors,
+    changes: () => changes,
+    holdNow: (n = 1) => {
+      hold += n;
+    },
+    releaseNow: () => {
+      for (const release of held.splice(0)) release();
+    },
+  };
 }
 
 /** Let detached continuations run. */
 const settle = () => new Promise((r) => setTimeout(r, 0));
+
+/** A promise the test settles by hand. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (err: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 const last = <T>(xs: T[]): T => xs[xs.length - 1]!;
 
@@ -227,13 +258,16 @@ describe("Player", () => {
     const f = fake();
     f.player.setLatest(turn("a", [], FULL));
     await f.player.toggle();
-    f.clock.t += 250;
+    const r = rendered(FULL[0]!);
+    const [, second] = timeSentences(FULL[0]!, r.marks);
+    f.clock.t += second!.startMs + 150; // inside the second sentence
     f.player.preempt();
     await settle();
     expect(f.plays[0]!.signal.aborted).toBe(true);
-    expect(f.player.view()).toMatchObject({ state: "paused", positionMs: 0 });
+    expect(f.player.view()).toMatchObject({ state: "paused", positionMs: second!.startMs });
     await f.player.toggle();
     expect(f.player.view().state).toBe("playing");
+    expect(f.plays[1]!.bytes).toEqual(sliceFromMs(r.audio, r.durationMs, second!.startMs));
   });
 
   it("preempt while waiting cancels the wait", async () => {
@@ -365,5 +399,89 @@ describe("Player", () => {
     expect(f.changes()).toBe(playing);
     await f.player.toggle();
     expect(f.changes()).toBeGreaterThan(playing);
+  });
+});
+
+describe("Player in-flight races", () => {
+  const pending = (cancel: (p: Player) => void) => async () => {
+    const late = deferred<Rendered>();
+    const f = fake({ render: () => late.promise });
+    f.player.setLatest(turn("a", [], ["One. Two."]));
+    const started = f.player.toggle();
+    await settle();
+    expect(f.player.view().state).toBe("loading");
+    cancel(f.player);
+    expect(f.player.view().state).toBe("idle");
+    late.resolve(rendered("One. Two."));
+    await started;
+    await settle();
+    expect(f.player.view().state).toBe("idle");
+    expect(f.player.loaded).toBe(false);
+    expect(f.plays).toEqual([]);
+  };
+
+  it("stop while a render is pending ignores the late render", pending((p) => p.stop()));
+  it("toggle while a render is pending cancels, and the late render plays nothing", pending((p) => void p.toggle()));
+  it("preempt while a render is pending cancels, and the late render plays nothing", pending((p) => p.preempt()));
+
+  it("preempt during a resume leaves it paused at the sentence start", async () => {
+    const f = fake();
+    f.player.setLatest(turn("a", [], FULL));
+    await f.player.toggle();
+    const r = rendered(FULL[0]!);
+    const [, second] = timeSentences(FULL[0]!, r.marks);
+    f.clock.t += second!.startMs + 150;
+    await f.player.toggle();
+    expect(f.player.view()).toMatchObject({ state: "paused", positionMs: second!.startMs });
+    f.holdNow();
+    const resuming = f.player.toggle();
+    await settle();
+    f.player.preempt();
+    f.releaseNow();
+    await resuming;
+    await settle();
+    expect(f.player.view()).toMatchObject({ state: "paused", positionMs: second!.startMs });
+    expect(f.plays).toHaveLength(1);
+    await f.player.toggle();
+    expect(f.player.view().state).toBe("playing");
+    expect(f.plays[1]!.bytes).toEqual(sliceFromMs(r.audio, r.durationMs, second!.startMs));
+  });
+
+  it("a second press during a resume keeps it paused", async () => {
+    const f = fake();
+    f.player.setLatest(turn("a", [], FULL));
+    await f.player.toggle();
+    await f.player.toggle();
+    f.holdNow();
+    const resuming = f.player.toggle();
+    await settle();
+    await f.player.toggle();
+    f.releaseNow();
+    await resuming;
+    await settle();
+    expect(f.player.view().state).toBe("paused");
+    expect(f.plays).toHaveLength(1);
+  });
+
+  it("toggle during a pause resumes at the sentence start, not the last tick", async () => {
+    const f = fake();
+    f.player.setLatest(turn("a", [], FULL));
+    await f.player.toggle();
+    const r = rendered(FULL[0]!);
+    const [, second] = timeSentences(FULL[0]!, r.marks);
+    f.clock.t += second!.startMs + 150;
+    await f.player.tick();
+    expect(f.player.view().positionMs).toBe(second!.startMs + 150);
+    f.holdNow();
+    const pausing = f.player.toggle();
+    await settle();
+    const resuming = f.player.toggle();
+    await settle();
+    f.releaseNow();
+    await pausing;
+    await resuming;
+    await settle();
+    expect(f.player.view()).toMatchObject({ state: "playing", positionMs: second!.startMs });
+    expect(f.plays[1]!.bytes).toEqual(sliceFromMs(r.audio, r.durationMs, second!.startMs));
   });
 });
