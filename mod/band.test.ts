@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { band, voicePicker, type BandActions, type Els } from "./band.ts";
+import { band, noticeBand, voicePicker, type BandActions, type Els } from "./band.ts";
 import type { View } from "./player.ts";
 
 type El = { type: string; props: Record<string, any> };
@@ -65,6 +65,15 @@ describe("band", () => {
   it("a notice is drawn red", () => {
     const b = band(idle, els, actions, "Key refused") as El;
     expect(kids(b).at(-1)!.props).toMatchObject({ color: "#d75f5f", children: "Key refused" });
+  });
+});
+
+describe("noticeBand", () => {
+  it("is the notice alone, red, under the top padding", () => {
+    const b = noticeBand("Key refused", els) as El;
+    expect(b.props.paddingTop).toBe(1);
+    expect(kids(b)).toHaveLength(1);
+    expect(kids(b)[0]!.props).toMatchObject({ color: "#d75f5f", children: "Key refused" });
   });
 });
 

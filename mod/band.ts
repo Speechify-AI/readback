@@ -57,6 +57,12 @@ export function band(view: View, els: Els, actions: BandActions, notice: string 
   return Box({ flexDirection: "column", paddingTop: 1, children: rows });
 }
 
+/** Readback off with a refused key: the notice and nothing to press. */
+export function noticeBand(notice: string, els: Els): unknown {
+  const { Box, Text } = els;
+  return Box({ flexDirection: "column", paddingTop: 1, children: [Text({ color: REFUSED, children: notice })] });
+}
+
 export function voicePicker(
   voices: { id: string; name: string; featured: boolean }[],
   current: string,
