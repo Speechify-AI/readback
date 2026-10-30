@@ -18,6 +18,8 @@ function clock(ms: number): string {
 
 function meta(view: View): string {
   if (view.state === "waiting") return "condensing…";
+  // Idle, no button carries a hotkey, so nothing else says how to start.
+  if (view.state === "idle") return "ctrl+x tab, enter to play";
   const parts: string[] = [view.kind ?? ""];
   if (view.paragraphs > 1) parts.push(`${view.paragraph}/${view.paragraphs}`);
   parts.push(`${clock(view.positionMs)} / ${clock(view.durationMs)}`);

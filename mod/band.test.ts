@@ -24,6 +24,8 @@ describe("band", () => {
     expect(buttons(b).map((x) => x.props.label)).toEqual(["Play", "Full reply"]);
     // Ctrl+X Tab lands the ring on Play, so Enter plays.
     expect(buttons(b)[0]!.props.autoFocus).toBe(true);
+    // Unarmed buttons draw no key, so the meta says how to start.
+    expect(txt(row1(b).props.children.at(-1))).toBe("ctrl+x tab, enter to play");
   });
 
   it("playing band arms 1, 2 and 3", () => {
