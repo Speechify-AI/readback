@@ -64,9 +64,8 @@ export async function renderParagraph(text: string, cfg: TtsConfig, cache: Rende
           text,
           cfg,
           async (chunk, c) => {
-            const w = wrapProsody(chunk, speed);
-            const r = await synth(w.input, c);
-            return { ...r, marks: unwrapMarks(r.marks, w) };
+            const r = await synth(wrapProsody(chunk, speed), c);
+            return { ...r, marks: unwrapMarks(r.marks, chunk.length) };
           },
           wrappedLimit(text, speed, PARAGRAPH_LIMIT),
         );

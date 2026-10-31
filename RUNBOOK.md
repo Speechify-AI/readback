@@ -100,14 +100,19 @@ Pending, the manual check (none run yet):
     the first 64 matches (see CLAUDE.md). Check: `/readback voice` shows
     the field and the list, typing narrows it, Enter on a voice picks it
     and the next render uses it.
-11. **Speed through SSML prosody is unverified live.** `/readback speed
-    1.5` then 1: the render must succeed (a 400 means Speechify did not
-    take `<prosody rate="+50%">` as written in `mod/ssml.ts`, try
-    `rate="150%"`), sound faster, and the word lit must stay in step (the
-    marks are mapped back from the SSML input; a drift means the API
-    indexes marks against the bare text instead and `unwrapMarks` must go).
-    Also a reply holding `&`, `<` or `>` at speed 1.5: the escapes are
-    mapped back too.
+11. **Speed through SSML prosody: renders and plays faster (heard
+    2026-10-31, `rate="+100%"` on simba-3.5 accepted).** The highlight was
+    off: the first render at 2× (geffen_32, the Cape Town paragraph, in
+    `~/.readback/claude-code/renders`) showed every mark 29 characters
+    early with the first six words gone. Read against the paragraph, the
+    API's marks index the plain text with the tags stripped (" meets",
+    " the", "so", "flat-topped": a mark sometimes takes the space before
+    its word), not the SSML input; the 29 was our prefix being subtracted.
+    Fixed by using the marks as bare-text offsets. Still to check: a reply
+    holding `&`, `<` or `>` at speed; the code assumes an escaped `&amp;`
+    counts as one character. `SPEECHIFY_API_KEY=... node
+    scripts/probe-ssml.mjs` prints the marks for a bare and an SSML input
+    side by side to settle it.
 12. Claude Code 2.1.316 rewrote `.claude-plugin/types/claude-code/index.d.ts`
     on `--plugin-dir .` (the engine writes it when it loads a mod); the
     tree typechecks against it unchanged. `AbovePrompt` is still terminal

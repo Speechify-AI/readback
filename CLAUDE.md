@@ -159,11 +159,13 @@ and shares none of the extension's host code.
   no match draws a line instead.
 - **Speed is rendered in, not played in.** `$.audio.play` has no rate, so a
   speed other than 1 wraps each chunk in SSML `<prosody rate="+25%">`
-  (`mod/ssml.ts`), sends 200 fewer characters per chunk for the markup, and
-  maps the marks back onto the bare text, since Speechify's marks index the
-  input as sent. Speed 1 sends and caches exactly as before; other speeds
-  key the render with `@<speed>`. Stored under `speed` in `$.store`. A new
-  speed drops what is loaded; 1 plays again at the new rate.
+  (`mod/ssml.ts`) and sizes chunks by the markup and the escapes they need.
+  **With SSML input Speechify's marks index the plain text with the tags
+  stripped**, not the input as sent (measured 2026-10-31, RUNBOOK): they are
+  used as offsets into the bare chunk, clamped, nothing subtracted. Speed 1
+  sends and caches exactly as before; other speeds key the render with
+  `@<speed>`. Stored under `speed` in `$.store`. A new speed drops what is
+  loaded; 1 plays again at the new rate.
 - **`READBACK_HOOK` guard.** The condensing run sets it, and a session that
   sees it (or is not interactive) turns every hook off. Same reason as the
   extension's hook script.

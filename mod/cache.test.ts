@@ -5,10 +5,12 @@ import type { TtsConfig, TtsResult } from "../src/speechifyShared.ts";
 
 const cfg: TtsConfig = { apiBase: "http://x", apiKey: "k", voiceId: "v", model: "m" };
 
+/** Marks the words of the text as the API does: for SSML input, over the plain text with the tags stripped. */
 const fakeSynth = (calls: string[]) => async (input: string): Promise<TtsResult> => {
   calls.push(input);
   const marks = [];
-  for (const m of input.matchAll(/\S+/g)) {
+  const spoken = input.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  for (const m of spoken.matchAll(/\S+/g)) {
     marks.push({ start: m.index, end: m.index + m[0].length, startMs: m.index * 10, endMs: (m.index + m[0].length) * 10 });
   }
   return { audio: new Uint8Array([0xff, 1, 2, 3]), charsBilled: input.length, durationMs: input.length * 10, marks };
