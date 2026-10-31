@@ -21,6 +21,7 @@ import {
   PICK_NO_BAND,
   WELCOME,
   apiKeyFrom,
+  autoText,
   bandMode,
   claimsFloor,
   errorText,
@@ -41,6 +42,7 @@ import {
   startPlan,
   startsOnAttach,
   statusText,
+  storedAuto,
   storedSpeed,
   storedVoice,
   summaryFrom,
@@ -70,6 +72,8 @@ type AppState = {
   pickerQuery: string;
   /** Playback rate, one of RATES; rendered in through SSML prosody. */
   speed: number;
+  /** Play each reply as it lands, as if play were pressed; stored under `auto`. */
+  auto: boolean;
   /** The voices this key renders on the model, fetched once. */
   voices: Voice[] | null;
   /** The busy spinner's frame, advanced by the tick. */
@@ -112,8 +116,9 @@ function build(
   platform: string,
   enabled: boolean,
   speed: number,
+  auto: boolean,
 ): App {
-  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, toldExtension: false, yielded: false };
+  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, auto, toldExtension: false, yielded: false };
   const http: Http = (url, init) => $.http.fetch(url, init);
   const sleep: Sleep = (ms) => $.clock.sleep(ms);
   const run: Run = (argv, init) => $.process.run(argv, init);
@@ -285,7 +290,16 @@ async function start($: EngineInterface, apiKey: string | null): Promise<void> {
   const enabled = (await $.store.get("enabled")) === true && apiKey !== null;
   const home = homeFrom(await $.env.get("HOME"), await $.env.get("USERPROFILE"));
   const platform = platformFrom(await $.env.get("OS"));
-  app = build($, apiKey, await $.session.id(), home, platform, enabled, storedSpeed(await $.store.get("speed")));
+  app = build(
+    $,
+    apiKey,
+    await $.session.id(),
+    home,
+    platform,
+    enabled,
+    storedSpeed(await $.store.get("speed")),
+    storedAuto(await $.store.get("auto")),
+  );
   $.ui.invalidate("ui.render");
 }
 
@@ -307,8 +321,8 @@ export const register: Register = (on, options) => {
     // the person's /readback is what starts it.
     await $.command.register({
       name: "readback",
-      description: "Readback status; /readback on, off; play, stop, full; voice picks the voice; speed sets it",
-      argumentHint: "[on|off|play|stop|full|voice|speed]",
+      description: "Readback status; /readback on, off; play, stop, full; voice picks the voice; speed sets it; auto on plays each reply",
+      argumentHint: "[on|off|play|stop|full|voice|speed|auto]",
       immediate: true,
     });
     if (plan === "start") await start($, apiKey);
@@ -346,6 +360,9 @@ export const register: Register = (on, options) => {
           () => a.player.summaryReady(turn.id, null),
         );
       }
+      // Autoplay is play pressed for the person: the floor is claimed and a
+      // condensing turn waits for its summary as it would by hand.
+      if (a.state.auto) a.press("toggle").catch(a.report);
     }
     return result;
   });
@@ -366,8 +383,14 @@ export const register: Register = (on, options) => {
           return { text: plan.text };
         case "status":
           return {
-            text: statusText(a.state.enabled, await a.currentVoice(), a.state.speed, a.player.view().state, a.player.hasLatest),
+            text: statusText(a.state.enabled, await a.currentVoice(), a.state.speed, a.player.view().state, a.player.hasLatest, a.state.auto),
           };
+        case "auto":
+          if (plan.on !== null) {
+            a.state.auto = plan.on;
+            await $.store.set("auto", plan.on);
+          }
+          return { text: autoText(a.state.auto) };
         case "off":
           a.state.enabled = false;
           a.state.picking = false;

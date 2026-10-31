@@ -59,6 +59,8 @@ workspace; change it any time in `/plugin`.
   it off in one terminal leaves sessions already open on until they restart.
 - `/readback play`, `pause`, `stop` and `full` do what the band's buttons
   do, for a host that draws no band (T3 Code and other SDK hosts).
+- `/readback auto on` plays each reply as it lands, as if you had pressed
+  play; off by default, and every reply then renders and bills.
 - `/readback voice` opens a voice picker in the band: a search field and
   the matching voices, featured first. The band lists 64 at a time; type
   to narrow. `/readback voice harper` (a name, language or tag) picks the

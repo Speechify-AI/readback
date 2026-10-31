@@ -33,7 +33,7 @@ export const OFF_HINT = "Readback is off. Type /readback on to turn it on.";
 export const EXTENSION_READING = "Readback's VS Code extension is reading this session, so the plugin stays quiet here.";
 export const OFF_NO_VOICE = "Readback is off. Type /readback on to turn it on, then /readback voice.";
 export const USAGE =
-  "/readback shows the status; /readback on and off turn it on or off; /readback play, stop and full control playback; /readback voice picks the voice; /readback speed 1.25 sets the speed.";
+  "/readback shows the status; /readback on and off turn it on or off; /readback play, stop and full control playback; /readback voice picks the voice; /readback speed 1.25 sets the speed; /readback auto on plays each reply as it lands.";
 
 /** The speeds offered, the extension's steps. Played through SSML prosody (ssml.ts). */
 export const RATES: readonly number[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -112,7 +112,9 @@ export type CommandPlan =
   /** The band's buttons as words, for a session with no band. */
   | { kind: "toggle" }
   | { kind: "stop" }
-  | { kind: "full" };
+  | { kind: "full" }
+  /** `/readback auto on|off`; `auto` alone asks. */
+  | { kind: "auto"; on: boolean | null };
 
 const PLAYBACK_WORDS: Record<string, "toggle" | "stop" | "full"> = {
   play: "toggle",
@@ -169,13 +171,14 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
   const [word = "", ...rest] = args.trim().toLowerCase().split(/\s+/);
   const value = rest[0] ?? "";
   const playback = PLAYBACK_WORDS[word];
-  if (!["", "on", "off", "voice", "speed"].includes(word) && !playback) return { kind: "text", text: USAGE };
+  if (!["", "on", "off", "voice", "speed", "auto"].includes(word) && !playback) return { kind: "text", text: USAGE };
   if (key === null) return { kind: "text", text: NO_KEY };
   // Explicit, for a session with no band to show the state: "on" when on
   // checks the key again and says so; "off" when off just says so.
   if (word === "on") return { kind: "on", key };
   if (word === "off") return enabled ? { kind: "off" } : { kind: "text", text: OFF };
   if (word === "") return { kind: "status" };
+  if (word === "auto") return { kind: "auto", on: value === "on" ? true : value === "off" ? false : null };
   if (playback) return enabled ? { kind: playback } : { kind: "text", text: OFF_HINT };
   if (word === "speed") {
     const rate = Number(value.replace(/[x×]$/, ""));
@@ -186,10 +189,21 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
 }
 
 /** The status line bare `/readback` prints. */
-export function statusText(enabled: boolean, voice: StoredVoice, speed: number, state: State, hasLatest: boolean): string {
+export function statusText(enabled: boolean, voice: StoredVoice, speed: number, state: State, hasLatest: boolean, auto = false): string {
   if (!enabled) return OFF_HINT;
   const player = hasLatest ? playbackText(state, true).replace(/\.$/, "").toLowerCase() : "nothing loaded";
-  return `Readback is on. Voice ${voice.id}${voice.locale ? ` (${voice.locale})` : ""}, speed ${speedLabel(speed)}, ${player}.`;
+  return `Readback is on. Voice ${voice.id}${voice.locale ? ` (${voice.locale})` : ""}, speed ${speedLabel(speed)}, autoplay ${auto ? "on" : "off"}, ${player}.`;
+}
+
+/** The stored autoplay flag; off unless stored true. */
+export function storedAuto(v: unknown): boolean {
+  return v === true;
+}
+
+export function autoText(on: boolean): string {
+  return on
+    ? "Autoplay is on: each reply plays as it lands. /readback auto off turns it off."
+    : "Autoplay is off: /readback play plays the last reply. /readback auto on plays each reply as it lands.";
 }
 
 /** The stored speed, or 1 when none or not one offered. */

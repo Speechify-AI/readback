@@ -16,6 +16,7 @@ import {
   voiceSetText,
   REFUSED,
   apiKeyFrom,
+  autoText,
   bandMode,
   chooseVoice,
   claimsFloor,
@@ -36,6 +37,7 @@ import {
   replyTurn,
   startPlan,
   startsOnAttach,
+  storedAuto,
   storedVoice,
   summaryFrom,
   ttsConfig,
@@ -373,9 +375,21 @@ describe("the band", () => {
   it("bare /readback is a status line", () => {
     expect(statusText(false, { id: "harper_32", locale: "en-US" }, 1, "idle", false)).toBe(OFF_HINT);
     expect(statusText(true, { id: "harper_32", locale: "en-US" }, 1, "idle", false)).toBe(
-      "Readback is on. Voice harper_32 (en-US), speed 1×, nothing loaded.",
+      "Readback is on. Voice harper_32 (en-US), speed 1×, autoplay off, nothing loaded.",
     );
-    expect(statusText(true, { id: "aitana", locale: "" }, 1.5, "playing", true)).toBe("Readback is on. Voice aitana, speed 1.5×, playing.");
-    expect(statusText(true, { id: "aitana", locale: "es-MX" }, 2, "paused", true)).toMatch(/, paused\.$/);
+    expect(statusText(true, { id: "aitana", locale: "" }, 1.5, "playing", true)).toBe("Readback is on. Voice aitana, speed 1.5×, autoplay off, playing.");
+    expect(statusText(true, { id: "aitana", locale: "es-MX" }, 2, "paused", true, true)).toMatch(/autoplay on, paused\.$/);
+  });
+
+  it("autoplay is a stored flag, off unless true, set by word", () => {
+    expect(storedAuto(undefined)).toBe(false);
+    expect(storedAuto("true")).toBe(false);
+    expect(storedAuto(true)).toBe(true);
+    expect(readbackCommand("auto on", "k", true)).toEqual({ kind: "auto", on: true });
+    expect(readbackCommand("auto off", "k", true)).toEqual({ kind: "auto", on: false });
+    expect(readbackCommand("auto", "k", true)).toEqual({ kind: "auto", on: null });
+    expect(readbackCommand("auto yes", "k", true)).toEqual({ kind: "auto", on: null });
+    expect(autoText(true)).toMatch(/^Autoplay is on/);
+    expect(autoText(false)).toMatch(/^Autoplay is off/);
   });
 });

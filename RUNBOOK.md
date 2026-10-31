@@ -144,7 +144,9 @@ Pending, the manual check (none run yet):
     status (no band shows it), `/readback play`, `pause`, `stop`, `full`
     stand in for 1, 2 and 3, `/readback voice geffen` picks by word, nothing
     is lit. **Heard in T3 Code on 2026-10-31:** `/readback` answered with
-    the words and `/readback play` said "Playing." and sounded; the first
+    the words and `/readback play` said "Playing." and sounded; later the
+    status line, `voice geffen`, `speed 2x` and `auto on` (the next reply
+    played unasked, condensed as by hand); the first
     turn after turning on went to the extension while VS Code was open, as
     designed. Stop, MessageDisplay and UserPromptSubmit were
     captured too. **Seen headless the same day:** `claude -p "/readback"`

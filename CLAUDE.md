@@ -127,9 +127,14 @@ The same product as a Claude Code plugin (`.claude-plugin/`, `hooks/`,
 `package.json` must agree; a test holds them). It reuses the pure files
 and shares none of the extension's host code.
 
-- **On demand only.** Nothing plays or bills until the person presses play.
-  Turning on runs `GET /v1/voices` and nothing else. Condensing runs at
-  turn end on their Claude subscription, as in the extension.
+- **On demand unless asked otherwise.** Nothing plays or bills until the
+  person presses play, or has turned autoplay on (`/readback auto on`,
+  stored under `auto`, off by default; the person's choice, 2026-10-31,
+  since in T3 Code play is a typed command each time). Autoplay is play
+  pressed for them at `turn.complete`: the floor is claimed, a condensing
+  turn waits for its summary, a turn yielded to the extension stays
+  silent. Turning on runs `GET /v1/voices` and nothing else. Condensing
+  runs at turn end on their Claude subscription, as in the extension.
 - **One speaker across sessions.** A claim record under `$.store`'s `floor`
   key (`mod/floor.ts`), refreshed every second and free after 3 s without a
   heartbeat, so a crashed session never holds the floor. Pressing play
