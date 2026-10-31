@@ -85,9 +85,9 @@ Pending, the manual check (none run yet):
 6. No key, bad key, and a key revoked mid-session: the notices, and
    Readback off.
 7. The condensing child shows no welcome and no band (the loop guard).
-8. **Desktop app: does the band show?** The declarations say `AbovePrompt`
-   is raised on the terminal surface only, so the README says terminal only
-   until this is seen.
+8. ~~Desktop app: does the band show?~~ The 2.1.316 declarations raise
+   `AbovePrompt` on terminal and desktop, and the app ran Readback on
+   2026-10-31 (see 13). Whether the band itself drew is not itemised.
 9. **MP3 bitrate of Speechify's renders**, from `mp3DurationMs` against the
    byte length of one real render. It sets how long a paragraph fits in a
    cache file: `$.fs` rejects files over 4 MiB and a render is stored as
@@ -120,12 +120,14 @@ Pending, the manual check (none run yet):
     `AbovePrompt` "terminal and desktop surfaces only" (it was terminal
     only), so the desktop app can draw the band. `isInteractive` is still
     false under the SDK (see Open, and 13).
-13. **Desktop app through `session.attach` (2026-10-31, not yet seen).** A
-    non-interactive session now waits instead of turning off, and starts
-    when a client attaches with surface `desktop` (`startPlan`,
-    `startsOnAttach`). Check in the desktop app: the welcome toast, the
-    band, `/readback`, a reply played with 1. A `claude -p` run still gets
-    nothing; a phone attaching starts nothing.
+13. **Desktop app through `session.attach`: working, 2026-10-31.** A
+    non-interactive session waits instead of turning off, and starts when
+    a client attaches with surface `desktop` (`startPlan`,
+    `startsOnAttach`). Shaun ran it in the Claude desktop app the same
+    evening and called it working well, so the attach fires there and
+    Readback plays; not itemised: whether the band drew and the hotkeys
+    armed, or whether it ran by command as in T3. A `claude -p` run still
+    gets nothing; a phone attaching starts nothing.
 14. **Both installed, one voice (2026-10-31, not yet seen).** With the
     extension running and the plugin on, a turn in the VS Code integrated
     terminal is read by the extension alone: the mod probes
