@@ -143,7 +143,8 @@ Pending, the manual check (none run yet):
     whenever VS Code is open, and the mod yields to it (14). Without VS
     Code the mod is the reader: `/readback` registered while waiting starts
     it, `/readback on` and `off` are explicit and bare `/readback` prints the
-    status (no band shows it), `/readback play`, `pause`, `stop`, `full`
+    status (no band shows it; it also wakes a new session, whose first
+    reply is lost to the wait, seen 18:38 the same day), `/readback play`, `pause`, `stop`, `full`
     stand in for 1, 2 and 3, `/readback voice geffen` picks by word, nothing
     is lit. **Heard in T3 Code on 2026-10-31:** `/readback` answered with
     the words and `/readback play` said "Playing." and sounded; later the

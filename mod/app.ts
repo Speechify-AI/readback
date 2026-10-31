@@ -27,7 +27,7 @@ export const REFUSED = `Speechify refused the key. ${CHANGE_KEY}`;
 export const ON = "Readback is on. When a reply lands, press 1 with the prompt empty, or click Play above the prompt.";
 /** Turned on where nothing draws the band (an SDK host): the words stand in for the keys. */
 export const ON_NO_BAND =
-  "Readback is on. When a reply lands, type /readback play; /readback stop and /readback full as well.";
+  "Readback is on. When a reply lands, type /readback play; /readback stop and /readback full as well. A new session sleeps until /readback is typed once, so its first reply is not heard.";
 export const OFF = "Readback is off.";
 export const OFF_HINT = "Readback is off. Type /readback on to turn it on.";
 export const EXTENSION_READING = "Readback's VS Code extension is reading this session, so the plugin stays quiet here.";

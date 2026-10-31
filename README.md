@@ -59,7 +59,9 @@ workspace; change it any time in `/plugin`.
   until you press play. On or off is read when a session starts, so turning
   it off in one terminal leaves sessions already open on until they restart.
 - `/readback play`, `pause`, `stop` and `full` do what the band's buttons
-  do, for a host that draws no band (T3 Code and other SDK hosts).
+  do, for a host that draws no band (T3 Code and other SDK hosts). There a
+  new session sleeps until `/readback` is typed once, since nothing tells
+  it from a script's headless run, so its first reply is not heard.
 - `/readback auto on` plays each reply as it lands, as if you had pressed
   play; off by default, and every reply then renders and bills.
 - `/readback voice` opens a voice picker in the band: a search field and
