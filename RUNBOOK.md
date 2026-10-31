@@ -108,11 +108,12 @@ Pending, the manual check (none run yet):
     API's marks index the plain text with the tags stripped (" meets",
     " the", "so", "flat-topped": a mark sometimes takes the space before
     its word), not the SSML input; the 29 was our prefix being subtracted.
-    Fixed by using the marks as bare-text offsets. Still to check: a reply
-    holding `&`, `<` or `>` at speed; the code assumes an escaped `&amp;`
-    counts as one character. `SPEECHIFY_API_KEY=... node
-    scripts/probe-ssml.mjs` prints the marks for a bare and an SSML input
-    side by side to settle it.
+    Fixed by using the marks as bare-text offsets. **Heard right on
+    2026-10-31, later:** plain text at 2× from the first word, and a reply
+    with `a && b` and `<div>` at 1.5× with the words after them still in
+    step, so an escaped `&amp;` counts as the one character it stands for.
+    `scripts/probe-ssml.mjs` stays for the next time the API's rule is in
+    doubt.
 12. Claude Code 2.1.316 rewrote `.claude-plugin/types/claude-code/index.d.ts`
     on `--plugin-dir .` (the engine writes it when it loads a mod); the
     tree typechecks against it unchanged. `AbovePrompt` is still terminal

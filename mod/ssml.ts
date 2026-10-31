@@ -6,10 +6,9 @@
  * speech marks index the plain text with the tags stripped, not the input
  * as sent; a mark sometimes starts on the space before its word. So the
  * marks are taken as offsets into the bare chunk, clamped to it, and the
- * markup is never subtracted. Whether an escaped `&` counts as one
- * character (the text node, decoded) or five (`&amp;`) is untested; the
- * decoded reading is the natural one for an XML parser and is assumed.
- * `scripts/probe-ssml.mjs` prints what the API does with a key.
+ * markup is never subtracted. An escaped `&` counts as the one character
+ * it stands for (heard in step after `a && b` and `<div>` at 1.5×, same
+ * day). `scripts/probe-ssml.mjs` prints what the API does with a key.
  *
  * At speed 1 nothing is wrapped: the request and the cache key are the
  * same as before speed existed.
