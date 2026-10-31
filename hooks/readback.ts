@@ -4,8 +4,10 @@
  * `mod/floor.ts`, the band is `mod/band.ts`. This module hands them `$`.
  *
  * Hooks registered here cannot be removed, so the loop guard is `app`, which
- * every hook checks first: null until `session.start` finds a person at the
- * prompt and no `READBACK_HOOK` (the condensing child's marker).
+ * every hook checks first: null until a person is found and no `READBACK_HOOK`
+ * (the condensing child's marker). A person is at the prompt at
+ * `session.start`, or arrives with the desktop app at `session.attach`
+ * (`startPlan`, `startsOnAttach` in `mod/app.ts`).
  */
 import type { EngineInterface, Register } from "claude-code";
 import type { Voice } from "../src/speechifyShared.ts";
@@ -13,6 +15,7 @@ import {
   API_BASE,
   MODEL,
   NO_VOICES,
+  EXTENSION_READING,
   OFF,
   ON,
   PICK,
@@ -25,13 +28,14 @@ import {
   homeFrom,
   isRefusal,
   keyCheckText,
-  loopGuard,
   nextRate,
   pickedVoice,
   platformFrom,
   readbackCommand,
   replyTurn,
   speedLabel,
+  startPlan,
+  startsOnAttach,
   storedSpeed,
   storedVoice,
   summaryFrom,
@@ -44,6 +48,7 @@ import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mo
 import { base64Of } from "../mod/bytes.ts";
 import { CACHE_DIR, diskCache, renderParagraph, type Files } from "../mod/cache.ts";
 import { condenseReply, type Run } from "../mod/condense.ts";
+import { ENDPOINTS_DIR, extensionListening } from "../mod/extension.ts";
 import { Floor, HEARTBEAT_MS } from "../mod/floor.ts";
 import { Player } from "../mod/player.ts";
 import { checkKey, listVoices, synthesize, type Http, type Sleep } from "../mod/speechify.ts";
@@ -63,6 +68,8 @@ type AppState = {
   voices: Voice[] | null;
   /** The busy spinner's frame, advanced by the tick. */
   frame: number;
+  /** The extension-is-reading notice has been shown once this session. */
+  toldExtension: boolean;
 };
 
 type App = {
@@ -77,11 +84,15 @@ type App = {
   setSpeed(rate: number): Promise<void>;
   condense(text: string): Promise<string | null>;
   report(err: unknown): void;
+  /** Whether the VS Code extension's listener answers, so it reads this session and the mod must not. */
+  extensionReading(): Promise<boolean>;
   /** Stop the player, cancel its timers, give up the floor; never throws. */
   close(): Promise<void>;
 };
 
 let app: App | null = null;
+/** An SDK host's session with no surface yet: started by the first attach that draws the band. */
+let waiting = false;
 
 function build(
   $: EngineInterface,
@@ -92,7 +103,7 @@ function build(
   enabled: boolean,
   speed: number,
 ): App {
-  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed };
+  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, toldExtension: false };
   const http: Http = (url, init) => $.http.fetch(url, init);
   const sleep: Sleep = (ms) => $.clock.sleep(ms);
   const run: Run = (argv, init) => $.process.run(argv, init);
@@ -101,6 +112,11 @@ function build(
     write: (path, text) => $.fs.write(path, text),
   };
   const cache = diskCache(files, `${home}/${CACHE_DIR}`);
+  const extensionReading = () =>
+    extensionListening(
+      { list: (dir) => $.fs.list(dir), read: (path) => $.fs.read(path), fetch: (url) => $.http.fetch(url) },
+      `${home}/${ENDPOINTS_DIR}`,
+    );
 
   let versionRead: Promise<string> | null = null;
   const version = () =>
@@ -236,6 +252,7 @@ function build(
     setSpeed,
     condense: (text) => condenseReply(text, { run, home, platform, now: () => $.clock.now() }),
     report,
+    extensionReading,
     close: async () => {
       try {
         player.stop();
@@ -248,6 +265,25 @@ function build(
   };
 }
 
+/** A person is here: the command, the welcome once, and this session's app. */
+async function start($: EngineInterface, apiKey: string | null): Promise<void> {
+  await $.command.register({
+    name: "readback",
+    description: "Turn Readback on or off; /readback voice picks the voice",
+    argumentHint: "[voice]",
+    immediate: true,
+  });
+  if ((await $.store.get("welcomed")) !== true) {
+    $.ui.toast(WELCOME);
+    await $.store.set("welcomed", true);
+  }
+  const enabled = (await $.store.get("enabled")) === true && apiKey !== null;
+  const home = homeFrom(await $.env.get("HOME"), await $.env.get("USERPROFILE"));
+  const platform = platformFrom(await $.env.get("OS"));
+  app = build($, apiKey, await $.session.id(), home, platform, enabled, storedSpeed(await $.store.get("speed")));
+  $.ui.invalidate("ui.render");
+}
+
 export const register: Register = (on, options) => {
   const apiKey = apiKeyFrom(options);
 
@@ -258,30 +294,33 @@ export const register: Register = (on, options) => {
     // its state (a refusal notice, an open picker) carries into the new one.
     const old = app;
     app = null;
+    waiting = false;
     await old?.close();
-    if (loopGuard(await $.env.get("READBACK_HOOK"), e.isInteractive)) return result;
-    await $.command.register({
-      name: "readback",
-      description: "Turn Readback on or off; /readback voice picks the voice",
-      argumentHint: "[voice]",
-      immediate: true,
-    });
-    if ((await $.store.get("welcomed")) !== true) {
-      $.ui.toast(WELCOME);
-      await $.store.set("welcomed", true);
-    }
-    const enabled = (await $.store.get("enabled")) === true && apiKey !== null;
-    const home = homeFrom(await $.env.get("HOME"), await $.env.get("USERPROFILE"));
-    const platform = platformFrom(await $.env.get("OS"));
-    app = build($, apiKey, await $.session.id(), home, platform, enabled, storedSpeed(await $.store.get("speed")));
-    $.ui.invalidate("ui.render");
+    const plan = startPlan(await $.env.get("READBACK_HOOK"), e.isInteractive);
+    if (plan === "start") await start($, apiKey);
+    if (plan === "wait") waiting = true;
     return result;
+  });
+
+  on("session.attach", async ($, e, next) => {
+    if (waiting && startsOnAttach(e.surface)) {
+      waiting = false;
+      await start($, apiKey);
+    }
+    return next(e);
   });
 
   on("turn.complete", async ($, e, next) => {
     if (!app || !app.state.enabled) return next(e);
     const result = await next(e);
     const turn = replyTurn(e);
+    if (turn && (await app.extensionReading())) {
+      if (!app.state.toldExtension) {
+        app.state.toldExtension = true;
+        $.ui.toast(EXTENSION_READING);
+      }
+      return result;
+    }
     if (turn) {
       const a = app;
       a.player.setLatest(turn);

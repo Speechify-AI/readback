@@ -26,6 +26,7 @@ export const NO_KEY = `Readback needs a Speechify API key. Create one for free a
 export const REFUSED = `Speechify refused the key. ${CHANGE_KEY}`;
 export const ON = "Readback is on. When a reply lands, press 1 with the prompt empty, or click Play above the prompt.";
 export const OFF = "Readback is off.";
+export const EXTENSION_READING = "Readback's VS Code extension is reading this session, so the plugin stays quiet here.";
 export const OFF_NO_VOICE = "Readback is off. Type /readback to turn it on, then /readback voice.";
 export const USAGE = "/readback turns Readback on or off; /readback voice picks the voice; /readback speed 1.25 sets the speed.";
 
@@ -44,9 +45,26 @@ export function apiKeyFrom(options: Readonly<Record<string, unknown>>): string |
   return t === "" ? null : t;
 }
 
-/** True when this process must leave Readback out: the condensing child, or any `-p` run. */
-export function loopGuard(readbackHook: string | undefined, isInteractive: boolean): boolean {
-  return readbackHook === "1" || isInteractive === false;
+/**
+ * What `session.start` does. `off` in the condensing child (`READBACK_HOOK`),
+ * which must never loop. `start` with a person at the prompt. `wait` under
+ * the SDK: a `-p` run and the desktop app both start non-interactive with no
+ * surface, and only an attach tells them apart (`startsOnAttach`). Starting
+ * at once would condense every headless run's replies, unheard.
+ */
+export type StartPlan = "off" | "start" | "wait";
+export function startPlan(readbackHook: string | undefined, isInteractive: boolean): StartPlan {
+  if (readbackHook === "1") return "off";
+  return isInteractive ? "start" : "wait";
+}
+
+/**
+ * An attached surface a waiting session starts on: the desktop app, which
+ * draws the band. A phone does not, and the sound would play on a machine
+ * the person has left.
+ */
+export function startsOnAttach(surface: string): boolean {
+  return surface === "desktop";
 }
 
 export function homeFrom(home: string | undefined, userProfile: string | undefined): string {

@@ -35,8 +35,8 @@ that arrive before that queue up.
 
 Readback is also a Claude Code plugin: a band above the prompt shows the
 reply and lights each word as it is spoken. It needs Claude Code 2.1.275 or
-later, in the terminal. Whether the desktop app draws the band is not yet
-confirmed, and Claude Code's declarations say that place is terminal only.
+later, in the terminal or the desktop app. The desktop app has not been
+tried yet; Claude Code's declarations say the band is drawn on both.
 
 ```
 /plugin marketplace add Speechify-AI/readback

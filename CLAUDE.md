@@ -166,9 +166,22 @@ and shares none of the extension's host code.
   sends and caches exactly as before; other speeds key the render with
   `@<speed>`. Stored under `speed` in `$.store`. A new speed drops what is
   loaded; 1 plays again at the new rate.
-- **`READBACK_HOOK` guard.** The condensing run sets it, and a session that
-  sees it (or is not interactive) turns every hook off. Same reason as the
-  extension's hook script.
+- **`READBACK_HOOK` guard, and a person before anything starts.** The
+  condensing run sets `READBACK_HOOK`, and a session that sees it turns every
+  hook off, same reason as the extension's hook script. A session that is not
+  interactive (`claude -p`, any SDK host) waits instead: the desktop app
+  starts that way too, and only its `session.attach` with surface `desktop`
+  tells it from a script's run (`startPlan`, `startsOnAttach`). Starting on
+  every SDK session would condense each headless run's replies, unheard. A
+  phone attaching does not start it: the sound would play where the person
+  is not.
+- **The extension and the mod never read the same reply.** The extension's
+  hook posts every reply to the windows listed in `~/.readback/endpoints`;
+  a Claude Code session in the integrated terminal is read by that window.
+  So at each `turn.complete` the mod probes those files (`mod/extension.ts`)
+  and, when any listener answers (a 404 counts; a refused port is a window
+  that crashed), lets the turn go by with one toast per session. The mod
+  stays on, so a window closed mid-session is heard from the next reply.
 - **No Node in the mod.** Everything goes through `$`, spelled
   `$.noun.verb(...)` at the call site (a bare `$.http.fetch` reference is
   rejected by `claude plugin validate`). The `*Shared.ts` files and the
@@ -211,6 +224,7 @@ and shares none of the extension's host code.
 - `mod/app.ts` — the wiring's decisions as pure helpers (command text, key check text, reply to turn, voice choice)
 - `mod/player.ts`, `mod/floor.ts`, `mod/band.ts` — the player state machine, the cross-session speaker claim, the band drawing
 - `mod/condense.ts`, `mod/speechify.ts`, `mod/cache.ts`, `mod/sentence.ts`, `mod/bytes.ts` — condensing run, API calls over `$.http`, render cache over `$.fs`, sentence steps, base64
+- `mod/extension.ts` — is the VS Code extension's listener up, so the mod must not read this reply too
 - `src/*Shared.ts` — the Node-free halves of the extension's modules, imported by both
 
 ## Commands

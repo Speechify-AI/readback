@@ -116,9 +116,24 @@ Pending, the manual check (none run yet):
     doubt.
 12. Claude Code 2.1.316 rewrote `.claude-plugin/types/claude-code/index.d.ts`
     on `--plugin-dir .` (the engine writes it when it loads a mod); the
-    tree typechecks against it unchanged. `AbovePrompt` is still terminal
-    only; `isInteractive` is still false under the SDK, so T3 Code and the
-    desktop app get nothing (see Open).
+    tree typechecks against it unchanged. The same rewrite made
+    `AbovePrompt` "terminal and desktop surfaces only" (it was terminal
+    only), so the desktop app can draw the band. `isInteractive` is still
+    false under the SDK (see Open, and 13).
+13. **Desktop app through `session.attach` (2026-10-31, not yet seen).** A
+    non-interactive session now waits instead of turning off, and starts
+    when a client attaches with surface `desktop` (`startPlan`,
+    `startsOnAttach`). Check in the desktop app: the welcome toast, the
+    band, `/readback`, a reply played with 1. A `claude -p` run still gets
+    nothing; a phone attaching starts nothing.
+14. **Both installed, one voice (2026-10-31, not yet seen).** With the
+    extension running and the plugin on, a turn in the VS Code integrated
+    terminal is read by the extension alone: the mod probes
+    `~/.readback/endpoints` at each `turn.complete` and skips the turn when
+    a listener answers, with one toast per session. Check: the toast, one
+    reading; close VS Code and the next reply comes from the mod. The probe
+    was tried by hand against a live listener (404 answers) and a dead
+    port (refused), not yet from inside the mod.
 
 Open:
 
@@ -139,14 +154,22 @@ Open:
   nothing to play until the next reply.
 - A `language` change mid-session takes effect next session unless a voice
   is picked.
-- **SDK hosts (T3 Code, the desktop app) get no Readback at all.** The
-  loop guard turns the mod off when `isInteractive` is false, which the
-  declarations say it is for a `-p` run or the SDK; and the band is raised
-  on the terminal only. Sound itself needs no surface (`$.audio.play` is
-  the platform player). A surface-free mode would drop the `isInteractive`
-  half of the guard (keeping `READBACK_HOOK`), play on `turn.complete` or a
-  command, and draw the band only where `$.session.surfaces()` holds
-  `terminal`.
+- **SDK hosts without a surface (T3 Code) get no Readback.** A
+  non-interactive session waits for a `session.attach` that draws the band
+  (the desktop app, see 13 above); one that never attaches is
+  indistinguishable from a script's `claude -p`, and starting it would
+  condense every headless reply unheard. Sound itself needs no surface
+  (`$.audio.play` is the platform player). A command-only mode would
+  register `/readback` even while waiting and start on `/readback on` typed
+  in that session (origin `sdk`), with `/readback play|pause|stop|full` in
+  place of the band's 1, 2 and 3 and no highlight. Unverified: whether T3
+  Code passes a plugin command through to Claude Code at all. The
+  extension's hook does run there, since hooks are settings, so the
+  extension already covers SDK hosts; if one ever stops running settings
+  hooks, Heard's answer for Codex Desktop was to tail the session log
+  (`~/.codex/sessions/**/*.jsonl` with a byte offset per file,
+  `heard/codex_app.py` in <https://github.com/heardlabs/heard>); Claude
+  Code's equivalent is `~/.claude/projects/`.
 - `command.run` never calls `next` (the validator reads it as a gating hook
   without a catch), so the command is registered only when Readback can run.
 

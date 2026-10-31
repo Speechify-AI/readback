@@ -19,11 +19,12 @@ import {
   homeFrom,
   isRefusal,
   keyCheckText,
-  loopGuard,
   pickedVoice,
   platformFrom,
   readbackCommand,
   replyTurn,
+  startPlan,
+  startsOnAttach,
   storedVoice,
   summaryFrom,
   ttsConfig,
@@ -54,11 +55,19 @@ describe("setup", () => {
     expect(apiKeyFrom({ speechify_api_key: 5 })).toBeNull();
   });
 
-  it("the loop guard holds in a -p run and under READBACK_HOOK", () => {
-    expect(loopGuard(undefined, true)).toBe(false);
-    expect(loopGuard("1", true)).toBe(true);
-    expect(loopGuard(undefined, false)).toBe(true);
-    expect(loopGuard("0", true)).toBe(false);
+  it("starts at the prompt, waits under the SDK, stays off in the condensing child", () => {
+    expect(startPlan(undefined, true)).toBe("start");
+    expect(startPlan("0", true)).toBe("start");
+    expect(startPlan("1", true)).toBe("off");
+    expect(startPlan("1", false)).toBe("off");
+    expect(startPlan(undefined, false)).toBe("wait");
+  });
+
+  it("a waiting session starts when the desktop app attaches, not a phone", () => {
+    expect(startsOnAttach("desktop")).toBe(true);
+    expect(startsOnAttach("mobile")).toBe(false);
+    expect(startsOnAttach("vscode")).toBe(false);
+    expect(startsOnAttach("terminal")).toBe(false);
   });
 
   it("home falls back to USERPROFILE; Windows by OS", () => {
