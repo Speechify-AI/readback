@@ -71,8 +71,8 @@ Verified on 2026-10-29:
 
 Pending, the manual check (none run yet):
 
-1. `claude --plugin-dir .` with a key: welcome toast once, `/readback`
-   turns on, band appears.
+1. `claude --plugin-dir .` with a key: welcome toast once, `/readback on`
+   turns on, band appears; bare `/readback` prints the status.
 2. A long reply: an orange "⠋ condensing" where the clock goes, then the
    spinner alone while the voice renders; after pressing 1 during
    condensing, the summary starts when it lands, the word lit. 1 pauses and resumes at the sentence start; 3 plays the
@@ -134,6 +134,36 @@ Pending, the manual check (none run yet):
     reading; close VS Code and the next reply comes from the mod. The probe
     was tried by hand against a live listener (404 answers) and a dead
     port (refused), not yet from inside the mod.
+15. **T3 Code, by command (2026-10-31, not yet seen).** Settings hooks do
+    fire in a T3 Code session: a capture listener registered in
+    `~/.readback/endpoints` received this session's PreToolUse payloads
+    with its `session_id` and `cwd`, so the extension reads T3 turns
+    whenever VS Code is open, and the mod yields to it (14). Without VS
+    Code the mod is the reader: `/readback` registered while waiting starts
+    it, `/readback on` and `off` are explicit and bare `/readback` prints the
+    status (no band shows it), `/readback play`, `pause`, `stop`, `full`
+    stand in for 1, 2 and 3, `/readback voice geffen` picks by word, nothing
+    is lit. **Heard in T3 Code on 2026-10-31:** `/readback` answered with
+    the words and `/readback play` said "Playing." and sounded; the first
+    turn after turning on went to the extension while VS Code was open, as
+    designed. Stop, MessageDisplay and UserPromptSubmit were
+    captured too. **Seen headless the same day:** `claude -p "/readback"`
+    answered "Readback is on. When a reply lands, type /readback play…",
+    so the command is registered while waiting, starts the mod, and the
+    key check ran, all under the SDK. Installed for the test from a dev
+    marketplace at `/tmp/readback-dev-marketplace`: a real copy of the
+    checkout at `readback/` (rsync without node_modules, 2 MB), source
+    `./readback`. An absolute path is refused by the validator, and a
+    symlink loads but the engine then refuses the hooks module as "Path
+    escapes plugin directory", so the plugin's hooks silently never run
+    (debug log, 15:01). The engine reads a path-sourced plugin from the
+    marketplace folder, not the cache copy, so an edit needs a fresh rsync
+    and a session restart or `/reload-plugins`. The key goes in with
+    `claude plugin configure readback@readback-dev --values-stdin`. Still
+    to see in T3 itself: `/readback` answers with the words; with VS Code
+    closed, a long reply then `/readback play` sounds; `/readback stop`
+    stops it. With VS Code open the extension reads the turn and the mod
+    answers `/readback play` with "Nothing to play yet".
 
 Open:
 
@@ -154,17 +184,14 @@ Open:
   nothing to play until the next reply.
 - A `language` change mid-session takes effect next session unless a voice
   is picked.
-- **SDK hosts without a surface (T3 Code) get no Readback.** A
-  non-interactive session waits for a `session.attach` that draws the band
-  (the desktop app, see 13 above); one that never attaches is
-  indistinguishable from a script's `claude -p`, and starting it would
-  condense every headless reply unheard. Sound itself needs no surface
-  (`$.audio.play` is the platform player). A command-only mode would
-  register `/readback` even while waiting and start on `/readback on` typed
-  in that session (origin `sdk`), with `/readback play|pause|stop|full` in
-  place of the band's 1, 2 and 3 and no highlight. Unverified: whether T3
-  Code passes a plugin command through to Claude Code at all. The
-  extension's hook does run there, since hooks are settings, so the
+- **SDK hosts without a surface (T3 Code) start on `/readback` only**
+  (see 15 above). A non-interactive session waits for a `session.attach`
+  that draws the band (the desktop app, 13) or the person's command; one
+  that gets neither is indistinguishable from a script's `claude -p`, and
+  starting it would condense every headless reply unheard. Sound needs no
+  surface (`$.audio.play` is the platform player); the highlight does, so
+  there is none there. Unverified: whether T3 Code passes a plugin command
+  through to Claude Code at all. The extension's hook does run there, since hooks are settings, so the
   extension already covers SDK hosts; if one ever stops running settings
   hooks, Heard's answer for Codex Desktop was to tail the session log
   (`~/.codex/sessions/**/*.jsonl` with a byte offset per file,

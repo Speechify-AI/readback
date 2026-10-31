@@ -4,6 +4,16 @@ import {
   API_BASE,
   KEYS_URL,
   NO_KEY,
+  OFF,
+  OFF_HINT,
+  ON,
+  ON_NO_BAND,
+  onText,
+  playbackText,
+  YIELDED,
+  speedSetText,
+  statusText,
+  voiceSetText,
   REFUSED,
   apiKeyFrom,
   bandMode,
@@ -15,6 +25,7 @@ import {
   speedText,
   storedSpeed,
   errorText,
+  hasBand,
   fallbackVoice,
   homeFrom,
   isRefusal,
@@ -97,13 +108,14 @@ describe("/readback", () => {
   });
 
   it("toggles on and off", () => {
-    expect(readbackCommand("", "k", false)).toEqual({ kind: "on", key: "k" });
-    expect(readbackCommand("  ", "k", true)).toEqual({ kind: "off" });
+    expect(readbackCommand("", "k", false)).toEqual({ kind: "status" });
+    expect(readbackCommand("  ", "k", true)).toEqual({ kind: "status" });
   });
 
   it("voice only while on", () => {
-    expect(readbackCommand("voice", "k", true)).toEqual({ kind: "voice" });
-    expect(readbackCommand(" Voice ", "k", true)).toEqual({ kind: "voice" });
+    expect(readbackCommand("voice", "k", true)).toEqual({ kind: "voice", query: "" });
+    expect(readbackCommand(" Voice ", "k", true)).toEqual({ kind: "voice", query: "" });
+    expect(readbackCommand("voice Harper en-US", "k", true)).toEqual({ kind: "voice", query: "harper en-us" });
     const off = readbackCommand("voice", "k", false);
     expect(off.kind).toBe("text");
   });
@@ -126,6 +138,46 @@ describe("/readback", () => {
     expect(readbackCommand("speed 3", "k", true)).toEqual({ kind: "text", text: speedText(1) });
     expect(speedText(1.5)).toBe("Speed is 1.5×. /readback speed 1.5 sets it; 0.75, 1, 1.25, 1.5, 1.75, 2 are offered.");
     expect(readbackCommand("speed 2", null, true)).toEqual({ kind: "text", text: NO_KEY });
+  });
+
+  it("on and off are explicit, whatever the state", () => {
+    expect(readbackCommand("on", "k", false)).toEqual({ kind: "on", key: "k" });
+    expect(readbackCommand("on", "k", true)).toEqual({ kind: "on", key: "k" });
+    expect(readbackCommand("off", "k", true)).toEqual({ kind: "off" });
+    expect(readbackCommand("off", "k", false)).toEqual({ kind: "text", text: OFF });
+    expect(readbackCommand("on", null, false)).toEqual({ kind: "text", text: NO_KEY });
+  });
+
+  it("play, pause, resume, stop and full are the band's buttons as words, on only", () => {
+    expect(readbackCommand("play", "k", true)).toEqual({ kind: "toggle" });
+    expect(readbackCommand("Pause", "k", true)).toEqual({ kind: "toggle" });
+    expect(readbackCommand("resume", "k", true)).toEqual({ kind: "toggle" });
+    expect(readbackCommand("stop", "k", true)).toEqual({ kind: "stop" });
+    expect(readbackCommand("full", "k", true)).toEqual({ kind: "full" });
+    expect(readbackCommand("play", "k", false)).toEqual({ kind: "text", text: OFF_HINT });
+    expect(readbackCommand("play", null, false)).toEqual({ kind: "text", text: NO_KEY });
+  });
+
+  it("the on text names the keys where a band draws, the words elsewhere", () => {
+    expect(hasBand(["terminal"])).toBe(true);
+    expect(hasBand(["desktop", "mobile"])).toBe(true);
+    expect(hasBand([])).toBe(false);
+    expect(hasBand(["mobile"])).toBe(false);
+    expect(onText(true)).toBe(ON);
+    expect(onText(false)).toBe(ON_NO_BAND);
+    expect(speedSetText(2, true)).toBe("Speed is 2×. Press 1 to hear it.");
+    expect(speedSetText(1.25, false)).toBe("Speed is 1.25×. Type /readback play to hear it.");
+  });
+
+  it("a playback word answers with what the player is doing", () => {
+    expect(playbackText("idle", false)).toMatch(/Nothing to play/);
+    expect(playbackText("idle", false, true)).toBe(YIELDED);
+    expect(playbackText("playing", true, true)).toBe("Playing.");
+    expect(playbackText("playing", true)).toBe("Playing.");
+    expect(playbackText("loading", true)).toBe("Loading.");
+    expect(playbackText("waiting", true)).toBe("Loading.");
+    expect(playbackText("paused", true)).toBe("Paused.");
+    expect(playbackText("idle", true)).toBe("Stopped.");
   });
 
   it("the stored speed is one offered, else 1; the button cycles through them", () => {
@@ -305,5 +357,25 @@ describe("the band", () => {
   it("a refused key holds its notice while off", () => {
     expect(bandMode({ ...base, enabled: false, notice: REFUSED })).toBe("notice");
     expect(bandMode({ ...base, enabled: false, notice: REFUSED, hasSurvey: true })).toBe("pass");
+  });
+
+  it("a voice named by word is the first match, and says how many others matched", () => {
+    const voices = [
+      { id: "harper_32", name: "Harper", locale: "en-US", tags: [], models: ["simba-3.5"], gender: "female", previewAudio: null },
+      { id: "aitana", name: "Aitana", locale: "es-MX", tags: ["Language:Spanish"], models: ["simba-3.0"], gender: "female", previewAudio: null },
+      { id: "pablo", name: "Pablo", locale: "es-ES", tags: ["Language:Spanish"], models: ["simba-3.0"], gender: "male", previewAudio: null },
+    ] as unknown as Parameters<typeof voiceSetText>[0];
+    expect(voiceSetText(voices, "harper")).toMatchObject({ voice: { id: "harper_32" }, text: "Voice: Harper (harper_32, en-US)." });
+    expect(voiceSetText(voices, "spanish").text).toMatch(/1 other matched/);
+    expect(voiceSetText(voices, "klingon")).toEqual({ voice: null, text: 'No voice matches "klingon".' });
+  });
+
+  it("bare /readback is a status line", () => {
+    expect(statusText(false, { id: "harper_32", locale: "en-US" }, 1, "idle", false)).toBe(OFF_HINT);
+    expect(statusText(true, { id: "harper_32", locale: "en-US" }, 1, "idle", false)).toBe(
+      "Readback is on. Voice harper_32 (en-US), speed 1×, nothing loaded.",
+    );
+    expect(statusText(true, { id: "aitana", locale: "" }, 1.5, "playing", true)).toBe("Readback is on. Voice aitana, speed 1.5×, playing.");
+    expect(statusText(true, { id: "aitana", locale: "es-MX" }, 2, "paused", true)).toMatch(/, paused\.$/);
   });
 });

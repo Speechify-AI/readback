@@ -17,31 +17,37 @@ import {
   NO_VOICES,
   EXTENSION_READING,
   OFF,
-  ON,
   PICK,
+  PICK_NO_BAND,
   WELCOME,
   apiKeyFrom,
   bandMode,
   claimsFloor,
   errorText,
   fallbackVoice,
+  hasBand,
   homeFrom,
   isRefusal,
   keyCheckText,
   nextRate,
+  onText,
   pickedVoice,
   platformFrom,
+  playbackText,
   readbackCommand,
   replyTurn,
   speedLabel,
+  speedSetText,
   startPlan,
   startsOnAttach,
+  statusText,
   storedSpeed,
   storedVoice,
   summaryFrom,
   clocksWanted,
   ttsConfig,
   versionFrom,
+  voiceSetText,
   type StoredVoice,
 } from "../mod/app.ts";
 import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mod/band.ts";
@@ -70,6 +76,8 @@ type AppState = {
   frame: number;
   /** The extension-is-reading notice has been shown once this session. */
   toldExtension: boolean;
+  /** The last reply went to the extension and nothing newer has been loaded. */
+  yielded: boolean;
 };
 
 type App = {
@@ -86,6 +94,8 @@ type App = {
   report(err: unknown): void;
   /** Whether the VS Code extension's listener answers, so it reads this session and the mod must not. */
   extensionReading(): Promise<boolean>;
+  /** The band's Play/Pause/Resume and Full reply buttons, awaited. */
+  press(action: "toggle" | "full"): Promise<void>;
   /** Stop the player, cancel its timers, give up the floor; never throws. */
   close(): Promise<void>;
 };
@@ -103,7 +113,7 @@ function build(
   enabled: boolean,
   speed: number,
 ): App {
-  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, toldExtension: false };
+  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, toldExtension: false, yielded: false };
   const http: Http = (url, init) => $.http.fetch(url, init);
   const sleep: Sleep = (ms) => $.clock.sleep(ms);
   const run: Run = (argv, init) => $.process.run(argv, init);
@@ -253,6 +263,7 @@ function build(
     condense: (text) => condenseReply(text, { run, home, platform, now: () => $.clock.now() }),
     report,
     extensionReading,
+    press,
     close: async () => {
       try {
         player.stop();
@@ -265,14 +276,8 @@ function build(
   };
 }
 
-/** A person is here: the command, the welcome once, and this session's app. */
+/** A person is here: the welcome once, and this session's app. */
 async function start($: EngineInterface, apiKey: string | null): Promise<void> {
-  await $.command.register({
-    name: "readback",
-    description: "Turn Readback on or off; /readback voice picks the voice",
-    argumentHint: "[voice]",
-    immediate: true,
-  });
   if ((await $.store.get("welcomed")) !== true) {
     $.ui.toast(WELCOME);
     await $.store.set("welcomed", true);
@@ -297,6 +302,15 @@ export const register: Register = (on, options) => {
     waiting = false;
     await old?.close();
     const plan = startPlan(await $.env.get("READBACK_HOOK"), e.isInteractive);
+    if (plan === "off") return result;
+    // Registered while waiting too: on an SDK host with no surface (T3 Code),
+    // the person's /readback is what starts it.
+    await $.command.register({
+      name: "readback",
+      description: "Readback status; /readback on, off; play, stop, full; voice picks the voice; speed sets it",
+      argumentHint: "[on|off|play|stop|full|voice|speed]",
+      immediate: true,
+    });
     if (plan === "start") await start($, apiKey);
     if (plan === "wait") waiting = true;
     return result;
@@ -315,6 +329,7 @@ export const register: Register = (on, options) => {
     const result = await next(e);
     const turn = replyTurn(e);
     if (turn && (await app.extensionReading())) {
+      app.state.yielded = true;
       if (!app.state.toldExtension) {
         app.state.toldExtension = true;
         $.ui.toast(EXTENSION_READING);
@@ -323,6 +338,7 @@ export const register: Register = (on, options) => {
     }
     if (turn) {
       const a = app;
+      a.state.yielded = false;
       a.player.setLatest(turn);
       if (turn.condensing) {
         a.condense(e.answer).then(
@@ -337,13 +353,21 @@ export const register: Register = (on, options) => {
   // Our own command, registered only when not off, so it is answered here and
   // never passed on: a `next(e)` would make this hook a gate on it.
   on("command.run", { command: "readback" }, ($, e) => {
-    if (!app) return Promise.resolve({});
-    const a = app;
-    const plan = readbackCommand(e.args, apiKey, a.state.enabled, a.state.speed);
-    const answer = async (): Promise<{ text: string }> => {
+    const answer = async (): Promise<{ text?: string }> => {
+      if (!app && waiting) {
+        waiting = false;
+        await start($, apiKey);
+      }
+      const a = app;
+      if (!a) return {};
+      const plan = readbackCommand(e.args, apiKey, a.state.enabled, a.state.speed);
       switch (plan.kind) {
         case "text":
           return { text: plan.text };
+        case "status":
+          return {
+            text: statusText(a.state.enabled, await a.currentVoice(), a.state.speed, a.player.view().state, a.player.hasLatest),
+          };
         case "off":
           a.state.enabled = false;
           a.state.picking = false;
@@ -359,14 +383,28 @@ export const register: Register = (on, options) => {
           a.state.notice = null;
           await $.store.set("enabled", true);
           $.ui.invalidate("ui.render");
-          return { text: ON };
+          return { text: onText(hasBand(await $.session.surfaces())) };
         }
+        case "toggle":
+        case "full":
+          await a.press(plan.kind);
+          return { text: playbackText(a.player.view().state, a.player.hasLatest, a.state.yielded) };
+        case "stop":
+          a.player.stop();
+          return { text: playbackText(a.player.view().state, a.player.hasLatest, a.state.yielded) };
         case "voice": {
+          let voices: Voice[];
           try {
-            await a.catalogue();
+            voices = await a.catalogue();
           } catch {
             return { text: NO_VOICES };
           }
+          if (plan.query !== "") {
+            const { voice, text } = voiceSetText(voices, plan.query);
+            if (voice) await $.store.set("voice", pickedVoice(voices, voice.id));
+            return { text };
+          }
+          if (!hasBand(await $.session.surfaces())) return { text: PICK_NO_BAND };
           a.state.pickerVoice = (await a.currentVoice()).id;
           a.state.pickerQuery = "";
           a.state.picking = true;
@@ -375,7 +413,7 @@ export const register: Register = (on, options) => {
         }
         case "speed":
           await a.setSpeed(plan.rate);
-          return { text: `Speed is ${speedLabel(plan.rate)}. Press 1 to hear it.` };
+          return { text: speedSetText(plan.rate, hasBand(await $.session.surfaces())) };
       }
     };
     return answer().catch((err: unknown) => ({ text: errorText(err) }));

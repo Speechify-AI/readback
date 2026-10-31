@@ -174,7 +174,14 @@ and shares none of the extension's host code.
   tells it from a script's run (`startPlan`, `startsOnAttach`). Starting on
   every SDK session would condense each headless run's replies, unheard. A
   phone attaching does not start it: the sound would play where the person
-  is not.
+  is not. `/readback` is registered while waiting, and the person typing it
+  is the other way in: an SDK host with no surface (T3 Code) starts on the
+  command. There the band's buttons are words, `/readback play|pause|stop|
+  full`, the voice is named (`/readback voice harper`, the first match of
+  the picker's own filter, `voiceSetText`), the on text says so (`onText`,
+  `hasBand`), and nothing is lit. Bare `/readback` prints the status
+  (`statusText`); `on` and `off` are explicit words, since no band shows
+  the state there.
 - **The extension and the mod never read the same reply.** The extension's
   hook posts every reply to the windows listed in `~/.readback/endpoints`;
   a Claude Code session in the integrated terminal is read by that window.

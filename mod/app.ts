@@ -21,20 +21,35 @@ export const KEYS_URL =
 
 const CHANGE_KEY = "Change it in /plugin → readback → configure.";
 
-export const WELCOME = "Readback installed. Type /readback to turn it on.";
+export const WELCOME = "Readback installed. Type /readback on to turn it on.";
 export const NO_KEY = `Readback needs a Speechify API key. Create one for free at ${KEYS_URL}, then add it in /plugin → readback → configure.`;
 export const REFUSED = `Speechify refused the key. ${CHANGE_KEY}`;
 export const ON = "Readback is on. When a reply lands, press 1 with the prompt empty, or click Play above the prompt.";
+/** Turned on where nothing draws the band (an SDK host): the words stand in for the keys. */
+export const ON_NO_BAND =
+  "Readback is on. When a reply lands, type /readback play; /readback stop and /readback full as well.";
 export const OFF = "Readback is off.";
+export const OFF_HINT = "Readback is off. Type /readback on to turn it on.";
 export const EXTENSION_READING = "Readback's VS Code extension is reading this session, so the plugin stays quiet here.";
-export const OFF_NO_VOICE = "Readback is off. Type /readback to turn it on, then /readback voice.";
-export const USAGE = "/readback turns Readback on or off; /readback voice picks the voice; /readback speed 1.25 sets the speed.";
+export const OFF_NO_VOICE = "Readback is off. Type /readback on to turn it on, then /readback voice.";
+export const USAGE =
+  "/readback shows the status; /readback on and off turn it on or off; /readback play, stop and full control playback; /readback voice picks the voice; /readback speed 1.25 sets the speed.";
 
 /** The speeds offered, the extension's steps. Played through SSML prosody (ssml.ts). */
 export const RATES: readonly number[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
 /** The most options the band's Select takes. */
 export const SELECT_MAX = 64;
 export const PICK = "Pick a voice above the prompt.";
+/** `/readback voice` where nothing draws the picker. */
+export const PICK_NO_BAND = "Name a voice: /readback voice harper, or a language or tag, like /readback voice spanish.";
+
+/** What `/readback voice <query>` did: the first match is the voice now, or there was none. */
+export function voiceSetText(voices: readonly Voice[], query: string): { voice: Voice | null; text: string } {
+  const voice = filterVoices(voices, query)[0] ?? null;
+  if (!voice) return { voice, text: `No voice matches "${query}".` };
+  const others = filterVoices(voices, query).length - 1;
+  return { voice, text: `Voice: ${voice.name} (${voice.id}, ${voice.locale}).${others > 0 ? ` ${others} other${others === 1 ? "" : "s"} matched; add a word to narrow it.` : ""}` };
+}
 export const NO_VOICES = "Could not reach Speechify for the voice list. Try again.";
 
 /** The key from the plugin's options, trimmed: a non-empty string, or none. */
@@ -89,8 +104,56 @@ export type CommandPlan =
   | { kind: "text"; text: string }
   | { kind: "on"; key: string }
   | { kind: "off" }
-  | { kind: "voice" }
-  | { kind: "speed"; rate: number };
+  /** Bare `/readback`: what is on, which voice, which speed, what the player is doing. */
+  | { kind: "status" }
+  /** `query` names a voice by word (`/readback voice harper`); empty opens the band's picker. */
+  | { kind: "voice"; query: string }
+  | { kind: "speed"; rate: number }
+  /** The band's buttons as words, for a session with no band. */
+  | { kind: "toggle" }
+  | { kind: "stop" }
+  | { kind: "full" };
+
+const PLAYBACK_WORDS: Record<string, "toggle" | "stop" | "full"> = {
+  play: "toggle",
+  pause: "toggle",
+  resume: "toggle",
+  stop: "stop",
+  full: "full",
+};
+
+/** The surfaces that draw the band (`AbovePrompt`), per Claude Code's declarations. */
+export function hasBand(surfaces: readonly string[]): boolean {
+  return surfaces.some((s) => s === "terminal" || s === "desktop");
+}
+
+export function onText(band: boolean): string {
+  return band ? ON : ON_NO_BAND;
+}
+
+/** After `/readback speed <rate>`: how to hear it, by key where a band draws, by word elsewhere. */
+export function speedSetText(rate: number, band: boolean): string {
+  return `Speed is ${speedLabel(rate)}. ${band ? "Press 1" : "Type /readback play"} to hear it.`;
+}
+
+export const YIELDED =
+  "The VS Code extension read the last reply, so nothing is loaded here. Close VS Code to hear replies in this session.";
+
+/** What a playback word did, from the player's state after it; `yielded` when the last reply went to the extension. */
+export function playbackText(state: State, hasLatest: boolean, yielded = false): string {
+  if (!hasLatest) return yielded ? YIELDED : "Nothing to play yet: Readback reads the next reply.";
+  switch (state) {
+    case "playing":
+      return "Playing.";
+    case "loading":
+    case "waiting":
+      return "Loading.";
+    case "paused":
+      return "Paused.";
+    case "idle":
+      return "Stopped.";
+  }
+}
 
 export function speedLabel(speed: number): string {
   return `${speed}×`;
@@ -103,16 +166,30 @@ export function speedText(speed: number): string {
 
 /** What `/readback [args]` does, given the key, whether Readback is on, and the speed. */
 export function readbackCommand(args: string, key: string | null, enabled: boolean, speed = 1): CommandPlan {
-  const [word = "", value = ""] = args.trim().toLowerCase().split(/\s+/);
-  if (word !== "" && word !== "voice" && word !== "speed") return { kind: "text", text: USAGE };
+  const [word = "", ...rest] = args.trim().toLowerCase().split(/\s+/);
+  const value = rest[0] ?? "";
+  const playback = PLAYBACK_WORDS[word];
+  if (!["", "on", "off", "voice", "speed"].includes(word) && !playback) return { kind: "text", text: USAGE };
   if (key === null) return { kind: "text", text: NO_KEY };
+  // Explicit, for a session with no band to show the state: "on" when on
+  // checks the key again and says so; "off" when off just says so.
+  if (word === "on") return { kind: "on", key };
+  if (word === "off") return enabled ? { kind: "off" } : { kind: "text", text: OFF };
+  if (word === "") return { kind: "status" };
+  if (playback) return enabled ? { kind: playback } : { kind: "text", text: OFF_HINT };
   if (word === "speed") {
     const rate = Number(value.replace(/[x×]$/, ""));
     if (value === "" || !RATES.includes(rate)) return { kind: "text", text: speedText(speed) };
     return { kind: "speed", rate };
   }
-  if (word === "voice") return enabled ? { kind: "voice" } : { kind: "text", text: OFF_NO_VOICE };
-  return enabled ? { kind: "off" } : { kind: "on", key };
+  return enabled ? { kind: "voice", query: rest.join(" ") } : { kind: "text", text: OFF_NO_VOICE };
+}
+
+/** The status line bare `/readback` prints. */
+export function statusText(enabled: boolean, voice: StoredVoice, speed: number, state: State, hasLatest: boolean): string {
+  if (!enabled) return OFF_HINT;
+  const player = hasLatest ? playbackText(state, true).replace(/\.$/, "").toLowerCase() : "nothing loaded";
+  return `Readback is on. Voice ${voice.id}${voice.locale ? ` (${voice.locale})` : ""}, speed ${speedLabel(speed)}, ${player}.`;
 }
 
 /** The stored speed, or 1 when none or not one offered. */

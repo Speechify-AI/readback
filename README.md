@@ -52,13 +52,17 @@ The install dialog asks for your Speechify API key. Create one for free at
 The key is stored as a sensitive plugin setting and billed to your own
 workspace; change it any time in `/plugin`.
 
-- `/readback` turns Readback on or off. It checks the key against the live
-  API when you turn it on. Nothing plays or bills until you press play.
-  On or off is read when a session starts, so turning it off in one
-  terminal leaves sessions already open on until they restart.
+- `/readback on` and `/readback off` turn Readback on or off; bare
+  `/readback` prints the status (on or off, voice, speed, what is playing).
+  Turning on checks the key against the live API. Nothing plays or bills
+  until you press play. On or off is read when a session starts, so turning
+  it off in one terminal leaves sessions already open on until they restart.
+- `/readback play`, `pause`, `stop` and `full` do what the band's buttons
+  do, for a host that draws no band (T3 Code and other SDK hosts).
 - `/readback voice` opens a voice picker in the band: a search field and
   the matching voices, featured first. The band lists 64 at a time; type
-  to narrow.
+  to narrow. `/readback voice harper` (a name, language or tag) picks the
+  first match by word, where no band draws.
 - `/readback speed 1.25` sets the speed (0.75 to 2), and the band's speed
   button steps through the same values. Speechify renders the rate into
   the audio, so a changed speed re-renders: what was loaded is dropped and
