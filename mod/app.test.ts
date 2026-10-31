@@ -10,6 +10,10 @@ import {
   chooseVoice,
   claimsFloor,
   clocksWanted,
+  filterVoices,
+  nextRate,
+  speedText,
+  storedSpeed,
   errorText,
   fallbackVoice,
   homeFrom,
@@ -99,6 +103,44 @@ describe("/readback", () => {
     const r = readbackCommand("loud", "k", true);
     expect(r.kind).toBe("text");
     expect(r.kind === "text" && r.text).toContain("/readback voice");
+    expect(r.kind === "text" && r.text).toContain("/readback speed");
+  });
+
+  it("speed takes one of the offered rates, with or without an x", () => {
+    expect(readbackCommand("speed 1.25", "k", true)).toEqual({ kind: "speed", rate: 1.25 });
+    expect(readbackCommand("Speed 2x", "k", false)).toEqual({ kind: "speed", rate: 2 });
+    expect(readbackCommand("speed 1", "k", true)).toEqual({ kind: "speed", rate: 1 });
+  });
+
+  it("speed alone or with a rate not offered says the current speed and the choices", () => {
+    expect(readbackCommand("speed", "k", true, 1.5)).toEqual({ kind: "text", text: speedText(1.5) });
+    expect(readbackCommand("speed 3", "k", true)).toEqual({ kind: "text", text: speedText(1) });
+    expect(speedText(1.5)).toBe("Speed is 1.5×. /readback speed 1.5 sets it; 0.75, 1, 1.25, 1.5, 1.75, 2 are offered.");
+    expect(readbackCommand("speed 2", null, true)).toEqual({ kind: "text", text: NO_KEY });
+  });
+
+  it("the stored speed is one offered, else 1; the button cycles through them", () => {
+    expect(storedSpeed(1.5)).toBe(1.5);
+    expect(storedSpeed(3)).toBe(1);
+    expect(storedSpeed("1.5")).toBe(1);
+    expect(storedSpeed(undefined)).toBe(1);
+    expect(nextRate(1)).toBe(1.25);
+    expect(nextRate(2)).toBe(0.75);
+  });
+
+  it("filterVoices matches every word across name, id, locale and tags, featured first", () => {
+    const list = [
+      { ...voice("zed_32", "en-US"), featured: true },
+      voice("ana", "es-ES"),
+      { ...voice("bob", "en-GB"), tags: ["Use-Case:Narrator"] },
+      voice("carl", "en-US"),
+    ];
+    expect(filterVoices(list, "").map((v) => v.id)).toEqual(["zed_32", "ana", "bob", "carl"]);
+    expect(filterVoices(list, "en").map((v) => v.id)).toEqual(["zed_32", "bob", "carl"]);
+    expect(filterVoices(list, "narrator").map((v) => v.id)).toEqual(["bob"]);
+    expect(filterVoices(list, "en-us").map((v) => v.id)).toEqual(["zed_32", "carl"]);
+    expect(filterVoices(list, "en narr").map((v) => v.id)).toEqual(["bob"]);
+    expect(filterVoices(list, "nobody")).toEqual([]);
   });
 
   it("a refused key says where to change it; other failures say why", () => {

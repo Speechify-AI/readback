@@ -6,7 +6,7 @@
  * only carries the results to and from Claude Code.
  */
 import { defaultVoice, languageCode } from "../src/claudeLanguageShared.ts";
-import { TtsError, languageFor, modelFor, type KeyCheck, type TtsConfig, type Voice } from "../src/speechifyShared.ts";
+import { TtsError, languageFor, modelFor, sortVoices, type KeyCheck, type TtsConfig, type Voice } from "../src/speechifyShared.ts";
 import { plainify, toParagraphs } from "../src/text.ts";
 import { decideMessage, replyParagraphs, worthCondensing, type TurnLimits } from "../src/turns.ts";
 import type { ReplyTurn, State } from "./player.ts";
@@ -27,7 +27,12 @@ export const REFUSED = `Speechify refused the key. ${CHANGE_KEY}`;
 export const ON = "Readback is on. When a reply lands, press 1 with the prompt empty, or click Play above the prompt.";
 export const OFF = "Readback is off.";
 export const OFF_NO_VOICE = "Readback is off. Type /readback to turn it on, then /readback voice.";
-export const USAGE = "/readback turns Readback on or off; /readback voice picks the voice.";
+export const USAGE = "/readback turns Readback on or off; /readback voice picks the voice; /readback speed 1.25 sets the speed.";
+
+/** The speeds offered, the extension's steps. Played through SSML prosody (ssml.ts). */
+export const RATES: readonly number[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
+/** The most options the band's Select takes. */
+export const SELECT_MAX = 64;
 export const PICK = "Pick a voice above the prompt.";
 export const NO_VOICES = "Could not reach Speechify for the voice list. Try again.";
 
@@ -62,15 +67,60 @@ export function versionFrom(text: string): string {
   }
 }
 
-export type CommandPlan = { kind: "text"; text: string } | { kind: "on"; key: string } | { kind: "off" } | { kind: "voice" };
+export type CommandPlan =
+  | { kind: "text"; text: string }
+  | { kind: "on"; key: string }
+  | { kind: "off" }
+  | { kind: "voice" }
+  | { kind: "speed"; rate: number };
 
-/** What `/readback [args]` does, given the key and whether Readback is on. */
-export function readbackCommand(args: string, key: string | null, enabled: boolean): CommandPlan {
-  const a = args.trim().toLowerCase();
-  if (a !== "" && a !== "voice") return { kind: "text", text: USAGE };
+export function speedLabel(speed: number): string {
+  return `${speed}×`;
+}
+
+/** The current speed and how to set it, for `/readback speed` with no value or a value not offered. */
+export function speedText(speed: number): string {
+  return `Speed is ${speedLabel(speed)}. /readback speed 1.5 sets it; ${RATES.join(", ")} are offered.`;
+}
+
+/** What `/readback [args]` does, given the key, whether Readback is on, and the speed. */
+export function readbackCommand(args: string, key: string | null, enabled: boolean, speed = 1): CommandPlan {
+  const [word = "", value = ""] = args.trim().toLowerCase().split(/\s+/);
+  if (word !== "" && word !== "voice" && word !== "speed") return { kind: "text", text: USAGE };
   if (key === null) return { kind: "text", text: NO_KEY };
-  if (a === "voice") return enabled ? { kind: "voice" } : { kind: "text", text: OFF_NO_VOICE };
+  if (word === "speed") {
+    const rate = Number(value.replace(/[x×]$/, ""));
+    if (value === "" || !RATES.includes(rate)) return { kind: "text", text: speedText(speed) };
+    return { kind: "speed", rate };
+  }
+  if (word === "voice") return enabled ? { kind: "voice" } : { kind: "text", text: OFF_NO_VOICE };
   return enabled ? { kind: "off" } : { kind: "on", key };
+}
+
+/** The stored speed, or 1 when none or not one offered. */
+export function storedSpeed(v: unknown): number {
+  return typeof v === "number" && RATES.includes(v) ? v : 1;
+}
+
+/** The speed after `speed` in the cycle the band's button runs. */
+export function nextRate(speed: number): number {
+  const i = RATES.indexOf(speed);
+  return RATES[(i + 1) % RATES.length]!;
+}
+
+/**
+ * The voices the picker lists for `query`: every word of it found in the
+ * name, id, locale or a tag; featured first, then A to Z. The caller cuts
+ * the list at SELECT_MAX and says so.
+ */
+export function filterVoices(voices: readonly Voice[], query: string): Voice[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = (v: Voice) => {
+    if (words.length === 0) return true;
+    const hay = `${v.name} ${v.id} ${v.locale} ${v.tags.join(" ")}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  };
+  return sortVoices(voices.filter(matches));
 }
 
 /** Why turning on failed, said so the person knows what to do. */

@@ -56,7 +56,13 @@ workspace; change it any time in `/plugin`.
   API when you turn it on. Nothing plays or bills until you press play.
   On or off is read when a session starts, so turning it off in one
   terminal leaves sessions already open on until they restart.
-- `/readback voice` opens a voice picker in the band.
+- `/readback voice` opens a voice picker in the band: a search field and
+  the matching voices, featured first. The band lists 64 at a time; type
+  to narrow.
+- `/readback speed 1.25` sets the speed (0.75 to 2), and the band's speed
+  button steps through the same values. Speechify renders the rate into
+  the audio, so a changed speed re-renders: what was loaded is dropped and
+  1 plays the turn again at the new rate.
 - Keys 1, 2 and 3 play or pause, stop, and play the full reply. They work
   only while the prompt is empty: a "1" typed as the first character of a
   message goes to Readback, not to Claude.

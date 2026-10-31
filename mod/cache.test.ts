@@ -50,6 +50,35 @@ describe("renderParagraph with a disk cache", () => {
     expect(calls.length).toBe(2);
   });
 
+  it("a speed other than 1 wraps each chunk in prosody, maps the marks back, and keys the render apart", async () => {
+    const files = memoryFiles();
+    const cache = diskCache(files, "/c");
+    const calls: string[] = [];
+    const fast = await renderParagraph("hello there world", cfg, cache, fakeSynth(calls), 1.5);
+    expect(calls).toEqual(['<speak><prosody rate="+50%">hello there world</prosody></speak>']);
+    expect(fast.marks.map((m) => "hello there world".slice(m.start, m.end))).toEqual(["hello", "there", "world"]);
+    await renderParagraph("hello there world", cfg, cache, fakeSynth(calls), 1.5);
+    expect(calls.length).toBe(1);
+    await renderParagraph("hello there world", cfg, cache, fakeSynth(calls));
+    expect(calls.length).toBe(2); // speed 1 is its own render under the bare key
+    expect(calls[1]).toBe("hello there world");
+    const bare = `m/v/${await sha256Hex("hello there world")}`;
+    expect(files.store.has(`/c/${bare}.json`)).toBe(true);
+    expect(files.store.has(`/c/${bare}@1.5.json`)).toBe(true);
+  });
+
+  it("at speed, a paragraph dense in & and < never sends a chunk over the API's 2,000 characters", async () => {
+    const cache = diskCache(memoryFiles(), "/c");
+    const calls: string[] = [];
+    const words = Array.from({ length: 300 }, (_, i) => (i % 6 === 0 ? "a&b" : i % 7 === 0 ? "<c>" : "word")).join(" ");
+    expect(words.length).toBeGreaterThan(1200);
+    const r = await renderParagraph(words, cfg, cache, fakeSynth(calls), 1.5);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const input of calls) expect(input.length).toBeLessThanOrEqual(2000);
+    // Every mark still lands on a word of the bare text.
+    for (const m of r.marks) expect(words.slice(m.start, m.end)).toMatch(/^\S+$/);
+  });
+
   it("a corrupt cache file is a miss", async () => {
     const files = memoryFiles();
     const cache = diskCache(files, "/c");

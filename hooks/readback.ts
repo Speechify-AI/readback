@@ -26,10 +26,13 @@ import {
   isRefusal,
   keyCheckText,
   loopGuard,
+  nextRate,
   pickedVoice,
   platformFrom,
   readbackCommand,
   replyTurn,
+  speedLabel,
+  storedSpeed,
   storedVoice,
   summaryFrom,
   clocksWanted,
@@ -52,6 +55,10 @@ type AppState = {
   notice: string | null;
   picking: boolean;
   pickerVoice: string;
+  /** What the picker's search field holds. */
+  pickerQuery: string;
+  /** Playback rate, one of RATES; rendered in through SSML prosody. */
+  speed: number;
   /** The voices this key renders on the model, fetched once. */
   voices: Voice[] | null;
   /** The busy spinner's frame, advanced by the tick. */
@@ -67,6 +74,7 @@ type App = {
   currentVoice(): Promise<StoredVoice>;
   version(): Promise<string>;
   http: Http;
+  setSpeed(rate: number): Promise<void>;
   condense(text: string): Promise<string | null>;
   report(err: unknown): void;
   /** Stop the player, cancel its timers, give up the floor; never throws. */
@@ -82,8 +90,9 @@ function build(
   home: string,
   platform: string,
   enabled: boolean,
+  speed: number,
 ): App {
-  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", voices: null, frame: 0 };
+  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed };
   const http: Http = (url, init) => $.http.fetch(url, init);
   const sleep: Sleep = (ms) => $.clock.sleep(ms);
   const run: Run = (argv, init) => $.process.run(argv, init);
@@ -186,7 +195,7 @@ function build(
       if (!apiKey) throw new Error("no key");
       const cfg = ttsConfig(apiKey, await currentVoice());
       const v = await version();
-      return renderParagraph(text, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v));
+      return renderParagraph(text, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v), state.speed);
     },
     play: (bytes, signal) => $.audio.play({ base64: base64Of(bytes), mime: "audio/mpeg" }, { signal }),
     now: () => $.clock.now(),
@@ -202,10 +211,18 @@ function build(
     if (action === "toggle") await player.toggle();
     else await player.playFull();
   };
+  /** A new rate is a new render: what was loaded is dropped, and 1 plays the turn again at the new speed. */
+  const setSpeed = async (rate: number) => {
+    state.speed = rate;
+    player.stop();
+    await $.store.set("speed", rate);
+    $.ui.invalidate("ui.render");
+  };
   const actions: BandActions = {
     toggle: () => void press("toggle").catch(report),
     stop: () => player.stop(),
     full: () => void press("full").catch(report),
+    speed: () => void setSpeed(nextRate(state.speed)).catch(report),
   };
 
   return {
@@ -216,6 +233,7 @@ function build(
     currentVoice,
     version,
     http,
+    setSpeed,
     condense: (text) => condenseReply(text, { run, home, platform, now: () => $.clock.now() }),
     report,
     close: async () => {
@@ -255,7 +273,7 @@ export const register: Register = (on, options) => {
     const enabled = (await $.store.get("enabled")) === true && apiKey !== null;
     const home = homeFrom(await $.env.get("HOME"), await $.env.get("USERPROFILE"));
     const platform = platformFrom(await $.env.get("OS"));
-    app = build($, apiKey, await $.session.id(), home, platform, enabled);
+    app = build($, apiKey, await $.session.id(), home, platform, enabled, storedSpeed(await $.store.get("speed")));
     $.ui.invalidate("ui.render");
     return result;
   });
@@ -282,7 +300,7 @@ export const register: Register = (on, options) => {
   on("command.run", { command: "readback" }, ($, e) => {
     if (!app) return Promise.resolve({});
     const a = app;
-    const plan = readbackCommand(e.args, apiKey, a.state.enabled);
+    const plan = readbackCommand(e.args, apiKey, a.state.enabled, a.state.speed);
     const answer = async (): Promise<{ text: string }> => {
       switch (plan.kind) {
         case "text":
@@ -311,10 +329,14 @@ export const register: Register = (on, options) => {
             return { text: NO_VOICES };
           }
           a.state.pickerVoice = (await a.currentVoice()).id;
+          a.state.pickerQuery = "";
           a.state.picking = true;
           $.ui.invalidate("ui.render");
           return { text: PICK };
         }
+        case "speed":
+          await a.setSpeed(plan.rate);
+          return { text: `Speed is ${speedLabel(plan.rate)}. Press 1 to hear it.` };
       }
     };
     return answer().catch((err: unknown) => ({ text: errorText(err) }));
@@ -334,18 +356,19 @@ export const register: Register = (on, options) => {
         state.picking = false;
         $.ui.invalidate("ui.render");
       };
-      return voicePicker(
-        list,
-        state.pickerVoice,
-        els,
-        (id) => {
+      return voicePicker(list, state.pickerVoice, state.pickerQuery, els, {
+        pick: (id) => {
           close();
           $.store.set("voice", pickedVoice(list, id)).catch(a.report);
         },
-        close,
-      ) as ReturnType<typeof next>;
+        search: (query) => {
+          state.pickerQuery = query;
+          $.ui.invalidate("ui.render");
+        },
+        cancel: close,
+      }) as ReturnType<typeof next>;
     }
-    return band(a.player.view(), els, a.actions, a.state.frame) as ReturnType<typeof next>;
+    return band(a.player.view(), els, a.actions, a.state.frame, a.state.speed) as ReturnType<typeof next>;
   });
 
   on("session.end", async ($, e, next) => {

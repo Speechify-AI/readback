@@ -29,13 +29,14 @@ export function renderKeyFrom(hash: string, voiceId: string, model: string): str
   return `${model}/${voiceId}/${hash}`;
 }
 
-export async function renderChunks(text: string, cfg: TtsConfig, synth: Synth): Promise<Rendered> {
+/** `limit` is the most characters one call may send; a caller wrapping chunks in markup passes less. */
+export async function renderChunks(text: string, cfg: TtsConfig, synth: Synth, limit = PARAGRAPH_LIMIT): Promise<Rendered> {
   // One call per chunk. Ranges (not strings) so a mark's offset inside a
   // chunk plus the chunk's start is its offset in the whole paragraph.
   const segments: Uint8Array[] = [];
   const marks: Mark[] = [];
   let timeOffsetMs = 0;
-  for (const range of chunkRanges(text, PARAGRAPH_LIMIT)) {
+  for (const range of chunkRanges(text, limit)) {
     const result = await synth(text.slice(range.start, range.end), cfg);
     for (const mark of result.marks) {
       marks.push({

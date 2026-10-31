@@ -1,3 +1,5 @@
+import type { Voice } from "../src/speechifyShared.ts";
+import { SELECT_MAX, filterVoices, speedLabel } from "./app.ts";
 import type { View } from "./player.ts";
 
 export type Els = {
@@ -5,9 +7,11 @@ export type Els = {
   Text: (p: object) => unknown;
   Button: (p: object) => unknown;
   Select?: (p: object) => unknown;
+  Input?: (p: object) => unknown;
 };
 
-export type BandActions = { toggle(): void; stop(): void; full(): void };
+/** `speed` cycles the rate; the band shows the current one on the button. */
+export type BandActions = { toggle(): void; stop(): void; full(): void; speed(): void };
 
 const REFUSED = "#d75f5f";
 const BUSY = "#d77757";
@@ -27,8 +31,8 @@ function meta(view: View): string {
   return parts.filter(Boolean).join(" · ");
 }
 
-/** `frame` turns the spinner; the caller advances it on its clock. */
-export function band(view: View, els: Els, actions: BandActions, frame = 0): unknown {
+/** `frame` turns the spinner; the caller advances it on its clock. `speed` is shown on its button. */
+export function band(view: View, els: Els, actions: BandActions, frame = 0, speed = 1): unknown {
   const { Box, Text, Button } = els;
   const loaded = view.state !== "idle";
   // The label says what a press does: waiting or loading, it cancels.
@@ -48,6 +52,8 @@ export function band(view: View, els: Els, actions: BandActions, frame = 0): unk
   ];
   if (loaded) controls.push(Button({ key: "stop", label: "Stop", plain: true, hotkey: "2", onPress: () => actions.stop() }));
   controls.push(Button({ key: "full", label: "Full reply", plain: true, hotkey: "3", onPress: () => actions.full() }));
+  // No hotkey: only 1, 2 and 3 are the person's digits. A press steps to the next rate.
+  controls.push(Button({ key: "speed", label: speedLabel(speed), plain: true, onPress: () => actions.speed() }));
   const info = meta(view);
   if (info) controls.push(Text({ dimColor: true, children: info }));
   // Where the clock goes: the spinner while the voice renders, and with
@@ -78,28 +84,50 @@ export function noticeBand(notice: string, els: Els): unknown {
   return Box({ flexDirection: "column", paddingTop: 1, children: [Text({ color: REFUSED, children: notice })] });
 }
 
-export function voicePicker(
-  voices: { id: string; name: string }[],
-  current: string,
-  els: Els,
-  pick: (id: string) => void,
-  cancel: () => void,
-): unknown {
-  const { Box, Text, Button, Select } = els;
+export type PickerActions = { pick(id: string): void; search(query: string): void; cancel(): void };
+
+/**
+ * The voice picker: a search field, then the matches in a Select, which
+ * the band caps at SELECT_MAX options; past that a line says how many are
+ * hidden and the search narrows them. The catalogue runs to hundreds.
+ */
+export function voicePicker(voices: readonly Voice[], current: string, query: string, els: Els, actions: PickerActions): unknown {
+  const { Box, Text, Button, Select, Input } = els;
   const children: unknown[] = [];
   if (!Select) {
     // The command already said "pick a voice above the prompt"; say why nothing is here.
     children.push(Text({ dimColor: true, children: "This surface has no list to pick from." }));
   } else {
-    children.push(
-      Select({
-        key: "voice",
-        options: voices.map((v) => ({ value: v.id, label: v.name })),
-        value: current,
-        onSelect: pick,
-      }),
-    );
+    const matches = filterVoices(voices, query);
+    const shown = matches.slice(0, SELECT_MAX);
+    if (Input) {
+      children.push(
+        Input({
+          key: "voiceSearch",
+          placeholder: "Type to narrow: a name, language or tag",
+          value: query,
+          autoFocus: true,
+          onInput: actions.search,
+          onSubmit: actions.search,
+        }),
+      );
+    }
+    if (shown.length === 0) {
+      children.push(Text({ dimColor: true, children: "No voice matches." }));
+    } else {
+      children.push(
+        Select({
+          key: "voice",
+          options: shown.map((v) => ({ value: v.id, label: `${v.name} · ${v.locale}` })),
+          value: shown.some((v) => v.id === current) ? current : shown[0]!.id,
+          onSelect: actions.pick,
+        }),
+      );
+      if (matches.length > shown.length) {
+        children.push(Text({ dimColor: true, children: `The first ${shown.length} of ${matches.length}; type to narrow.` }));
+      }
+    }
   }
-  children.push(Button({ key: "cancel", label: "Cancel", plain: true, onPress: cancel }));
+  children.push(Button({ key: "cancel", label: "Cancel", plain: true, onPress: actions.cancel }));
   return Box({ flexDirection: "column", paddingTop: 1, children });
 }

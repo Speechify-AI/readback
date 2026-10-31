@@ -94,8 +94,25 @@ Pending, the manual check (none run yet):
    base64 JSON, so seconds ~ 4,194,304 * 3/4 * 8 / bitrate in bits per
    second, about 196 s at 128 kbps (a formula until measured). A longer
    render still plays; it is only not cached.
-10. The voice picker draws the whole catalogue in one `Select`; check it is
-    usable with hundreds of voices.
+10. ~~The voice picker draws the whole catalogue in one `Select`~~ Seen
+    2026-10-31: the band refused the tree, "Select 'voice' options must be
+    1 to 64 entries", and the picker never showed. Now a search field and
+    the first 64 matches (see CLAUDE.md). Check: `/readback voice` shows
+    the field and the list, typing narrows it, Enter on a voice picks it
+    and the next render uses it.
+11. **Speed through SSML prosody is unverified live.** `/readback speed
+    1.5` then 1: the render must succeed (a 400 means Speechify did not
+    take `<prosody rate="+50%">` as written in `mod/ssml.ts`, try
+    `rate="150%"`), sound faster, and the word lit must stay in step (the
+    marks are mapped back from the SSML input; a drift means the API
+    indexes marks against the bare text instead and `unwrapMarks` must go).
+    Also a reply holding `&`, `<` or `>` at speed 1.5: the escapes are
+    mapped back too.
+12. Claude Code 2.1.316 rewrote `.claude-plugin/types/claude-code/index.d.ts`
+    on `--plugin-dir .` (the engine writes it when it loads a mod); the
+    tree typechecks against it unchanged. `AbovePrompt` is still terminal
+    only; `isInteractive` is still false under the SDK, so T3 Code and the
+    desktop app get nothing (see Open).
 
 Open:
 
@@ -116,6 +133,14 @@ Open:
   nothing to play until the next reply.
 - A `language` change mid-session takes effect next session unless a voice
   is picked.
+- **SDK hosts (T3 Code, the desktop app) get no Readback at all.** The
+  loop guard turns the mod off when `isInteractive` is false, which the
+  declarations say it is for a `-p` run or the SDK; and the band is raised
+  on the terminal only. Sound itself needs no surface (`$.audio.play` is
+  the platform player). A surface-free mode would drop the `isInteractive`
+  half of the guard (keeping `READBACK_HOOK`), play on `turn.complete` or a
+  command, and draw the band only where `$.session.surfaces()` holds
+  `terminal`.
 - `command.run` never calls `next` (the validator reads it as a gating hook
   without a catch), so the command is registered only when Readback can run.
 

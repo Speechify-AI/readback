@@ -7,7 +7,9 @@
  */
 import { renderChunks, renderKeyFrom, type RenderCache, type Rendered, type Synth } from "../src/renderShared.ts";
 import type { TtsConfig } from "../src/speechifyShared.ts";
+import { PARAGRAPH_LIMIT } from "../src/text.ts";
 import { fromBase64, toBase64 } from "./bytes.ts";
+import { unwrapMarks, wrapProsody, wrappedLimit } from "./ssml.ts";
 
 export type Files = {
   read(path: string): Promise<string>;
@@ -45,11 +47,29 @@ export function diskCache(files: Files, dir: string): RenderCache {
   };
 }
 
-export async function renderParagraph(text: string, cfg: TtsConfig, cache: RenderCache, synth: Synth): Promise<Rendered> {
-  const key = renderKeyFrom(await sha256Hex(text), cfg.voiceId, cfg.model);
+/**
+ * The paragraph rendered, from the cache when it is there. A speed other
+ * than 1 is a different render (SSML prosody around each chunk, see
+ * ssml.ts) under its own key; speed 1 sends and stores exactly as before.
+ */
+export async function renderParagraph(text: string, cfg: TtsConfig, cache: RenderCache, synth: Synth, speed = 1): Promise<Rendered> {
+  const bare = renderKeyFrom(await sha256Hex(text), cfg.voiceId, cfg.model);
+  const key = speed === 1 ? bare : `${bare}@${speed}`;
   const cached = await cache.get(key);
   if (cached) return cached;
-  const rendered = await renderChunks(text, cfg, synth);
+  const rendered =
+    speed === 1
+      ? await renderChunks(text, cfg, synth)
+      : await renderChunks(
+          text,
+          cfg,
+          async (chunk, c) => {
+            const w = wrapProsody(chunk, speed);
+            const r = await synth(w.input, c);
+            return { ...r, marks: unwrapMarks(r.marks, w) };
+          },
+          wrappedLimit(text, speed, PARAGRAPH_LIMIT),
+        );
   // Not awaited: the write is a few hundred KB of base64 and the paragraph
   // should not wait on it to play. `put` swallows its own failures.
   void cache.put(key, rendered);

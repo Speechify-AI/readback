@@ -151,6 +151,19 @@ and shares none of the extension's host code.
   then the current sentence with every word dim but the spoken one. While
   rendering, a spinner in Claude's orange takes the clock's place; while
   condensing, the spinner and "condensing". No progress bar, by the person's decision.
+  A speed button (`1.25×`) sits after Full reply with no hotkey.
+- **The band's Select takes 1 to 64 options.** The catalogue runs to
+  hundreds, so the voice picker is a search field over name, id, locale and
+  tags plus the first 64 matches, featured first (`filterVoices`,
+  `SELECT_MAX`). A tree with more is refused whole, and an empty Select too:
+  no match draws a line instead.
+- **Speed is rendered in, not played in.** `$.audio.play` has no rate, so a
+  speed other than 1 wraps each chunk in SSML `<prosody rate="+25%">`
+  (`mod/ssml.ts`), sends 200 fewer characters per chunk for the markup, and
+  maps the marks back onto the bare text, since Speechify's marks index the
+  input as sent. Speed 1 sends and caches exactly as before; other speeds
+  key the render with `@<speed>`. Stored under `speed` in `$.store`. A new
+  speed drops what is loaded; 1 plays again at the new rate.
 - **`READBACK_HOOK` guard.** The condensing run sets it, and a session that
   sees it (or is not interactive) turns every hook off. Same reason as the
   extension's hook script.
