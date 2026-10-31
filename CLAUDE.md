@@ -141,9 +141,9 @@ and shares none of the extension's host code.
   band. The install dialog cannot be hooked, so the key is checked live when
   the person turns Readback on, and a 401 or 403 on a later render turns it
   off with a notice pointing at `/plugin`.
-- **1, 2 and 3 are always armed**, by the person's choice (2026-10-29). A
-  bare digit in an empty prompt goes to the band, so a message cannot
-  start with 1 or 3 typed first; accepted.
+- **1 and 3 are always armed, 2 while something is loaded**, by the
+  person's choice (2026-10-29). A bare digit in an empty prompt goes to the
+  band, so a message cannot start with 1 or 3 typed first; accepted.
 - **What is shown is what is spoken, in the band too.** The band draws only
   text from the rendered paragraph; only whitespace may be dropped.
 - **Band layout is fixed.** A blank top row; then one controls row (Readback,
@@ -201,6 +201,6 @@ and shares none of the extension's host code.
 ## Commands
 
 - `npm run typecheck` (three configs: `tsconfig.json` for the host, `tsconfig.webview.json` with the DOM lib for `src/webview/`, `tsconfig.mod.json` for `mod/` and `hooks/`) / `npm test` / `npm run build`
-- `npm test` is vitest, then `claude plugin validate .` when `claude` is on PATH (skipped otherwise); the validator is the only check of `hooks/readback.ts` against Claude Code's declarations
+- `npm test` is vitest, then `claude plugin validate .` through `scripts/validate-plugin.mjs` when `claude` is on PATH (skipped otherwise, and runs on Windows too); the validator is the only check of `hooks/readback.ts` against Claude Code's declarations
 - `npm run package` — runs all three then `vsce package`
 - `code --install-extension readback-<version>.vsix` to try it here

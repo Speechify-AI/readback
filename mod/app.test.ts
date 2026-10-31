@@ -9,6 +9,7 @@ import {
   bandMode,
   chooseVoice,
   claimsFloor,
+  clocksWanted,
   errorText,
   fallbackVoice,
   homeFrom,
@@ -21,8 +22,6 @@ import {
   replyTurn,
   storedVoice,
   summaryFrom,
-  tickWanted,
-  timersWanted,
   ttsConfig,
   versionFrom,
 } from "./app.ts";
@@ -209,6 +208,7 @@ describe("playback wiring", () => {
     expect(claimsFloor("idle", "toggle", true)).toBe(true);
     expect(claimsFloor("idle", "toggle", false)).toBe(false);
     expect(claimsFloor("paused", "toggle", true)).toBe(true);
+    expect(claimsFloor("paused", "toggle", true, true)).toBe(false);
     expect(claimsFloor("playing", "toggle", true)).toBe(false);
     expect(claimsFloor("waiting", "toggle", true)).toBe(false);
     expect(claimsFloor("loading", "toggle", true)).toBe(false);
@@ -217,19 +217,11 @@ describe("playback wiring", () => {
   });
 
   it("the clocks run while something is pending or playing", () => {
-    expect(timersWanted("playing")).toBe(true);
-    expect(timersWanted("loading")).toBe(true);
-    expect(timersWanted("waiting")).toBe(true);
-    expect(timersWanted("paused")).toBe(false);
-    expect(timersWanted("idle")).toBe(false);
-  });
-
-  it("the highlight tick runs only while playing, not while loading or condensing", () => {
-    expect(tickWanted("playing")).toBe(true);
-    expect(tickWanted("loading")).toBe(true);
-    expect(tickWanted("waiting")).toBe(true);
-    expect(tickWanted("paused")).toBe(false);
-    expect(tickWanted("idle")).toBe(false);
+    expect(clocksWanted("playing")).toBe(true);
+    expect(clocksWanted("loading")).toBe(true);
+    expect(clocksWanted("waiting")).toBe(true);
+    expect(clocksWanted("paused")).toBe(false);
+    expect(clocksWanted("idle")).toBe(false);
   });
 
   it("401 and 403 are refusals", () => {

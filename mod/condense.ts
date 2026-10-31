@@ -12,6 +12,8 @@
 import { BRIEF, CLAUDE_ARGS, condensePrompt, spokenFrom } from "../src/summaryShared.ts";
 
 const TIMEOUT_MS = 60_000;
+/** A rejection after this long was a claude that ran (and was killed), not a missing binary, which rejects within milliseconds. */
+const RAN_MS = 5_000;
 
 export type Run = (
   argv: string[],
@@ -40,9 +42,10 @@ export async function condenseReply(
       });
     } catch {
       // A timeout and a missing binary both reject; the clock tells them apart.
-      // A run that used its whole timeout was a claude that ran: the other
-      // paths are the same binary, so stop rather than bill it again.
-      if ((await deps.now()) - started >= TIMEOUT_MS) return null;
+      // A run that lasted seconds was a claude that ran: the other paths are
+      // the same binary, so stop rather than bill it again. The host's kill
+      // timer and this clock differ, so the line is well under the timeout.
+      if ((await deps.now()) - started >= RAN_MS) return null;
       continue; // not here
     }
     return result.exitCode === 0 ? spokenFrom(result.stdout) : null;

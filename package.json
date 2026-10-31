@@ -175,7 +175,7 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.webview.json && tsc -p tsconfig.mod.json",
-    "test": "vitest run && (! command -v claude >/dev/null || claude plugin validate .)",
+    "test": "vitest run && node scripts/validate-plugin.mjs",
     "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies"
   },
   "devDependencies": {

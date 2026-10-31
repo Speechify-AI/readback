@@ -32,14 +32,13 @@ import {
   replyTurn,
   storedVoice,
   summaryFrom,
-  tickWanted,
-  timersWanted,
+  clocksWanted,
   ttsConfig,
   versionFrom,
   type StoredVoice,
 } from "../mod/app.ts";
 import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mod/band.ts";
-import { toBase64 } from "../mod/bytes.ts";
+import { base64Of } from "../mod/bytes.ts";
 import { CACHE_DIR, diskCache, renderParagraph, type Files } from "../mod/cache.ts";
 import { condenseReply, type Run } from "../mod/condense.ts";
 import { Floor, HEARTBEAT_MS } from "../mod/floor.ts";
@@ -102,7 +101,10 @@ function build(
   const catalogue = async (): Promise<Voice[]> => {
     if (state.voices) return state.voices;
     if (!apiKey) throw new Error("no key");
-    fetching ??= listVoices({ apiBase: API_BASE, apiKey, model: MODEL }, http, await version()).finally(() => {
+    // Nothing awaited between the null check and the assignment, so three
+    // renders asking at once share one catalogue walk.
+    const v = await version();
+    fetching ??= listVoices({ apiBase: API_BASE, apiKey, model: MODEL }, http, v).finally(() => {
       fetching = null;
     });
     state.voices = await fetching;
@@ -137,13 +139,17 @@ function build(
   };
   const beat = async () => {
     if ((await floor.beat()) === "lost") {
-      stopTimers();
+      // Pausing and unloading announce themselves through onChange; a render
+      // still in flight does not, so resync here: its spinner keeps turning
+      // until it lands paused, and the clocks stop then.
       player.preempt();
+      syncTimers();
+      $.ui.invalidate("ui.render");
     }
   };
   const syncTimers = () => {
-    const now = player.view().state;
-    if (tickWanted(now)) {
+    const wanted = clocksWanted(player.view().state);
+    if (wanted) {
       tick ??= $.clock.every(100, () => {
         state.frame++;
         void player.tick().then(() => $.ui.invalidate("ui.render"));
@@ -152,7 +158,7 @@ function build(
       tick.cancel();
       tick = null;
     }
-    if (timersWanted(now)) {
+    if (wanted) {
       heartbeat ??= $.clock.every(HEARTBEAT_MS, () => {
         beat().catch(() => {});
       });
@@ -182,7 +188,7 @@ function build(
       const v = await version();
       return renderParagraph(text, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v));
     },
-    play: (bytes, signal) => $.audio.play({ base64: toBase64(bytes), mime: "audio/mpeg" }, { signal }),
+    play: (bytes, signal) => $.audio.play({ base64: base64Of(bytes), mime: "audio/mpeg" }, { signal }),
     now: () => $.clock.now(),
     onChange: () => {
       syncTimers();
@@ -192,7 +198,7 @@ function build(
   });
 
   const press = async (action: "toggle" | "full") => {
-    if (claimsFloor(player.view().state, action, player.hasLatest)) await floor.claim();
+    if (claimsFloor(player.view().state, action, player.hasLatest, player.resuming)) await floor.claim();
     if (action === "toggle") await player.toggle();
     else await player.playFull();
   };

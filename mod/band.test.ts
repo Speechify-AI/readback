@@ -18,6 +18,15 @@ const txt = (e: El): string => (typeof e === "string" ? e : [e.props.children].f
 const playing = view({ state: "playing", kind: "summary", paragraph: 1, paragraphs: 3, positionMs: 12000, durationMs: 48000 });
 
 describe("band", () => {
+  it("the picker on a surface with no Select says so and offers Cancel", () => {
+    const { Select: _unused, ...noSelect } = els;
+    const p = voicePicker([{ id: "a", name: "A" }], "a", noSelect, () => {}, () => {}) as El;
+    const [note, cancel] = kids(p);
+    expect(note!.type).toBe("Text");
+    expect(txt(note!)).toBe("This surface has no list to pick from.");
+    expect(cancel!.props.label).toBe("Cancel");
+  });
+
   it("idle band arms 1 and 3", () => {
     const b = band(idle, els, actions) as El;
     expect(buttons(b).map((x) => [x.props.label, x.props.hotkey])).toEqual([

@@ -318,7 +318,8 @@ export class Player {
     }
   }
 
-  private get resuming(): boolean {
+  /** A resume is waiting for the clock; the next press of 1 cancels it and stays paused. */
+  get resuming(): boolean {
     return this.resumeGen === this.gen;
   }
 

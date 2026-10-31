@@ -62,6 +62,27 @@ describe("condenseReply", () => {
     expect(calls.length).toBe(1);
   });
 
+  it("a run killed a moment before the timeout is read the same way", async () => {
+    let t = 0;
+    const { run, calls } = recorder(async () => {
+      t += 59_990;
+      throw new Error("killed");
+    });
+    expect(await condenseReply("x", { run, home: "/h", platform: "darwin", now: async () => t })).toBeNull();
+    expect(calls.length).toBe(1);
+  });
+
+  it("a rejection within milliseconds is a missing binary, so the next path is tried", async () => {
+    let t = 0;
+    const { run, calls } = recorder(async (argv) => {
+      t += 3;
+      if (argv[0] === "claude") throw new Error("ENOENT");
+      return ok();
+    });
+    expect(await condenseReply("x", { run, home: "/h", platform: "darwin", now: async () => t })).toBe("Done.");
+    expect(calls.length).toBe(2);
+  });
+
   it("win32 → null and run never called", async () => {
     const { run, calls } = recorder(ok);
     expect(await condenseReply("x", { run, home: "C:\\h", platform: "win32", now })).toBeNull();

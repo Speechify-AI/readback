@@ -166,22 +166,22 @@ export function ttsConfig(apiKey: string, voice: StoredVoice): TtsConfig {
   };
 }
 
-/** Whether a press of 1 (toggle) or 3 (full) will start sound, and so takes the floor. */
-export function claimsFloor(state: State, action: "toggle" | "full", hasLatest: boolean): boolean {
+/**
+ * Whether a press of 1 (toggle) or 3 (full) will start sound, and so takes
+ * the floor. A press while a resume waits on the clock stays paused and
+ * takes nothing.
+ */
+export function claimsFloor(state: State, action: "toggle" | "full", hasLatest: boolean, resuming = false): boolean {
   if (action === "full") return hasLatest;
-  return (state === "idle" && hasLatest) || state === "paused";
+  return (state === "idle" && hasLatest) || (state === "paused" && !resuming);
 }
 
 /**
- * The floor heartbeat runs while sound is playing or about to: a session
- * waiting on condensing holds the floor with nothing sounding.
+ * Both clocks (the floor heartbeat and the 100 ms tick that moves the
+ * highlight and turns the spinner) run while sound is playing or about to:
+ * a session waiting on condensing holds the floor with nothing sounding.
  */
-export function timersWanted(state: State): boolean {
-  return state === "playing" || state === "loading" || state === "waiting";
-}
-
-/** The 100 ms tick that moves the band's highlight runs only while sound plays; it does nothing otherwise. */
-export function tickWanted(state: State): boolean {
+export function clocksWanted(state: State): boolean {
   return state === "playing" || state === "loading" || state === "waiting";
 }
 

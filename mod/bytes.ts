@@ -4,11 +4,29 @@
  * from a sentence's start.
  */
 
+/** The base64 each clip came from or was last encoded to, so a clip is encoded at most once. */
+const encoded = new WeakMap<Uint8Array, string>();
+
 export function fromBase64(b64: string): Uint8Array {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  encoded.set(out, b64);
   return out;
+}
+
+/**
+ * `toBase64`, remembered per clip: a cached clip gives back the base64 it
+ * was read from, and a fresh one is encoded on its first play only. A
+ * resume's tail is a new subarray and is encoded as such.
+ */
+export function base64Of(bytes: Uint8Array): string {
+  let b64 = encoded.get(bytes);
+  if (b64 === undefined) {
+    b64 = toBase64(bytes);
+    encoded.set(bytes, b64);
+  }
+  return b64;
 }
 
 /** Chunked: spreading a whole clip into one `fromCharCode` call overflows the stack. */

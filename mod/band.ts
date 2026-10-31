@@ -40,8 +40,8 @@ export function band(view: View, els: Els, actions: BandActions, frame = 0): unk
         : view.state === "paused"
           ? "Resume"
           : "Play";
-  // 1, 2 and 3 are always armed, by the person's choice: a bare digit in an
-  // empty prompt goes to the band, not to Claude.
+  // 1 and 3 are always armed, 2 while something is loaded, by the person's
+  // choice: a bare digit in an empty prompt goes to the band, not to Claude.
   const controls: unknown[] = [
     Text({ bold: true, children: "Readback" }),
     Button({ key: "play", label, plain: true, autoFocus: true, hotkey: "1", onPress: () => actions.toggle() }),
@@ -85,9 +85,12 @@ export function voicePicker(
   pick: (id: string) => void,
   cancel: () => void,
 ): unknown {
-  const { Box, Button, Select } = els;
+  const { Box, Text, Button, Select } = els;
   const children: unknown[] = [];
-  if (Select) {
+  if (!Select) {
+    // The command already said "pick a voice above the prompt"; say why nothing is here.
+    children.push(Text({ dimColor: true, children: "This surface has no list to pick from." }));
+  } else {
     children.push(
       Select({
         key: "voice",
