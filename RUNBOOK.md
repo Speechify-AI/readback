@@ -298,6 +298,25 @@ the tier shape you want and I'll apply it in Atlas".
   roster" since the voices were trained for 3.2 whatever renders them.
   Whether 3.5's marks reach the last word on stock voices was not checked.
 
+## Verified on 2026-10-31
+
+- **Dependency sweep.** `@vscode/vsce` 4.0.0 → 4.1.0 and `npm audit fix`
+  (qs 6.16.0 → 6.17.1, `@azure/msal-node` → 7.1.2 under `@azure/identity`
+  4.14.1), lockfile only. The vsix 4.1.0 packages is byte-identical to the
+  one 4.0.0 packages, so the installed 0.8.2 is this artifact; 148 tests
+  pass, typecheck and build clean. The tree has no production
+  dependencies; everything is dev-only and nothing reaches the vsix.
+- **Accepted finding:** minimatch 10.2.6 (GHSA-g3hv-75wg-m249, glob DoS)
+  under vsce, which pins `^10.2.6`; the fix is 11.0.1, outside that
+  range, and vsce's main still asks for 10. Retry when
+  `npm view @vscode/vsce dependencies.minimatch` starts with `^11`.
+- **Holds:** `@types/node` stays on 22 (latest 26) because the extension
+  host runs Electron's Node, not the machine's; retry when VS Code's
+  bundled Node reaches 26. `@types/vscode` stays on `~1.100.0` (latest
+  1.144) because moving it means raising `engines.vscode` and dropping
+  users on older VS Code for no API we need; bump it the day a newer API
+  is wanted.
+
 ## Open
 
 - **A turn from home, by ear.** Shaun saw every window take the updates
