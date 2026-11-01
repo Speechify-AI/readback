@@ -10,10 +10,6 @@ import { describeToolUse } from "../src/turns.ts";
 
 /** A tool call that ran at least this long is announced when it ends. */
 export const LONG_TOOL_MS = 30_000;
-/** A reply unanswered for this long is announced once. */
-export const IDLE_MS = 60_000;
-
-export const IDLE_TEXT = "Claude finished a minute ago and is waiting for you.";
 
 export function permissionText(tool: string, input: unknown): string {
   return `Claude is waiting for your permission to ${describeToolUse({ name: tool, input })}.`;

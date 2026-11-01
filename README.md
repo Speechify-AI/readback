@@ -69,12 +69,11 @@ workspace; change it any time in `/plugin`.
 - `/readback auto on` plays each reply as it lands, as if you had pressed
   play; off by default, and every reply then renders and bills.
 - Typing the next prompt stops whatever is playing, as in the extension.
-- Three alerts are spoken, on by default: a permission prompt the engine is
+- Two alerts are spoken, on by default: a permission prompt the engine is
   about to put to you ("Claude is waiting for your permission to run npm
-  install"), a command that ran past half a minute when it ends, and a
-  minute of silence after a reply ("Claude finished a minute ago and is
-  waiting for you"), once per reply. `/readback alerts off` silences them.
-  Each is one short render, cached after the first time.
+  install") and a command that ran past half a minute when it ends.
+  `/readback alerts off` silences them. Each is one short render, cached
+  after the first time.
 - `/readback voice` opens a voice picker in the band: a search field and
   the matching voices, featured first. The band lists 64 at a time; type
   to narrow. `/readback voice harper` (a name, language or tag) picks the

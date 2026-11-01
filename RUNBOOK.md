@@ -498,7 +498,8 @@ the tier shape you want and I'll apply it in Atlas".
   products, shown text included); the reply's own spoken note
   (`prompt.compose` section while on, `spokenNoteFrom` in both products,
   the run as fallback); and the three alerts (`tool.check` ask, long Bash
-  `tool.call`, idle after a reply). 301 tests, typecheck and the validator
+  `tool.call`, and idle after a reply, removed later that day: see below).
+  301 tests, typecheck and the validator
   pass. **Seen headless the same day:** with the dev copy installed,
   `claude -p "Explain in about 150 words how git rebase differs from git
   merge."` ended its answer with `<!-- readback: I explained that merge
@@ -507,8 +508,11 @@ the tier shape you want and I'll apply it in Atlas".
   line reads "alerts on". Not yet seen: the note hidden in Claude Code's
   own transcript view and in T3 Code; a permission alert sounding (T3 runs
   with permissions bypassed, so try it in a terminal with default
-  permissions); the long-command and idle alerts; `/readback again` by
-  ear; the resume after an alert.
+  permissions); the long-command alert; `/readback again` by ear; the
+  resume after an alert. **The idle alert was heard, and removed:** in T3
+  Code it said "Claude finished a minute ago and is waiting for you" after
+  each long reply while Shaun was still reading it, on every turn. Gone
+  the same day; two alerts remain.
 
 ## Open
 

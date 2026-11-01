@@ -9,11 +9,10 @@
  * `session.start`, or arrives with the desktop app at `session.attach`
  * (`startPlan`, `startsOnAttach` in `mod/app.ts`).
  *
- * Besides replies it speaks three alerts (`mod/alerts.ts`): a permission
+ * Besides replies it speaks two alerts (`mod/alerts.ts`): a permission
  * prompt the engine is about to put to the person (`tool.check` answering
- * `ask`), a Bash call that ran past half a minute (`tool.call` timed), and a
- * minute of silence after a reply (`$.clock.after`, disarmed by the next
- * `turn.start`). A typed prompt stops what is playing. While Readback is on,
+ * `ask`) and a Bash call that ran past half a minute (`tool.call` timed).
+ * A typed prompt stops what is playing. While Readback is on,
  * `prompt.compose` adds the spoken-note section, so the model condenses its
  * own long replies and no `claude -p` run is needed for them.
  */
@@ -64,7 +63,7 @@ import {
   voiceSetText,
   type StoredVoice,
 } from "../mod/app.ts";
-import { IDLE_MS, IDLE_TEXT, longToolText, longToolWorthSaying, permissionText, permissionWorthSaying } from "../mod/alerts.ts";
+import { longToolText, longToolWorthSaying, permissionText, permissionWorthSaying } from "../mod/alerts.ts";
 import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mod/band.ts";
 import { base64Of } from "../mod/bytes.ts";
 import { CACHE_DIR, diskCache, renderParagraph, type Files } from "../mod/cache.ts";
@@ -87,7 +86,7 @@ type AppState = {
   speed: number;
   /** Play each reply as it lands, as if play were pressed; stored under `auto`. */
   auto: boolean;
-  /** Speak the permission, long-command and idle alerts; stored under `alerts`, on unless false. */
+  /** Speak the permission and long-command alerts; stored under `alerts`, on unless false. */
   alerts: boolean;
   /** The voices this key renders on the model, fetched once. */
   voices: Voice[] | null;
@@ -119,9 +118,6 @@ type App = {
   again(): Promise<void>;
   /** One sentence of Readback's own, rendered and played now; what was playing pauses and resumes after. */
   alert(text: string): Promise<void>;
-  /** The idle alert's timer: armed when a reply lands, disarmed by the next turn. */
-  armIdle(): void;
-  disarmIdle(): void;
   /** Stop the player, cancel its timers, give up the floor; never throws. */
   close(): Promise<void>;
 };
@@ -300,19 +296,6 @@ function build(
     await $.audio.play({ base64: base64Of(rendered.audio), mime: "audio/mpeg" });
     if (wasPlaying && player.view().state === "paused") await player.toggle();
   };
-  let idle: { cancel(): void } | null = null;
-  const disarmIdle = () => {
-    idle?.cancel();
-    idle = null;
-  };
-  const armIdle = () => {
-    disarmIdle();
-    if (!state.alerts) return;
-    idle = $.clock.after(IDLE_MS, () => {
-      idle = null;
-      alert(IDLE_TEXT).catch(report);
-    });
-  };
 
   return {
     state,
@@ -329,13 +312,10 @@ function build(
     press,
     again,
     alert,
-    armIdle,
-    disarmIdle,
     close: async () => {
       try {
         player.stop();
         stopTimers();
-        disarmIdle();
         await floor.release();
       } catch {
         // a failed teardown must not throw out of the hook
@@ -412,12 +392,9 @@ export const register: Register = (on, options) => {
   });
 
   // The person typed the next prompt: what is playing stops, as the
-  // extension stops on UserPromptSubmit, and the idle alert is off.
+  // extension stops on UserPromptSubmit.
   on("turn.start", ($, e, next) => {
-    if (app && e.agentId === undefined) {
-      app.disarmIdle();
-      if (stopsOnTurnStart(e)) app.player.stop();
-    }
+    if (app && e.agentId === undefined && stopsOnTurnStart(e)) app.player.stop();
     return next(e);
   });
 
@@ -458,8 +435,6 @@ export const register: Register = (on, options) => {
   on("turn.complete", async ($, e, next) => {
     if (!app || !app.state.enabled) return next(e);
     const result = await next(e);
-    // The person has a reply to answer; a minute of silence is announced once.
-    if (e.agentId === undefined && !e.isAborted) app.armIdle();
     const turn = replyTurn(e);
     if (turn && (await app.extensionReading())) {
       app.state.yielded = true;
@@ -514,7 +489,6 @@ export const register: Register = (on, options) => {
           if (plan.on !== null) {
             a.state.alerts = plan.on;
             await $.store.set("alerts", plan.on);
-            if (!plan.on) a.disarmIdle();
           }
           return { text: alertsText(a.state.alerts) };
         case "again":

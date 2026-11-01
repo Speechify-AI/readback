@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IDLE_TEXT, LONG_TOOL_MS, longToolText, longToolWorthSaying, permissionText, permissionWorthSaying } from "./alerts.ts";
+import { LONG_TOOL_MS, longToolText, longToolWorthSaying, permissionText, permissionWorthSaying } from "./alerts.ts";
 
 describe("alerts", () => {
   it("names the tool call a permission prompt waits on", () => {
@@ -27,9 +27,5 @@ describe("alerts", () => {
     expect(longToolWorthSaying({ tool: "Bash" }, LONG_TOOL_MS, true)).toBe(false);
     expect(longToolWorthSaying({ tool: "Read" }, LONG_TOOL_MS, false)).toBe(false);
     expect(longToolWorthSaying({ tool: "Bash", agentId: "a" }, LONG_TOOL_MS, false)).toBe(false);
-  });
-
-  it("has one idle sentence", () => {
-    expect(IDLE_TEXT).toMatch(/waiting for you/);
   });
 });
