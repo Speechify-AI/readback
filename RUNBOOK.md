@@ -510,7 +510,13 @@ the tier shape you want and I'll apply it in Atlas".
   own transcript view and in T3 Code; a permission alert sounding (T3 runs
   with permissions bypassed, so try it in a terminal with default
   permissions); the long-command alert; `/readback again` by ear; the
-  resume after an alert. **The idle alert was heard, and removed:** in T3
+  resume after an alert. **The permission alert was heard, wrongly:** in
+  the Claude desktop app in auto mode it said "waiting for your permission"
+  for calls the classifier approved, twice each. It had been keyed on the
+  `tool.check` verdict `ask`, which auto mode answers itself. Since then it
+  is keyed on the `Notification` of type `permission_prompt`, raised only
+  once a prompt has waited about six seconds for a person, the extension's
+  signal; the ask only names the tool. Not yet seen after the change. **The idle alert was heard, and removed:** in T3
   Code it said "Claude finished a minute ago and is waiting for you" after
   each long reply while Shaun was still reading it, on every turn. Gone
   the same day; two alerts remain.

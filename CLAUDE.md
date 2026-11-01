@@ -211,10 +211,16 @@ and shares none of the extension's host code.
   on the main loop, `stopsOnTurnStart`), as the extension stops on
   UserPromptSubmit. `/readback again` plays the latest reply from its start.
 - **Two alerts, on by default, off by `/readback alerts off`**
-  (`mod/alerts.ts`, stored under `alerts`): a `tool.check` verdict of `ask`
-  on a real main-loop call (the engine is about to put it to the person),
-  and a Bash `tool.call` that ran `LONG_TOOL_MS` end to end and did not
-  wait on a prompt. Each is one paragraph rendered like any other (cached)
+  (`mod/alerts.ts`, stored under `alerts`): the engine's `Notification` of
+  type `permission_prompt` (`classic.Notification`, raised once a prompt
+  has waited about six seconds for a person, the extension's signal too),
+  naming the tool from the main loop's last `tool.check` that answered
+  `ask`, once per ask; and a Bash `tool.call` that ran `LONG_TOOL_MS` end
+  to end and did not wait on a prompt. **Not the `ask` verdict itself**:
+  that goes to the mode's decider, and in auto mode a classifier answers it
+  with nobody waiting; spoken on every ask it said "waiting for your
+  permission" through an auto-approved run in the desktop app, in
+  duplicate (2026-11-01). Each is one paragraph rendered like any other (cached)
   and played outside the player; a reply playing pauses for it and resumes.
   The permission alert yields to the extension like a reply does, since the
   extension speaks prompts too. **No idle alert**: one that spoke a minute

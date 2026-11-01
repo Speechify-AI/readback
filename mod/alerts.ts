@@ -1,7 +1,6 @@
 /**
  * What the mod says on its own, besides replies: a permission prompt waiting
- * for the person, a command that ran long, a minute's silence after a reply.
- * Pure: the wiring in `hooks/readback.ts` reads the engine's events and
+ * for the person, a command that ran long. Pure: the wiring in `hooks/readback.ts` reads the engine's events and
  * renders the sentence like any paragraph, so each distinct one is a cached
  * render. Nothing here is the whole input: a prompt is answered on screen,
  * this only says it is waiting. Off with `/readback alerts off`.
@@ -23,11 +22,21 @@ export function longToolText(ms: number): string {
 }
 
 /**
- * Which `tool.check` verdicts are worth a word: a real call (not a plugin's
- * query) of the main loop that the engine will put to the person.
+ * Which `tool.check` verdicts name a prompt that may wait: a real call (not
+ * a plugin's query) of the main loop whose verdict is `ask`. Not a word yet:
+ * in auto mode a classifier answers the ask and nobody waits, so the ask only
+ * remembers the tool for the sentence. The word comes from the engine's
+ * `Notification` of type `permission_prompt`, raised once the prompt has
+ * waited about six seconds for a person (`promptWaiting`), as the extension
+ * hears it too.
  */
 export function permissionWorthSaying(e: { tool_use_id?: string; agentId?: string }, decision: string): boolean {
   return e.tool_use_id !== undefined && e.agentId === undefined && decision === "ask";
+}
+
+/** The main loop's permission prompt has waited long enough that a person is being asked. */
+export function promptWaiting(e: { notification_type: string; agent_id?: string }): boolean {
+  return e.notification_type === "permission_prompt" && e.agent_id === undefined;
 }
 
 /**

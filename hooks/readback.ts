@@ -10,8 +10,9 @@
  * (`startPlan`, `startsOnAttach` in `mod/app.ts`).
  *
  * Besides replies it speaks two alerts (`mod/alerts.ts`): a permission
- * prompt the engine is about to put to the person (`tool.check` answering
- * `ask`) and a Bash call that ran past half a minute (`tool.call` timed).
+ * prompt that has waited for the person (`classic.Notification` of type
+ * `permission_prompt`, the tool named by the `tool.check` that asked) and a
+ * Bash call that ran past half a minute (`tool.call` timed).
  * A typed prompt stops what is playing. While Readback is on,
  * `prompt.compose` adds the spoken-note section, so the model condenses its
  * own long replies and no `claude -p` run is needed for them.
@@ -63,7 +64,7 @@ import {
   voiceSetText,
   type StoredVoice,
 } from "../mod/app.ts";
-import { longToolText, longToolWorthSaying, permissionText, permissionWorthSaying } from "../mod/alerts.ts";
+import { longToolText, longToolWorthSaying, permissionText, permissionWorthSaying, promptWaiting } from "../mod/alerts.ts";
 import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mod/band.ts";
 import { base64Of } from "../mod/bytes.ts";
 import { CACHE_DIR, diskCache, renderParagraph, type Files } from "../mod/cache.ts";
@@ -350,8 +351,12 @@ async function start($: EngineInterface, apiKey: string | null): Promise<void> {
   $.ui.invalidate("ui.render");
 }
 
-/** The main loop's calls the engine is putting to the person, by id, until each ends: a long wait on one is not a long command. */
-const asked = new Set<string>();
+/**
+ * The main loop's calls whose verdict was `ask`, by id, until each ends: the
+ * tool to name when the prompt is reported waiting, `said` once it has been,
+ * and a long wait on one is not a long command.
+ */
+const asked = new Map<string, { tool: string; input: unknown; said: boolean }>();
 
 export const register: Register = (on, options) => {
   const apiKey = apiKeyFrom(options);
@@ -408,14 +413,24 @@ export const register: Register = (on, options) => {
 
   // The engine will ask the person: say so, unless the extension is reading
   // this session (it speaks the prompt itself, once it has waited).
+  // An ask is remembered, not spoken: in auto mode a classifier answers it.
   on("tool.check", async ($, e, next) => {
     const result = await next(e);
-    const a = app;
-    if (a?.state.enabled && a.state.alerts && permissionWorthSaying(e, result.decision)) {
-      asked.add(e.tool_use_id!);
-      if (!(await a.extensionReading())) a.alert(permissionText(e.tool, e.input)).catch(a.report);
-    }
+    if (permissionWorthSaying(e, result.decision)) asked.set(e.tool_use_id!, { tool: e.tool, input: e.input, said: false });
     return result;
+  });
+
+  // The prompt has waited about six seconds for a person: say so, once.
+  on("classic.Notification", async ($, e, next) => {
+    const a = app;
+    if (a?.state.enabled && a.state.alerts && promptWaiting(e)) {
+      const pending = [...asked.values()].filter((p) => !p.said).pop();
+      if (pending) {
+        pending.said = true;
+        if (!(await a.extensionReading())) a.alert(permissionText(pending.tool, pending.input)).catch(a.report);
+      }
+    }
+    return next(e);
   });
 
   // A Bash call timed end to end; a long one is announced when it ends.
