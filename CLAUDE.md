@@ -181,7 +181,10 @@ and shares none of the extension's host code.
   phone attaching does not start it: the sound would play where the person
   is not. `/readback` is registered while waiting, and the person typing it
   is the other way in: an SDK host with no surface (T3 Code) starts on the
-  command. There the band's buttons are words, `/readback play|pause|stop|
+  command. With on and autoplay both stored it does not wait at all
+  (`startPlan`'s third argument): the person asked twice to hear each
+  reply, and accepted (2026-11-01) that a headless `-p` run then speaks
+  too. There the band's buttons are words, `/readback play|pause|stop|
   full`, the voice is named (`/readback voice harper`, the first match of
   the picker's own filter, `voiceSetText`), the on text says so (`onText`,
   `hasBand`), and nothing is lit. Bare `/readback` prints the status

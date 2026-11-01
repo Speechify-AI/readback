@@ -161,7 +161,11 @@ Pending, the manual check (none run yet):
     `./readback`. It lived under `/tmp` first; macOS cleared that
     overnight and the plugin failed to load as "cache-miss" (2026-11-01).
     Removing a marketplace deletes the plugin's saved key with it, so a
-    move means configuring the key again. An absolute path is refused by the validator, and a
+    move means configuring the key again. The same morning the first reply
+    of the restarted session went unheard, the sleeping rule's cost a
+    second time, so since 2026-11-01 a surfaceless session with on and
+    autoplay both stored starts itself (`startPlan`'s `wanted`). Not yet
+    seen in T3 after a restart. An absolute path is refused by the validator, and a
     symlink loads but the engine then refuses the hooks module as "Path
     escapes plugin directory", so the plugin's hooks silently never run
     (debug log, 15:01). The engine reads a path-sourced plugin from the

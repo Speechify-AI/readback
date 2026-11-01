@@ -76,6 +76,12 @@ describe("setup", () => {
     expect(startPlan(undefined, false)).toBe("wait");
   });
 
+  it("a surfaceless session starts itself once on and autoplay are both stored", () => {
+    expect(startPlan(undefined, false, true)).toBe("start");
+    expect(startPlan(undefined, false, false)).toBe("wait");
+    expect(startPlan("1", false, true)).toBe("off");
+  });
+
   it("a waiting session starts when the desktop app attaches, not a phone", () => {
     expect(startsOnAttach("desktop")).toBe(true);
     expect(startsOnAttach("mobile")).toBe(false);

@@ -61,7 +61,9 @@ workspace; change it any time in `/plugin`.
 - `/readback play`, `pause`, `stop` and `full` do what the band's buttons
   do, for a host that draws no band (T3 Code and other SDK hosts). There a
   new session sleeps until `/readback` is typed once, since nothing tells
-  it from a script's headless run, so its first reply is not heard.
+  it from a script's headless run, so its first reply is not heard. With
+  `auto on` it starts at once instead, and so does any headless `claude -p`
+  run on the machine while autoplay stays on.
 - `/readback auto on` plays each reply as it lands, as if you had pressed
   play; off by default, and every reply then renders and bills.
 - `/readback voice` opens a voice picker in the band: a search field and

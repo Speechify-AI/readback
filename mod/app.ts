@@ -27,7 +27,7 @@ export const REFUSED = `Speechify refused the key. ${CHANGE_KEY}`;
 export const ON = "Readback is on. When a reply lands, press 1 with the prompt empty, or click Play above the prompt.";
 /** Turned on where nothing draws the band (an SDK host): the words stand in for the keys. */
 export const ON_NO_BAND =
-  "Readback is on. When a reply lands, type /readback play; /readback stop and /readback full as well. A new session sleeps until /readback is typed once, so its first reply is not heard.";
+  "Readback is on. When a reply lands, type /readback play; /readback stop and /readback full as well. A new session sleeps until /readback is typed once, so its first reply is not heard; with auto on it starts at once.";
 export const OFF = "Readback is off.";
 export const OFF_HINT = "Readback is off. Type /readback on to turn it on.";
 export const EXTENSION_READING = "Readback's VS Code extension is reading this session, so the plugin stays quiet here.";
@@ -65,12 +65,20 @@ export function apiKeyFrom(options: Readonly<Record<string, unknown>>): string |
  * which must never loop. `start` with a person at the prompt. `wait` under
  * the SDK: a `-p` run and the desktop app both start non-interactive with no
  * surface, and only an attach tells them apart (`startsOnAttach`). Starting
- * at once would condense every headless run's replies, unheard.
+ * at once would condense every headless run's replies, unheard. Except when
+ * the person has turned Readback on and autoplay on: they have asked twice
+ * to hear each reply, so a surfaceless session (T3 Code) starts at once and
+ * its first reply is heard. The trade, taken 2026-11-01: a headless `-p` run
+ * on that machine speaks too while autoplay is on.
  */
 export type StartPlan = "off" | "start" | "wait";
-export function startPlan(readbackHook: string | undefined, isInteractive: boolean): StartPlan {
+export function startPlan(
+  readbackHook: string | undefined,
+  isInteractive: boolean,
+  wanted = false,
+): StartPlan {
   if (readbackHook === "1") return "off";
-  return isInteractive ? "start" : "wait";
+  return isInteractive || wanted ? "start" : "wait";
 }
 
 /**
@@ -202,7 +210,7 @@ export function storedAuto(v: unknown): boolean {
 
 export function autoText(on: boolean): string {
   return on
-    ? "Autoplay is on: each reply plays as it lands. /readback auto off turns it off."
+    ? "Autoplay is on: each reply plays as it lands, and a new session starts without waiting for /readback. /readback auto off turns it off."
     : "Autoplay is off: /readback play plays the last reply. /readback auto on plays each reply as it lands.";
 }
 

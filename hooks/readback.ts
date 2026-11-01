@@ -315,7 +315,10 @@ export const register: Register = (on, options) => {
     app = null;
     waiting = false;
     await old?.close();
-    const plan = startPlan(await $.env.get("READBACK_HOOK"), e.isInteractive);
+    // On and autoplay both stored: the person has asked to hear each reply,
+    // so a surfaceless session does not wait for /readback.
+    const wanted = (await $.store.get("enabled")) === true && storedAuto(await $.store.get("auto"));
+    const plan = startPlan(await $.env.get("READBACK_HOOK"), e.isInteractive, wanted);
     if (plan === "off") return result;
     // Registered while waiting too: on an SDK host with no surface (T3 Code),
     // the person's /readback is what starts it.
