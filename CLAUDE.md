@@ -223,6 +223,9 @@ and shares none of the extension's host code.
   and, when any listener answers (a 404 counts; a refused port is a window
   that crashed), lets the turn go by with one toast per session. The mod
   stays on, so a window closed mid-session is heard from the next reply.
+  While it yields, the band is not drawn (`bandMode`, probed at start too):
+  the extension's window has the player, and controls over nothing would
+  only confuse. The voice picker still opens on request.
 - **No Node in the mod.** Everything goes through `$`, spelled
   `$.noun.verb(...)` at the call site (a bare `$.http.fetch` reference is
   rejected by `claude plugin validate`). The `*Shared.ts` files and the

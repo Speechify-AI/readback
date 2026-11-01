@@ -361,6 +361,9 @@ async function start($: EngineInterface, apiKey: string | null): Promise<void> {
     storedAuto(await $.store.get("auto")),
     storedAlerts(await $.store.get("alerts")),
   );
+  // Probed again at every turn.complete; here so the band is hidden from
+  // the first frame in a window the extension already reads.
+  if (enabled) app.state.yielded = await app.extensionReading();
   $.ui.invalidate("ui.render");
 }
 
@@ -569,7 +572,7 @@ export const register: Register = (on, options) => {
     if (!app) return next(e);
     const a = app;
     const { state } = a;
-    const mode = bandMode({ hasSurvey: e.props.hasSurvey, enabled: state.enabled, notice: state.notice, picking: state.picking });
+    const mode = bandMode({ hasSurvey: e.props.hasSurvey, enabled: state.enabled, notice: state.notice, picking: state.picking, yielded: state.yielded });
     if (mode === "pass") return next(e);
     const els = $.ui.resolve(e) as unknown as Els;
     if (mode === "notice") return noticeBand(state.notice!, els) as ReturnType<typeof next>;

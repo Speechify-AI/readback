@@ -405,8 +405,10 @@ export function errorText(err: unknown): string {
 export type BandMode = "pass" | "band" | "picker" | "notice";
 
 /** What the band above the prompt draws. Off, it is drawn only to hold a refused key's notice. */
-export function bandMode(s: { hasSurvey: boolean; enabled: boolean; notice: string | null; picking: boolean }): BandMode {
+export function bandMode(s: { hasSurvey: boolean; enabled: boolean; notice: string | null; picking: boolean; yielded?: boolean }): BandMode {
   if (s.hasSurvey) return "pass";
-  if (s.enabled) return s.picking ? "picker" : "band";
+  // The extension's window speaks and shows its own player, so the band
+  // would be controls over nothing; the picker still opens on request.
+  if (s.enabled) return s.picking ? "picker" : s.yielded ? "pass" : "band";
   return s.notice !== null ? "notice" : "pass";
 }

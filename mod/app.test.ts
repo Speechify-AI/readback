@@ -375,6 +375,11 @@ describe("the band", () => {
     expect(bandMode({ ...base, picking: true })).toBe("picker");
   });
 
+  it("hides while the VS Code extension reads the session, the picker excepted", () => {
+    expect(bandMode({ ...base, yielded: true })).toBe("pass");
+    expect(bandMode({ ...base, yielded: true, picking: true })).toBe("picker");
+  });
+
   it("a refused key holds its notice while off", () => {
     expect(bandMode({ ...base, enabled: false, notice: REFUSED })).toBe("notice");
     expect(bandMode({ ...base, enabled: false, notice: REFUSED, hasSurvey: true })).toBe("pass");
