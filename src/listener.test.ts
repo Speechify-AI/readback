@@ -14,11 +14,15 @@ describe("startListener", () => {
   it("publishes port and token, accepts a bearer post, refuses the rest", async () => {
     const dir = mkdtempSync(join(tmpdir(), "readback-"));
     const received: unknown[] = [];
-    listener = await startListener(dir, (p) => received.push(p));
+    listener = await startListener(dir, (p) => received.push(p), ["/w/one", "/w/two"]);
 
-    const [port, token] = readFileSync(listener.endpointFile, "utf8").trim().split(" ");
+    const [first, ...folders] = readFileSync(listener.endpointFile, "utf8").trim().split("\n");
+    const [port, token] = (first ?? "").split(" ");
     expect(Number(port)).toBe(listener.port);
     expect(token).toBe(listener.token);
+    expect(folders).toEqual(["/w/one", "/w/two"]);
+    listener.publish(["/w/three"]);
+    expect(readFileSync(listener.endpointFile, "utf8")).toBe(`${port} ${token}\n/w/three\n`);
 
     const url = `http://127.0.0.1:${listener.port}/turn`;
     const ok = await fetch(url, {

@@ -5,7 +5,10 @@
  * random bearer token. The port and token are published in one small file
  * per window under the endpoints directory, which is how the hook finds
  * every window; the file is removed on deactivate and by the hook itself
- * when the connection is refused.
+ * when the connection is refused. Under that first line, one workspace
+ * folder per line (`publish` rewrites them as they change): the hook reads
+ * the first line only, and the Claude Code mod reads the folders to tell
+ * whether this window will read a reply before it yields the reply to it.
  *
  * The listener does not decide anything. It checks the token, parses the
  * body, and hands the object to `onPayload`. Which window should speak is
@@ -20,7 +23,13 @@ export interface Listener {
   port: number;
   token: string;
   endpointFile: string;
+  /** Rewrites the endpoint file with the window's current workspace folders. */
+  publish(folders: readonly string[]): void;
   close(): void;
+}
+
+export function endpointText(port: number, token: string, folders: readonly string[]): string {
+  return [`${port} ${token}`, ...folders.filter((f) => f.trim() !== "")].join("\n") + "\n";
 }
 
 const MAX_BODY_BYTES = 2_000_000;
@@ -28,6 +37,7 @@ const MAX_BODY_BYTES = 2_000_000;
 export function startListener(
   endpointsDir: string,
   onPayload: (payload: unknown) => void,
+  folders: readonly string[] = [],
 ): Promise<Listener> {
   const token = randomBytes(24).toString("hex");
   const server: Server = createServer((req, res) => {
@@ -73,11 +83,14 @@ export function startListener(
       }
       mkdirSync(endpointsDir, { recursive: true });
       const endpointFile = join(endpointsDir, String(process.pid));
-      writeFileSync(endpointFile, `${address.port} ${token}\n`, { mode: 0o600 });
+      const publish = (current: readonly string[]) =>
+        writeFileSync(endpointFile, endpointText(address.port, token, current), { mode: 0o600 });
+      publish(folders);
       resolve({
         port: address.port,
         token,
         endpointFile,
+        publish,
         close: () => {
           rmSync(endpointFile, { force: true });
           server.close();

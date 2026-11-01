@@ -89,10 +89,14 @@ this repo.
   turns, marks them heard, and is itself heard on arrival. Text goes to
   the same `condense` with `CATCH_UP_BRIEF`; without `claude` the covered
   turns' own spoken paragraphs are read in order.
-- **Every window hears every turn; a window shows only its own project's.**
-  A turn is this window's when the cwd is inside a workspace folder or
-  contains one (`src/windows.ts`). No focused-window fallback: a panel full
-  of another project's replies is worse than silence.
+- **Every window receives every turn; a window reads and shows only its
+  own project's.** A turn is this window's when the cwd is inside a
+  workspace folder or contains one (`src/windows.ts`, pure strings, no
+  `node:path`, since the mod applies it too). No focused-window fallback: a
+  panel full of another project's replies is worse than silence. The
+  window publishes its folders under the `port token` line of its endpoint
+  file (`endpointText`, rewritten as they change); the hook reads the
+  first line only.
 - **Condensing runs on the person's own Claude subscription, never on a key
   we hold.** `claude -p --model sonnet` with `--setting-sources ""` (no hooks
   load into that run) and `READBACK_HOOK=1` in its environment (the hook
@@ -220,9 +224,13 @@ and shares none of the extension's host code.
   hook posts every reply to the windows listed in `~/.readback/endpoints`;
   a Claude Code session in the integrated terminal is read by that window.
   So at each `turn.complete` the mod probes those files (`mod/extension.ts`)
-  and, when any listener answers (a 404 counts; a refused port is a window
-  that crashed), lets the turn go by with one toast per session. The mod
-  stays on, so a window closed mid-session is heard from the next reply.
+  and, when a listener whose folders are related to the session's cwd
+  answers (a 404 counts; a refused port is a window that crashed; no
+  folder lines is an older extension, read as everything), lets the turn
+  go by with one toast per session. A window on another project would not
+  read the reply, so the mod does not yield to it: with VS Code open on
+  something else, a T3 Code reply went unheard by both (2026-11-01). The
+  mod stays on, so a window closed mid-session is heard from the next reply.
   While it yields, the band is not drawn (`bandMode`, probed at start too):
   the extension's window has the player, and controls over nothing would
   only confuse. The voice picker still opens on request.

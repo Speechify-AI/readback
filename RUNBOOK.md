@@ -136,6 +136,14 @@ Pending, the manual check (none run yet):
     reading; close VS Code and the next reply comes from the mod. The probe
     was tried by hand against a live listener (404 answers) and a dead
     port (refused), not yet from inside the mod.
+    **Seen from inside the mod on 2026-11-01, the wrong way:** VS Code was
+    open on another project, its window answered on its port, the mod
+    yielded, and the extension dropped the turn as not its project's, so
+    nothing played. Since then the window publishes its workspace folders
+    in the endpoint file and the mod yields only to a related window
+    (`relatedToWorkspace` on both sides). Needs the extension rebuilt and
+    reinstalled from this branch: an older extension's file has no folder
+    lines and is still yielded to. Not yet seen after the change.
 15. **T3 Code, by command (2026-10-31, not yet seen).** Settings hooks do
     fire in a T3 Code session: a capture listener registered in
     `~/.readback/endpoints` received this session's PreToolUse payloads

@@ -84,8 +84,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const prompted = new Map<string, number>();
   const live = new LiveTurns((event) => onLive(event, player, { openTurns, prompted }, log));
   try {
-    listener = await startListener(endpointsDir, (payload) => live.accept(payload));
+    // The folders go in the endpoint file so the Claude Code mod yields only
+    // to a window that will read the reply (`relatedToWorkspace`, both sides).
+    const folders = () => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+    listener = await startListener(endpointsDir, (payload) => live.accept(payload), folders());
     log.info(`listening on 127.0.0.1:${listener.port}, endpoint ${listener.endpointFile}`);
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => listener?.publish(folders())));
   } catch (err) {
     log.error(`listener failed to start: ${String(err)}`);
     void vscode.window.showErrorMessage("Readback could not start its listener. Claude Code turns will not be read.");

@@ -100,6 +100,9 @@ workspace; change it any time in `/plugin`.
   costs nothing.
 
 The VS Code extension and the plugin are independent; use either or both.
+With both, a reply is read once: the plugin stays quiet when a VS Code
+window with that project open is listening, and reads as usual when VS
+Code is closed or open on another project.
 
 ## How it works
 

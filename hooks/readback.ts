@@ -150,10 +150,13 @@ function build(
     write: (path, text) => $.fs.write(path, text),
   };
   const cache = diskCache(files, `${home}/${CACHE_DIR}`);
-  const extensionReading = () =>
+  // Only a window on this session's project reads the reply; another's would not, and nor would we.
+  const extensionReading = async () =>
     extensionListening(
       { list: (dir) => $.fs.list(dir), read: (path) => $.fs.read(path), fetch: (url) => $.http.fetch(url) },
       `${home}/${ENDPOINTS_DIR}`,
+      await $.session.cwd(),
+      home,
     );
 
   let versionRead: Promise<string> | null = null;
