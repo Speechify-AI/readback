@@ -156,9 +156,12 @@ Pending, the manual check (none run yet):
     answered "Readback is on. When a reply lands, type /readback play…",
     so the command is registered while waiting, starts the mod, and the
     key check ran, all under the SDK. Installed for the test from a dev
-    marketplace at `/tmp/readback-dev-marketplace`: a real copy of the
+    marketplace at `~/.readback-dev-marketplace`: a real copy of the
     checkout at `readback/` (rsync without node_modules, 2 MB), source
-    `./readback`. An absolute path is refused by the validator, and a
+    `./readback`. It lived under `/tmp` first; macOS cleared that
+    overnight and the plugin failed to load as "cache-miss" (2026-11-01).
+    Removing a marketplace deletes the plugin's saved key with it, so a
+    move means configuring the key again. An absolute path is refused by the validator, and a
     symlink loads but the engine then refuses the hooks module as "Path
     escapes plugin directory", so the plugin's hooks silently never run
     (debug log, 15:01). The engine reads a path-sourced plugin from the
