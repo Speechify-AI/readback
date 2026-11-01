@@ -8,9 +8,18 @@
  * (the condensing child's marker). A person is at the prompt at
  * `session.start`, or arrives with the desktop app at `session.attach`
  * (`startPlan`, `startsOnAttach` in `mod/app.ts`).
+ *
+ * Besides replies it speaks three alerts (`mod/alerts.ts`): a permission
+ * prompt the engine is about to put to the person (`tool.check` answering
+ * `ask`), a Bash call that ran past half a minute (`tool.call` timed), and a
+ * minute of silence after a reply (`$.clock.after`, disarmed by the next
+ * `turn.start`). A typed prompt stops what is playing. While Readback is on,
+ * `prompt.compose` adds the spoken-note section, so the model condenses its
+ * own long replies and no `claude -p` run is needed for them.
  */
 import type { EngineInterface, Register } from "claude-code";
 import type { Voice } from "../src/speechifyShared.ts";
+import { SPOKEN_NOTE_INSTRUCTION } from "../src/summaryShared.ts";
 import {
   API_BASE,
   MODEL,
@@ -20,6 +29,7 @@ import {
   PICK,
   PICK_NO_BAND,
   WELCOME,
+  alertsText,
   apiKeyFrom,
   autoText,
   bandMode,
@@ -42,6 +52,8 @@ import {
   startPlan,
   startsOnAttach,
   statusText,
+  stopsOnTurnStart,
+  storedAlerts,
   storedAuto,
   storedSpeed,
   storedVoice,
@@ -52,6 +64,7 @@ import {
   voiceSetText,
   type StoredVoice,
 } from "../mod/app.ts";
+import { IDLE_MS, IDLE_TEXT, longToolText, longToolWorthSaying, permissionText, permissionWorthSaying } from "../mod/alerts.ts";
 import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mod/band.ts";
 import { base64Of } from "../mod/bytes.ts";
 import { CACHE_DIR, diskCache, renderParagraph, type Files } from "../mod/cache.ts";
@@ -74,6 +87,8 @@ type AppState = {
   speed: number;
   /** Play each reply as it lands, as if play were pressed; stored under `auto`. */
   auto: boolean;
+  /** Speak the permission, long-command and idle alerts; stored under `alerts`, on unless false. */
+  alerts: boolean;
   /** The voices this key renders on the model, fetched once. */
   voices: Voice[] | null;
   /** The busy spinner's frame, advanced by the tick. */
@@ -100,6 +115,13 @@ type App = {
   extensionReading(): Promise<boolean>;
   /** The band's Play/Pause/Resume and Full reply buttons, awaited. */
   press(action: "toggle" | "full"): Promise<void>;
+  /** The latest reply from its start, whatever is loaded. */
+  again(): Promise<void>;
+  /** One sentence of Readback's own, rendered and played now; what was playing pauses and resumes after. */
+  alert(text: string): Promise<void>;
+  /** The idle alert's timer: armed when a reply lands, disarmed by the next turn. */
+  armIdle(): void;
+  disarmIdle(): void;
   /** Stop the player, cancel its timers, give up the floor; never throws. */
   close(): Promise<void>;
 };
@@ -117,8 +139,9 @@ function build(
   enabled: boolean,
   speed: number,
   auto: boolean,
+  alerts: boolean,
 ): App {
-  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, auto, toldExtension: false, yielded: false };
+  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, auto, alerts, toldExtension: false, yielded: false };
   const http: Http = (url, init) => $.http.fetch(url, init);
   const sleep: Sleep = (ms) => $.clock.sleep(ms);
   const run: Run = (argv, init) => $.process.run(argv, init);
@@ -255,6 +278,38 @@ function build(
     full: () => void press("full").catch(report),
     speed: () => void setSpeed(nextRate(state.speed)).catch(report),
   };
+  const again = async () => {
+    player.stop();
+    await press("toggle");
+  };
+
+  // An alert is one paragraph rendered as any other (so a repeated sentence
+  // is a cached render) and played outside the player: it is not a turn, and
+  // the latest reply stays what it was. A reply playing pauses for it and
+  // resumes after, unless the person pressed something meanwhile.
+  const alert = async (text: string) => {
+    if (!apiKey || !state.enabled || !state.alerts) return;
+    const cfg = ttsConfig(apiKey, await currentVoice());
+    const v = await version();
+    const rendered = await renderParagraph(text, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v), state.speed);
+    const wasPlaying = player.view().state === "playing";
+    if (wasPlaying) await player.toggle();
+    await $.audio.play({ base64: base64Of(rendered.audio), mime: "audio/mpeg" });
+    if (wasPlaying && player.view().state === "paused") await player.toggle();
+  };
+  let idle: { cancel(): void } | null = null;
+  const disarmIdle = () => {
+    idle?.cancel();
+    idle = null;
+  };
+  const armIdle = () => {
+    disarmIdle();
+    if (!state.alerts) return;
+    idle = $.clock.after(IDLE_MS, () => {
+      idle = null;
+      alert(IDLE_TEXT).catch(report);
+    });
+  };
 
   return {
     state,
@@ -269,10 +324,15 @@ function build(
     report,
     extensionReading,
     press,
+    again,
+    alert,
+    armIdle,
+    disarmIdle,
     close: async () => {
       try {
         player.stop();
         stopTimers();
+        disarmIdle();
         await floor.release();
       } catch {
         // a failed teardown must not throw out of the hook
@@ -299,9 +359,13 @@ async function start($: EngineInterface, apiKey: string | null): Promise<void> {
     enabled,
     storedSpeed(await $.store.get("speed")),
     storedAuto(await $.store.get("auto")),
+    storedAlerts(await $.store.get("alerts")),
   );
   $.ui.invalidate("ui.render");
 }
+
+/** The main loop's calls the engine is putting to the person, by id, until each ends: a long wait on one is not a long command. */
+const asked = new Set<string>();
 
 export const register: Register = (on, options) => {
   const apiKey = apiKeyFrom(options);
@@ -324,8 +388,8 @@ export const register: Register = (on, options) => {
     // the person's /readback is what starts it.
     await $.command.register({
       name: "readback",
-      description: "Readback status; /readback on, off; play, stop, full; voice picks the voice; speed sets it; auto on plays each reply",
-      argumentHint: "[on|off|play|stop|full|voice|speed|auto]",
+      description: "Readback status; /readback on, off; play, stop, full, again; voice picks the voice; speed sets it; auto on plays each reply; alerts off silences the alerts",
+      argumentHint: "[on|off|play|stop|full|again|voice|speed|auto|alerts]",
       immediate: true,
     });
     if (plan === "start") await start($, apiKey);
@@ -341,9 +405,55 @@ export const register: Register = (on, options) => {
     return next(e);
   });
 
+  // The person typed the next prompt: what is playing stops, as the
+  // extension stops on UserPromptSubmit, and the idle alert is off.
+  on("turn.start", ($, e, next) => {
+    if (app && e.agentId === undefined) {
+      app.disarmIdle();
+      if (stopsOnTurnStart(e)) app.player.stop();
+    }
+    return next(e);
+  });
+
+  // The system prompt carries the spoken-note section while Readback is on,
+  // so a long reply ends with its own summary and no condensing run is needed.
+  on("prompt.compose", async ($, e, next) => {
+    const result = await next(e);
+    if (!app?.state.enabled) return result;
+    return { sections: [...result.sections, { id: "readback:spoken-note", text: SPOKEN_NOTE_INSTRUCTION, scope: "session" as const }] };
+  });
+
+  // The engine will ask the person: say so, unless the extension is reading
+  // this session (it speaks the prompt itself, once it has waited).
+  on("tool.check", async ($, e, next) => {
+    const result = await next(e);
+    const a = app;
+    if (a?.state.enabled && a.state.alerts && permissionWorthSaying(e, result.decision)) {
+      asked.add(e.tool_use_id!);
+      if (!(await a.extensionReading())) a.alert(permissionText(e.tool, e.input)).catch(a.report);
+    }
+    return result;
+  });
+
+  // A Bash call timed end to end; a long one is announced when it ends.
+  on("tool.call", async ($, e, next) => {
+    const started = await $.clock.now();
+    const result = await next(e);
+    const a = app;
+    if (a?.state.enabled && a.state.alerts) {
+      const id = e.tool_use_id;
+      const waited = asked.delete(id);
+      const took = (await $.clock.now()) - started;
+      if (longToolWorthSaying(e, took, waited)) a.alert(longToolText(took)).catch(a.report);
+    }
+    return result;
+  });
+
   on("turn.complete", async ($, e, next) => {
     if (!app || !app.state.enabled) return next(e);
     const result = await next(e);
+    // The person has a reply to answer; a minute of silence is announced once.
+    if (e.agentId === undefined && !e.isAborted) app.armIdle();
     const turn = replyTurn(e);
     if (turn && (await app.extensionReading())) {
       app.state.yielded = true;
@@ -386,7 +496,7 @@ export const register: Register = (on, options) => {
           return { text: plan.text };
         case "status":
           return {
-            text: statusText(a.state.enabled, await a.currentVoice(), a.state.speed, a.player.view().state, a.player.hasLatest, a.state.auto),
+            text: statusText(a.state.enabled, await a.currentVoice(), a.state.speed, a.player.view().state, a.player.hasLatest, a.state.auto, a.state.alerts),
           };
         case "auto":
           if (plan.on !== null) {
@@ -394,6 +504,16 @@ export const register: Register = (on, options) => {
             await $.store.set("auto", plan.on);
           }
           return { text: autoText(a.state.auto) };
+        case "alerts":
+          if (plan.on !== null) {
+            a.state.alerts = plan.on;
+            await $.store.set("alerts", plan.on);
+            if (!plan.on) a.disarmIdle();
+          }
+          return { text: alertsText(a.state.alerts) };
+        case "again":
+          await a.again();
+          return { text: playbackText(a.player.view().state, a.player.hasLatest, a.state.yielded) };
         case "off":
           a.state.enabled = false;
           a.state.picking = false;

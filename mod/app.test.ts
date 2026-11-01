@@ -37,6 +37,9 @@ import {
   replyTurn,
   startPlan,
   startsOnAttach,
+  stopsOnTurnStart,
+  storedAlerts,
+  alertsText,
   storedAuto,
   storedVoice,
   summaryFrom,
@@ -246,6 +249,16 @@ describe("turns", () => {
     expect(t.full[0]).toBe("Heading.");
   });
 
+  it("a long reply's own spoken note is its summary, so nothing is condensed; a short one's is ignored", () => {
+    const t = replyTurn({ ...e, answer: `${LONG.repeat(7)}\n\n<!-- readback: It landed. Nothing is open. -->` })!;
+    expect(t.condensing).toBe(false);
+    expect(t.summary).toEqual(["It landed. Nothing is open."]);
+    expect(t.full.join(" ")).not.toContain("readback:");
+    const short = replyTurn({ ...e, answer: `${LONG}\n\n<!-- readback: It landed. -->` })!;
+    expect(short.summary).toEqual([]);
+    expect(short.condensing).toBe(false);
+  });
+
   it("the summary's paragraphs, or null when there is none", () => {
     expect(summaryFrom("One.\n\nTwo **bold**.")).toEqual(["One.", "Two bold."]);
     expect(summaryFrom(null)).toBeNull();
@@ -381,10 +394,28 @@ describe("the band", () => {
   it("bare /readback is a status line", () => {
     expect(statusText(false, { id: "harper_32", locale: "en-US" }, 1, "idle", false)).toBe(OFF_HINT);
     expect(statusText(true, { id: "harper_32", locale: "en-US" }, 1, "idle", false)).toBe(
-      "Readback is on. Voice harper_32 (en-US), speed 1×, autoplay off, nothing loaded.",
+      "Readback is on. Voice harper_32 (en-US), speed 1×, autoplay off, alerts on, nothing loaded.",
     );
-    expect(statusText(true, { id: "aitana", locale: "" }, 1.5, "playing", true)).toBe("Readback is on. Voice aitana, speed 1.5×, autoplay off, playing.");
-    expect(statusText(true, { id: "aitana", locale: "es-MX" }, 2, "paused", true, true)).toMatch(/autoplay on, paused\.$/);
+    expect(statusText(true, { id: "aitana", locale: "" }, 1.5, "playing", true)).toBe("Readback is on. Voice aitana, speed 1.5×, autoplay off, alerts on, playing.");
+    expect(statusText(true, { id: "aitana", locale: "es-MX" }, 2, "paused", true, true, false)).toMatch(/autoplay on, alerts off, paused\.$/);
+  });
+
+  it("again replays the latest reply; alerts is a stored flag, on unless false", () => {
+    expect(readbackCommand("again", "k", true)).toEqual({ kind: "again" });
+    expect(readbackCommand("Replay", "k", true)).toEqual({ kind: "again" });
+    expect(readbackCommand("again", "k", false)).toEqual({ kind: "text", text: OFF_HINT });
+    expect(readbackCommand("alerts off", "k", true)).toEqual({ kind: "alerts", on: false });
+    expect(readbackCommand("alerts", "k", true)).toEqual({ kind: "alerts", on: null });
+    expect(storedAlerts(undefined)).toBe(true);
+    expect(storedAlerts(false)).toBe(false);
+    expect(alertsText(true)).toMatch(/^Alerts are on/);
+    expect(alertsText(false)).toMatch(/^Alerts are off/);
+  });
+
+  it("a typed prompt stops playback; a continuation or a subagent's turn does not", () => {
+    expect(stopsOnTurnStart({ text: "next" })).toBe(true);
+    expect(stopsOnTurnStart({ text: "  " })).toBe(false);
+    expect(stopsOnTurnStart({ text: "next", agentId: "a" })).toBe(false);
   });
 
   it("autoplay is a stored flag, off unless true, set by word", () => {

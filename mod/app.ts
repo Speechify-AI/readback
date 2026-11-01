@@ -9,6 +9,7 @@ import { defaultVoice, languageCode } from "../src/claudeLanguageShared.ts";
 import { TtsError, languageFor, modelFor, sortVoices, type KeyCheck, type TtsConfig, type Voice } from "../src/speechifyShared.ts";
 import { plainify, toParagraphs } from "../src/text.ts";
 import { decideMessage, replyParagraphs, worthCondensing, type TurnLimits } from "../src/turns.ts";
+import { spokenNoteFrom } from "../src/summaryShared.ts";
 import type { ReplyTurn, State } from "./player.ts";
 
 export const LIMITS: TurnLimits = { minChars: 80, maxChars: 4000 };
@@ -33,7 +34,7 @@ export const OFF_HINT = "Readback is off. Type /readback on to turn it on.";
 export const EXTENSION_READING = "Readback's VS Code extension is reading this session, so the plugin stays quiet here.";
 export const OFF_NO_VOICE = "Readback is off. Type /readback on to turn it on, then /readback voice.";
 export const USAGE =
-  "/readback shows the status; /readback on and off turn it on or off; /readback play, stop and full control playback; /readback voice picks the voice; /readback speed 1.25 sets the speed; /readback auto on plays each reply as it lands.";
+  "/readback shows the status; /readback on and off turn it on or off; /readback play, stop, full and again control playback; /readback voice picks the voice; /readback speed 1.25 sets the speed; /readback auto on plays each reply as it lands; /readback alerts off silences the spoken alerts.";
 
 /** The speeds offered, the extension's steps. Played through SSML prosody (ssml.ts). */
 export const RATES: readonly number[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -122,7 +123,11 @@ export type CommandPlan =
   | { kind: "stop" }
   | { kind: "full" }
   /** `/readback auto on|off`; `auto` alone asks. */
-  | { kind: "auto"; on: boolean | null };
+  | { kind: "auto"; on: boolean | null }
+  /** The latest reply from its start, whatever is loaded: a replay costs nothing, the render is cached. */
+  | { kind: "again" }
+  /** `/readback alerts on|off`: a waiting permission prompt, a long command's end, a minute's wait. */
+  | { kind: "alerts"; on: boolean | null };
 
 const PLAYBACK_WORDS: Record<string, "toggle" | "stop" | "full"> = {
   play: "toggle",
@@ -179,7 +184,7 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
   const [word = "", ...rest] = args.trim().toLowerCase().split(/\s+/);
   const value = rest[0] ?? "";
   const playback = PLAYBACK_WORDS[word];
-  if (!["", "on", "off", "voice", "speed", "auto"].includes(word) && !playback) return { kind: "text", text: USAGE };
+  if (!["", "on", "off", "voice", "speed", "auto", "again", "replay", "alerts"].includes(word) && !playback) return { kind: "text", text: USAGE };
   if (key === null) return { kind: "text", text: NO_KEY };
   // Explicit, for a session with no band to show the state: "on" when on
   // checks the key again and says so; "off" when off just says so.
@@ -187,6 +192,8 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
   if (word === "off") return enabled ? { kind: "off" } : { kind: "text", text: OFF };
   if (word === "") return { kind: "status" };
   if (word === "auto") return { kind: "auto", on: value === "on" ? true : value === "off" ? false : null };
+  if (word === "alerts") return { kind: "alerts", on: value === "on" ? true : value === "off" ? false : null };
+  if (word === "again" || word === "replay") return enabled ? { kind: "again" } : { kind: "text", text: OFF_HINT };
   if (playback) return enabled ? { kind: playback } : { kind: "text", text: OFF_HINT };
   if (word === "speed") {
     const rate = Number(value.replace(/[x×]$/, ""));
@@ -197,10 +204,38 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
 }
 
 /** The status line bare `/readback` prints. */
-export function statusText(enabled: boolean, voice: StoredVoice, speed: number, state: State, hasLatest: boolean, auto = false): string {
+export function statusText(
+  enabled: boolean,
+  voice: StoredVoice,
+  speed: number,
+  state: State,
+  hasLatest: boolean,
+  auto = false,
+  alerts = true,
+): string {
   if (!enabled) return OFF_HINT;
   const player = hasLatest ? playbackText(state, true).replace(/\.$/, "").toLowerCase() : "nothing loaded";
-  return `Readback is on. Voice ${voice.id}${voice.locale ? ` (${voice.locale})` : ""}, speed ${speedLabel(speed)}, autoplay ${auto ? "on" : "off"}, ${player}.`;
+  return `Readback is on. Voice ${voice.id}${voice.locale ? ` (${voice.locale})` : ""}, speed ${speedLabel(speed)}, autoplay ${auto ? "on" : "off"}, alerts ${alerts ? "on" : "off"}, ${player}.`;
+}
+
+/** The stored alerts flag; on unless stored false. */
+export function storedAlerts(v: unknown): boolean {
+  return v !== false;
+}
+
+export function alertsText(on: boolean): string {
+  return on
+    ? "Alerts are on: a permission prompt waiting for you, a command that ran past half a minute, and a minute's wait after a reply are spoken. /readback alerts off silences them."
+    : "Alerts are off. /readback alerts on speaks a permission prompt waiting for you, a command that ran past half a minute, and a minute's wait after a reply.";
+}
+
+/**
+ * A typed prompt stops what is playing, as the extension stops on
+ * UserPromptSubmit: the person has moved on. A continuation ("" for its
+ * text) and a subagent's turn are not the person moving on.
+ */
+export function stopsOnTurnStart(e: { text: string; agentId?: string }): boolean {
+  return e.agentId === undefined && e.text.trim() !== "";
 }
 
 /** The stored autoplay flag; off unless stored true. */
@@ -265,7 +300,12 @@ export function replyTurn(e: TurnEvent): ReplyTurn | null {
   if (decideMessage(e.answer, null, LIMITS).kind === "skip") return null;
   const { full } = replyParagraphs({ markdown: e.answer, limits: LIMITS });
   if (full.length === 0) return null;
-  return { id: e.turnId, summary: [], full, condensing: worthCondensing(e.answer, LIMITS) };
+  // A reply long enough to condense that carries its own spoken note is
+  // condensed already, by the model that wrote it: no run, no wait. A short
+  // one is read as it stands, note or not.
+  const condensing = worthCondensing(e.answer, LIMITS);
+  const note = condensing ? summaryFrom(spokenNoteFrom(e.answer)) : null;
+  return { id: e.turnId, summary: note ?? [], full, condensing: condensing && note === null };
 }
 
 /** The condensed reply's paragraphs, or null when condensing gave nothing. */

@@ -14,7 +14,12 @@ this repo.
 - **What is shown is what is spoken.** Markdown is flattened by `plainify`
   before anything is sent or displayed, so the speech marks' character
   offsets index the same string the player paints. Rendering markdown in
-  the webview would break the highlight.
+  the webview would break the highlight. The flattening rewrites for the
+  ear too (`speakable`: a bare URL, `file:line`, a commit hash, a version,
+  `~/`, spaced operators) and reads a table of up to `TABLE_MAX_ROWS` rows
+  as header and value pairs (`spokenTable`); the shown text changes with
+  it, by the person's choice (2026-11-01). Paths are not spelled out: the
+  voice reads them well enough. HTML comments are dropped whole.
 - **Highlighting is anchored on character offsets, never token positions,
   and gaps are absorbed forward.** Copied whole from Soundbites, evidence and
   all: `src/marks.ts` and its tests carry the measured API behaviour.
@@ -98,7 +103,15 @@ this repo.
   named as material (`condensePrompt`). Bare, Haiku sometimes answered the
   brief instead of condensing. The answer must come back inside `spoken`
   tags (`spokenFrom`); a run without them counts as failed. A reply under
-  `CONDENSE_MIN_CHARS` once flattened is not condensed at all.
+  `CONDENSE_MIN_CHARS` once flattened is not condensed at all. **A reply
+  that carries its own spoken note is not condensed either**: the comment
+  `<!-- readback: ... -->` at its end (`spokenNoteFrom`) is the summary,
+  written by the model that wrote the reply, with no second run. Only the
+  mod can ask for it (a `prompt.compose` section, `SPOKEN_NOTE_INSTRUCTION`,
+  while Readback is on); the extension's hook decides nothing and asks for
+  nothing, so it reads a note only when the mod is on in the same session.
+  The person's choice (2026-11-01), knowing it leans on the model obeying
+  every time: a long reply without the note falls back to the run.
 - **A condensed turn carries the full reply too**, after `fullFrom` in the
   same paragraph list. Autoplay stops there; the full reply is one click
   away and costs nothing until played.
@@ -190,6 +203,19 @@ and shares none of the extension's host code.
   `hasBand`), and nothing is lit. Bare `/readback` prints the status
   (`statusText`); `on` and `off` are explicit words, since no band shows
   the state there.
+- **A typed prompt stops playback, in the mod too** (`turn.start` with text
+  on the main loop, `stopsOnTurnStart`), as the extension stops on
+  UserPromptSubmit. `/readback again` plays the latest reply from its start.
+- **Three alerts, on by default, off by `/readback alerts off`**
+  (`mod/alerts.ts`, stored under `alerts`): a `tool.check` verdict of `ask`
+  on a real main-loop call (the engine is about to put it to the person),
+  a Bash `tool.call` that ran `LONG_TOOL_MS` end to end and did not wait on
+  a prompt, and `IDLE_MS` of silence after a reply, once. Each is one
+  paragraph rendered like any other (cached) and played outside the player;
+  a reply playing pauses for it and resumes. The permission alert yields to
+  the extension like a reply does, since the extension speaks prompts too.
+  The person's choice (2026-11-01), the idle alert included, knowing it
+  speaks whenever a reply goes a minute unanswered.
 - **The extension and the mod never read the same reply.** The extension's
   hook posts every reply to the windows listed in `~/.readback/endpoints`;
   a Claude Code session in the integrated terminal is read by that window.
@@ -240,6 +266,7 @@ and shares none of the extension's host code.
 - `mod/player.ts`, `mod/floor.ts`, `mod/band.ts` — the player state machine, the cross-session speaker claim, the band drawing
 - `mod/condense.ts`, `mod/speechify.ts`, `mod/cache.ts`, `mod/sentence.ts`, `mod/bytes.ts` — condensing run, API calls over `$.http`, render cache over `$.fs`, sentence steps, base64
 - `mod/extension.ts` — is the VS Code extension's listener up, so the mod must not read this reply too
+- `mod/alerts.ts` — the three spoken alerts' sentences and which events earn one
 - `src/*Shared.ts` — the Node-free halves of the extension's modules, imported by both
 
 ## Commands

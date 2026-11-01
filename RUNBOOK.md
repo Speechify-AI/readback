@@ -480,6 +480,28 @@ the tier shape you want and I'll apply it in Atlas".
   users on older VS Code for no API we need; bump it the day a newer API
   is wanted.
 
+## Verified on 2026-11-01
+
+- **Six of the seven peer items** from the morning's survey of open source
+  readers (claude-speak, claude-speaks, claude-code-tts, claude-voice,
+  claude_voice, Response-Narrator and others) landed in one change: a
+  typed prompt stops the mod's playback (`turn.start`); `/readback again`;
+  `speakable` rewrites and `spokenTable` pairs in `plainify` (both
+  products, shown text included); the reply's own spoken note
+  (`prompt.compose` section while on, `spokenNoteFrom` in both products,
+  the run as fallback); and the three alerts (`tool.check` ask, long Bash
+  `tool.call`, idle after a reply). 301 tests, typecheck and the validator
+  pass. **Seen headless the same day:** with the dev copy installed,
+  `claude -p "Explain in about 150 words how git rebase differs from git
+  merge."` ended its answer with `<!-- readback: I explained that merge
+  preserves both histories … Nothing is open. -->`, so the section is in
+  the prompt and the model follows it on the first try; and the status
+  line reads "alerts on". Not yet seen: the note hidden in Claude Code's
+  own transcript view and in T3 Code; a permission alert sounding (T3 runs
+  with permissions bypassed, so try it in a terminal with default
+  permissions); the long-command and idle alerts; `/readback again` by
+  ear; the resume after an alert.
+
 ## Open
 
 - **A turn from home, by ear.** Shaun saw every window take the updates

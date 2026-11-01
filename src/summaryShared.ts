@@ -47,6 +47,33 @@ export function spokenFrom(stdout: string): string | null {
   return spoken ? spoken : null;
 }
 
+/**
+ * The reply's own spoken note: a reply that ends with this HTML comment
+ * carries what is read in place of a condensing run, written by the model
+ * that wrote the reply, with no second run and no wait. The mod asks for it
+ * in a system prompt section (`SPOKEN_NOTE_INSTRUCTION`) while Readback is
+ * on; the extension cannot ask (its hook decides nothing) but reads one
+ * when it is there. Shown nowhere: `plainify` drops every HTML comment.
+ */
+export const NOTE_OPEN = "<!-- readback:";
+
+export const SPOKEN_NOTE_INSTRUCTION =
+  "Readback reads your replies aloud. " +
+  `When a reply runs past a few sentences, end it with an HTML comment on a line of its own, ${NOTE_OPEN} one to three short sentences -->, ` +
+  "saying for someone hearing it a moment after it landed what was done and what is still open or needs their decision. " +
+  "Past tense, plain prose, in the reply's language; no markdown, lists, code, links, file paths, hashes or version ids. " +
+  "Do not mention the note or Readback in the reply.";
+
+/** The last spoken note in a reply, or null when it carries none. */
+export function spokenNoteFrom(markdown: string): string | null {
+  let note: string | null = null;
+  for (const m of markdown.matchAll(/<!--\s*readback:([\s\S]*?)-->/gi)) {
+    const text = m[1]?.trim() ?? "";
+    if (text !== "") note = text;
+  }
+  return note;
+}
+
 export const CLAUDE_ARGS: readonly string[] = [
   "-p",
   "--model", "sonnet",

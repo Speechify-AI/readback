@@ -64,8 +64,17 @@ workspace; change it any time in `/plugin`.
   it from a script's headless run, so its first reply is not heard. With
   `auto on` it starts at once instead, and so does any headless `claude -p`
   run on the machine while autoplay stays on.
+- `/readback again` plays the last reply from its start. The render is
+  cached, so a replay costs nothing.
 - `/readback auto on` plays each reply as it lands, as if you had pressed
   play; off by default, and every reply then renders and bills.
+- Typing the next prompt stops whatever is playing, as in the extension.
+- Three alerts are spoken, on by default: a permission prompt the engine is
+  about to put to you ("Claude is waiting for your permission to run npm
+  install"), a command that ran past half a minute when it ends, and a
+  minute of silence after a reply ("Claude finished a minute ago and is
+  waiting for you"), once per reply. `/readback alerts off` silences them.
+  Each is one short render, cached after the first time.
 - `/readback voice` opens a voice picker in the band: a search field and
   the matching voices, featured first. The band lists 64 at a time; type
   to narrow. `/readback voice harper` (a name, language or tag) picks the
@@ -77,10 +86,14 @@ workspace; change it any time in `/plugin`.
 - Keys 1, 2 and 3 play or pause, stop, and play the full reply. They work
   only while the prompt is empty: a "1" typed as the first character of a
   message goes to Readback, not to Claude.
-- A long reply is condensed to a few spoken sentences with `claude -p` on
-  your own Claude subscription, when the turn ends. The full reply is one
-  press of 3 away. Condensing needs the `claude` CLI and has been checked
-  on macOS only; on Windows the full reply is read.
+- While Readback is on, the plugin adds a short section to the system
+  prompt asking Claude to end each long reply with a spoken note, an HTML
+  comment holding one to three sentences for the ear. That note is what is
+  read, at once, with no second run. A long reply without one is condensed
+  with `claude -p` on your own Claude subscription when the turn ends. The
+  full reply is one press of 3 away either way. Condensing needs the
+  `claude` CLI and has been checked on macOS only; on Windows a reply
+  without a note is read in full.
 - Several Claude Code sessions share one speaker: pressing play in one
   pauses another.
 - Renders are cached under `~/.readback/claude-code/renders`, so replaying
@@ -123,9 +136,17 @@ The VS Code extension and the plugin are independent; use either or both.
   reply about a reply. If `claude` is missing or the run fails, you hear
   the full reply instead. Turn it off with `readback.summarize`.
 - Readback flattens the text to plain prose (code blocks become "code
-  omitted", tables a short note, links their text), splits it into
-  paragraphs, and synthesizes each one through `/v1/audio/speech` as the
-  player reaches it.
+  omitted", a table of up to four rows its header and value pairs, a longer
+  one a note, links their text), rewrites the few things a voice gets
+  wrong (a bare URL is "a link", `app.ts:42` is "app.ts, line 42", a commit
+  hash its first four characters, `v0.9.0` "version 0.9.0", `>=` and the
+  like as words), splits it into paragraphs, and synthesizes each one
+  through `/v1/audio/speech` as the player reaches it. What is shown is
+  the same text.
+- A reply that ends with its own spoken note (an HTML comment the
+  Readback plugin asks Claude for while it is on, `<!-- readback: ... -->`)
+  is read from that note; no condensing run is made for it. The comment is
+  never shown.
 - Speech marks come back with character offsets into the exact text sent,
   and that is what drives the highlight. No guessing, no token alignment.
 - Renders are cached on disk by text, voice and model. Replaying is free.
