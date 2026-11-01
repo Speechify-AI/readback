@@ -422,6 +422,7 @@ export const register: Register = (on, options) => {
 
   // The prompt has waited about six seconds for a person: say so, once.
   on("classic.Notification", async ($, e, next) => {
+    const result = await next(e);
     const a = app;
     if (a?.state.enabled && a.state.alerts && promptWaiting(e)) {
       const pending = [...asked.values()].filter((p) => !p.said).pop();
@@ -430,7 +431,7 @@ export const register: Register = (on, options) => {
         if (!(await a.extensionReading())) a.alert(permissionText(pending.tool, pending.input)).catch(a.report);
       }
     }
-    return next(e);
+    return result;
   });
 
   // A Bash call timed end to end; a long one is announced when it ends.
