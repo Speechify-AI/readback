@@ -62,6 +62,7 @@ import {
   versionFrom,
   voiceSetText,
   type StoredVoice,
+  noteTurn,
 } from "../mod/app.ts";
 import { permissionText, permissionWorthSaying, promptWaiting } from "../mod/alerts.ts";
 import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mod/band.ts";
@@ -436,6 +437,23 @@ export const register: Register = (on, options) => {
   on("tool.call", async ($, e, next) => {
     const result = await next(e);
     asked.delete(e.tool_use_id);
+    return result;
+  });
+
+  // Text the model wrote before calling tools is a progress note: read the
+  // moment the step ends while autoplay is on, as the extension reads its
+  // MessageDisplay notes. It takes over from whatever was playing.
+  on("turn.step", async function* ($, e, next) {
+    const result = yield* next(e);
+    const a = app;
+    if (a?.state.enabled && a.state.auto) {
+      const note = noteTurn({ ...result, agentId: e.agentId });
+      if (note && !(await a.extensionReading())) {
+        a.player.stop();
+        a.player.setLatest(note);
+        a.press("toggle").catch(a.report);
+      }
+    }
     return result;
   });
 

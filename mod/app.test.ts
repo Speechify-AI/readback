@@ -35,6 +35,7 @@ import {
   platformFrom,
   readbackCommand,
   replyTurn,
+  noteTurn,
   startPlan,
   startsOnAttach,
   stopsOnTurnStart,
@@ -240,6 +241,15 @@ describe("turns", () => {
     expect(replyTurn({ ...e, reason: "refusal" })).toBeNull();
     expect(replyTurn({ ...e, answer: "" })).toBeNull();
     expect(replyTurn({ ...e, answer: "Done." })).toBeNull();
+  });
+
+  it("a step that wrote text and then called tools is a progress note, read as it stands", () => {
+    const step = { turnId: "t1", index: 0, answer: "Reading the listener and the project rule next.", toolUses: [{ name: "Read" }] };
+    expect(noteTurn(step)).toEqual({ id: "t1:0", summary: [], full: ["Reading the listener and the project rule next."], condensing: false });
+    expect(noteTurn({ ...step, toolUses: [] })).toBeNull();
+    expect(noteTurn({ ...step, agentId: "a1" })).toBeNull();
+    expect(noteTurn({ ...step, answer: "On it." })).toBeNull();
+    expect(noteTurn({ ...step, answer: "Private list: (1) the hook, (2) the band." })).toBeNull();
   });
 
   it("a long reply is condensed; markdown is flattened", () => {

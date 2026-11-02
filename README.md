@@ -69,6 +69,8 @@ workspace; change it any time in `/plugin`.
 - `/readback auto on` plays each reply as it lands, as if you had pressed
   play; off by default, and every reply then renders and bills.
 - Typing the next prompt stops whatever is playing, as in the extension.
+- With autoplay on, the notes Claude writes between tool calls are read as
+  they land, as the extension reads them; the finished reply follows.
 - One alert is spoken, on by default: a permission prompt that has waited
   a few seconds for you ("Claude is waiting for your permission to run npm
   install"). `/readback alerts off` silences it. It is one short render

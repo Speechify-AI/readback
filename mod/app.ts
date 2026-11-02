@@ -8,7 +8,8 @@
 import { defaultVoice, languageCode } from "../src/claudeLanguageShared.ts";
 import { TtsError, languageFor, modelFor, sortVoices, type KeyCheck, type TtsConfig, type Voice } from "../src/speechifyShared.ts";
 import { plainify, toParagraphs } from "../src/text.ts";
-import { decideMessage, replyParagraphs, worthCondensing, type TurnLimits } from "../src/turns.ts";
+import { decideMessage, PROGRESS_MIN_CHARS, replyParagraphs, worthCondensing, type TurnLimits } from "../src/turns.ts";
+import { isPlanningNote } from "../src/liveShared.ts";
 import { spokenNoteFrom } from "../src/summaryShared.ts";
 import type { ReplyTurn, State } from "./player.ts";
 
@@ -306,6 +307,24 @@ export function replyTurn(e: TurnEvent): ReplyTurn | null {
   const condensing = worthCondensing(e.answer, LIMITS);
   const note = condensing ? summaryFrom(spokenNoteFrom(e.answer)) : null;
   return { id: e.turnId, summary: note ?? [], full, condensing: condensing && note === null };
+}
+
+export type StepEvent = { turnId: string; index: number; answer: string; toolUses: readonly unknown[]; agentId?: string };
+
+/**
+ * A model step that wrote text and then called tools is a progress note: the
+ * extension reads those as they arrive (MessageDisplay followed by
+ * PreToolUse), and the mod reads them off `turn.step`, which says outright
+ * what the extension infers from timing. Read as it stands, never condensed;
+ * the same floor (`PROGRESS_MIN_CHARS`) and the same planning-list filter.
+ * The last step, with no tool calls, is the reply, read at `turn.complete`.
+ */
+export function noteTurn(e: StepEvent): ReplyTurn | null {
+  if (e.agentId !== undefined || e.toolUses.length === 0) return null;
+  const limits = { ...LIMITS, minChars: PROGRESS_MIN_CHARS };
+  if (decideMessage(e.answer, null, limits).kind === "skip" || isPlanningNote(e.answer)) return null;
+  const { full } = replyParagraphs({ markdown: e.answer, limits });
+  return full.length === 0 ? null : { id: `${e.turnId}:${e.index}`, summary: [], full, condensing: false };
 }
 
 /** The condensed reply's paragraphs, or null when condensing gave nothing. */

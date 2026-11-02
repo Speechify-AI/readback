@@ -512,6 +512,11 @@ the tier shape you want and I'll apply it in Atlas".
   yet seen after the change. T3 Code hides it on its own. Not yet seen: a permission alert sounding (T3 runs
   with permissions bypassed, so try it in a terminal with default
   permissions); `/readback again` by ear; the resume after an alert.
+  **Progress notes (2026-11-02, not yet seen):** the mod reads a `turn.step`
+  whose result has text and tool calls as a note while autoplay is on, the
+  extension's floor and planning filter applied; check that a note sounds
+  before its tool call runs, that the reply is not read twice, and that a
+  note arriving mid-playback takes over.
   **The long-command alert was heard, and removed (2026-11-02):** in the
   desktop app a research session ran slow commands back to back and said
   "finished after about 2 minutes" after each. Gone; the permission alert

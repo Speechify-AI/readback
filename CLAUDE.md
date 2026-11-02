@@ -214,6 +214,15 @@ and shares none of the extension's host code.
 - **A typed prompt stops playback, in the mod too** (`turn.start` with text
   on the main loop, `stopsOnTurnStart`), as the extension stops on
   UserPromptSubmit. `/readback again` plays the latest reply from its start.
+- **Progress notes are read as they land, while autoplay is on** (`turn.step`,
+  `noteTurn`): a step whose result has text and tool calls is a note, read
+  as it stands with the extension's floor (`PROGRESS_MIN_CHARS`) and its
+  planning-list filter (`isPlanningNote`, in `src/liveShared.ts` so the mod
+  can import it); a note takes over from whatever is playing. The step
+  result says outright what the extension infers from MessageDisplay and
+  PreToolUse timing, and `turn.complete`'s `answer` is the final text
+  alone, so no note is read twice. With autoplay off nothing plays, as for
+  replies; a note yields to the extension like a reply does.
 - **One alert, on by default, off by `/readback alerts off`**
   (`mod/alerts.ts`, stored under `alerts`): the engine's `Notification` of
   type `permission_prompt` (`classic.Notification`, raised once a prompt
@@ -270,6 +279,7 @@ and shares none of the extension's host code.
 - `src/live.ts` — the stream: MessageDisplay, PreToolUse and Stop payloads → progress notes and the finished reply
 - `src/summary.ts` — the condensing run: the two briefs, flags, finding and spawning `claude` (`.exe` or npm `.cmd` shim on Windows)
 - `src/windows.ts` — the project rule, pure
+- `src/liveShared.ts` — the planning-list filter, Node-free for the mod
 - `src/claudeLanguage.ts` — Claude Code's `language` setting → the default voice and the picker hint
 - `src/playerView.ts` — the WebviewViewProvider, on-demand rendering, the voice catalogue and samples
 - `src/render.ts` — chunk, synthesize, stitch, fill gaps, cache
