@@ -524,7 +524,7 @@ the tier shape you want and I'll apply it in Atlas".
   signal; the ask only names the tool. Not yet seen after the change. **The idle alert was heard, and removed:** in T3
   Code it said "Claude finished a minute ago and is waiting for you" after
   each long reply while Shaun was still reading it, on every turn. Gone
-  the same day; two alerts remain.
+  the same day; the permission alert alone remains.
 
 ## Open
 
