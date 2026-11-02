@@ -126,7 +126,7 @@ export type CommandPlan =
   | { kind: "auto"; on: boolean | null }
   /** The latest reply from its start, whatever is loaded: a replay costs nothing, the render is cached. */
   | { kind: "again" }
-  /** `/readback alerts on|off`: a waiting permission prompt, a long command's end. */
+  /** `/readback alerts on|off`: a waiting permission prompt. */
   | { kind: "alerts"; on: boolean | null };
 
 const PLAYBACK_WORDS: Record<string, "toggle" | "stop" | "full"> = {
@@ -225,8 +225,8 @@ export function storedAlerts(v: unknown): boolean {
 
 export function alertsText(on: boolean): string {
   return on
-    ? "Alerts are on: a permission prompt waiting for you and a command that ran past half a minute are spoken. /readback alerts off silences them."
-    : "Alerts are off. /readback alerts on speaks a permission prompt waiting for you and a command that ran past half a minute.";
+    ? "Alerts are on: a permission prompt waiting for you is spoken. /readback alerts off silences it."
+    : "Alerts are off. /readback alerts on speaks a permission prompt waiting for you.";
 }
 
 /**

@@ -214,23 +214,25 @@ and shares none of the extension's host code.
 - **A typed prompt stops playback, in the mod too** (`turn.start` with text
   on the main loop, `stopsOnTurnStart`), as the extension stops on
   UserPromptSubmit. `/readback again` plays the latest reply from its start.
-- **Two alerts, on by default, off by `/readback alerts off`**
+- **One alert, on by default, off by `/readback alerts off`**
   (`mod/alerts.ts`, stored under `alerts`): the engine's `Notification` of
   type `permission_prompt` (`classic.Notification`, raised once a prompt
   has waited about six seconds for a person, the extension's signal too),
   naming the tool from the main loop's last `tool.check` that answered
-  `ask`, once per ask; and a Bash `tool.call` that ran `LONG_TOOL_MS` end
-  to end and did not wait on a prompt. **Not the `ask` verdict itself**:
+  `ask`, once per ask. **Not the `ask` verdict itself**:
   that goes to the mode's decider, and in auto mode a classifier answers it
   with nobody waiting; spoken on every ask it said "waiting for your
   permission" through an auto-approved run in the desktop app, in
-  duplicate (2026-11-01). Each is one paragraph rendered like any other (cached)
-  and played outside the player; a reply playing pauses for it and resumes.
-  The permission alert yields to the extension like a reply does, since the
-  extension speaks prompts too. **No idle alert**: one that spoke a minute
-  after each unanswered reply was tried and removed the same day
-  (2026-11-01), since a long reply is still being read at that point and
-  the sentence nagged on every turn.
+  duplicate (2026-11-01). It is one paragraph rendered like any other
+  (cached) and played outside the player; a reply playing pauses for it and
+  resumes. It yields to the extension like a reply does, since the
+  extension speaks prompts too. **No idle alert and no long-command
+  alert**: one that spoke a minute after each unanswered reply, and one
+  that spoke when a Bash call ran past half a minute, were tried and
+  removed within a day (2026-11-01, 2026-11-02). A long reply is still
+  being read a minute later, and a research session runs slow commands
+  back to back; both nagged on every turn, and with autoplay on the reply
+  itself says the turn is done.
 - **The extension and the mod never read the same reply.** The extension's
   hook posts every reply to the windows listed in `~/.readback/endpoints`;
   a Claude Code session in the integrated terminal is read by that window.
@@ -288,7 +290,7 @@ and shares none of the extension's host code.
 - `mod/player.ts`, `mod/floor.ts`, `mod/band.ts` — the player state machine, the cross-session speaker claim, the band drawing
 - `mod/condense.ts`, `mod/speechify.ts`, `mod/cache.ts`, `mod/sentence.ts`, `mod/bytes.ts` — condensing run, API calls over `$.http`, render cache over `$.fs`, sentence steps, base64
 - `mod/extension.ts` — is the VS Code extension's listener up, so the mod must not read this reply too
-- `mod/alerts.ts` — the two spoken alerts' sentences and which events earn one
+- `mod/alerts.ts` — the spoken permission alert's sentence and which events earn it
 - `src/*Shared.ts` — the Node-free halves of the extension's modules, imported by both
 
 ## Commands

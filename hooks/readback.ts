@@ -9,10 +9,9 @@
  * `session.start`, or arrives with the desktop app at `session.attach`
  * (`startPlan`, `startsOnAttach` in `mod/app.ts`).
  *
- * Besides replies it speaks two alerts (`mod/alerts.ts`): a permission
+ * Besides replies it speaks one alert (`mod/alerts.ts`): a permission
  * prompt that has waited for the person (`classic.Notification` of type
- * `permission_prompt`, the tool named by the `tool.check` that asked) and a
- * Bash call that ran past half a minute (`tool.call` timed).
+ * `permission_prompt`, the tool named by the `tool.check` that asked).
  * A typed prompt stops what is playing. While Readback is on,
  * `prompt.compose` adds the spoken-note section, so the model condenses its
  * own long replies and no `claude -p` run is needed for them.
@@ -64,7 +63,7 @@ import {
   voiceSetText,
   type StoredVoice,
 } from "../mod/app.ts";
-import { longToolText, longToolWorthSaying, permissionText, permissionWorthSaying, promptWaiting } from "../mod/alerts.ts";
+import { permissionText, permissionWorthSaying, promptWaiting } from "../mod/alerts.ts";
 import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mod/band.ts";
 import { base64Of } from "../mod/bytes.ts";
 import { CACHE_DIR, diskCache, renderParagraph, type Files } from "../mod/cache.ts";
@@ -87,7 +86,7 @@ type AppState = {
   speed: number;
   /** Play each reply as it lands, as if play were pressed; stored under `auto`. */
   auto: boolean;
-  /** Speak the permission and long-command alerts; stored under `alerts`, on unless false. */
+  /** Speak the permission alert; stored under `alerts`, on unless false. */
   alerts: boolean;
   /** The voices this key renders on the model, fetched once. */
   voices: Voice[] | null;
@@ -353,8 +352,7 @@ async function start($: EngineInterface, apiKey: string | null): Promise<void> {
 
 /**
  * The main loop's calls whose verdict was `ask`, by id, until each ends: the
- * tool to name when the prompt is reported waiting, `said` once it has been,
- * and a long wait on one is not a long command.
+ * tool to name when the prompt is reported waiting, `said` once it has been.
  */
 const asked = new Map<string, { tool: string; input: unknown; said: boolean }>();
 
@@ -434,17 +432,10 @@ export const register: Register = (on, options) => {
     return result;
   });
 
-  // A Bash call timed end to end; a long one is announced when it ends.
+  // The call ended, answered or not: its ask is no longer pending.
   on("tool.call", async ($, e, next) => {
-    const started = await $.clock.now();
     const result = await next(e);
-    const a = app;
-    if (a?.state.enabled && a.state.alerts) {
-      const id = e.tool_use_id;
-      const waited = asked.delete(id);
-      const took = (await $.clock.now()) - started;
-      if (longToolWorthSaying(e, took, waited)) a.alert(longToolText(took)).catch(a.report);
-    }
+    asked.delete(e.tool_use_id);
     return result;
   });
 

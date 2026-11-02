@@ -511,8 +511,11 @@ the tier shape you want and I'll apply it in Atlas".
   then an `AssistantMessage` render hook strips it on every surface, not
   yet seen after the change. T3 Code hides it on its own. Not yet seen: a permission alert sounding (T3 runs
   with permissions bypassed, so try it in a terminal with default
-  permissions); the long-command alert; `/readback again` by ear; the
-  resume after an alert. **The permission alert was heard, wrongly:** in
+  permissions); `/readback again` by ear; the resume after an alert.
+  **The long-command alert was heard, and removed (2026-11-02):** in the
+  desktop app a research session ran slow commands back to back and said
+  "finished after about 2 minutes" after each. Gone; the permission alert
+  is the only one left. **The permission alert was heard, wrongly:** in
   the Claude desktop app in auto mode it said "waiting for your permission"
   for calls the classifier approved, twice each. It had been keyed on the
   `tool.check` verdict `ask`, which auto mode answers itself. Since then it
