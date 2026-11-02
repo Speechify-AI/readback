@@ -64,6 +64,11 @@ export const SPOKEN_NOTE_INSTRUCTION =
   "Past tense, plain prose, in the reply's language; no markdown, lists, code, links, file paths, hashes or version ids. " +
   "Do not mention the note or Readback in the reply.";
 
+/** The reply without its spoken notes, for a transcript that would otherwise draw the comment raw. */
+export function withoutSpokenNote(markdown: string): string {
+  return markdown.replace(/[ \t]*<!--\s*readback:[\s\S]*?-->[ \t]*/gi, "").replace(/\n{3,}/g, "\n\n").trimEnd();
+}
+
 /** The last spoken note in a reply, or null when it carries none. */
 export function spokenNoteFrom(markdown: string): string | null {
   let note: string | null = null;

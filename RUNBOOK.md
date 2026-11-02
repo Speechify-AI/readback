@@ -506,8 +506,10 @@ the tier shape you want and I'll apply it in Atlas".
   merge."` ended its answer with `<!-- readback: I explained that merge
   preserves both histories … Nothing is open. -->`, so the section is in
   the prompt and the model follows it on the first try; and the status
-  line reads "alerts on". Not yet seen: the note hidden in Claude Code's
-  own transcript view and in T3 Code; a permission alert sounding (T3 runs
+  line reads "alerts on". **The note was drawn raw in Claude Code's VS Code
+  view (2026-11-02)**, every reply ending in the visible comment; since
+  then an `AssistantMessage` render hook strips it on every surface, not
+  yet seen after the change. T3 Code hides it on its own. Not yet seen: a permission alert sounding (T3 runs
   with permissions bypassed, so try it in a terminal with default
   permissions); the long-command alert; `/readback again` by ear; the
   resume after an alert. **The permission alert was heard, wrongly:** in

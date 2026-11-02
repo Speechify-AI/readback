@@ -115,7 +115,11 @@ this repo.
   while Readback is on); the extension's hook decides nothing and asks for
   nothing, so it reads a note only when the mod is on in the same session.
   The person's choice (2026-11-01), knowing it leans on the model obeying
-  every time: a long reply without the note falls back to the run.
+  every time: a long reply without the note falls back to the run. **The
+  note is never drawn**: the mod rewrites every `AssistantMessage` render
+  through `withoutSpokenNote`, since VS Code's transcript drew the comment
+  raw (2026-11-02); the stored message keeps it, which is how the extension
+  and the mod read it.
 - **A condensed turn carries the full reply too**, after `fullFrom` in the
   same paragraph list. Autoplay stops there; the full reply is one click
   away and costs nothing until played.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BRIEF, claudeCandidates, claudeCommand, CLAUDE_ARGS, condensePrompt, spokenFrom, spokenNoteFrom, SPOKEN_NOTE_INSTRUCTION, NOTE_OPEN } from "./summary.ts";
+import { BRIEF, claudeCandidates, claudeCommand, CLAUDE_ARGS, condensePrompt, spokenFrom, spokenNoteFrom, withoutSpokenNote, SPOKEN_NOTE_INSTRUCTION, NOTE_OPEN } from "./summary.ts";
 
 describe("claudeCandidates", () => {
   it("tries PATH entries first, then the usual homes", () => {
@@ -83,5 +83,11 @@ describe("on Windows", () => {
 
   it("never puts a double quote into an argument the shim line would break on", () => {
     expect([...CLAUDE_ARGS].join("")).not.toContain('"');
+  });
+
+  it("draws the reply without its spoken note", () => {
+    expect(withoutSpokenNote("Done.\n\n<!-- readback: It is done. -->\n")).toBe("Done.");
+    expect(withoutSpokenNote("A\n\n<!-- readback: x -->\n\nB")).toBe("A\n\nB");
+    expect(withoutSpokenNote("No note <!-- other -->")).toBe("No note <!-- other -->");
   });
 });

@@ -19,7 +19,7 @@
  */
 import type { EngineInterface, Register } from "claude-code";
 import type { Voice } from "../src/speechifyShared.ts";
-import { SPOKEN_NOTE_INSTRUCTION } from "../src/summaryShared.ts";
+import { SPOKEN_NOTE_INSTRUCTION, withoutSpokenNote } from "../src/summaryShared.ts";
 import {
   API_BASE,
   MODEL,
@@ -559,6 +559,13 @@ export const register: Register = (on, options) => {
       }
     };
     return answer().catch((err: unknown) => ({ text: errorText(err) }));
+  });
+
+  // The spoken note is for the ear: the transcript draws the reply without
+  // it on every surface (VS Code drew the comment raw, 2026-11-02).
+  on("ui.render", { component: "AssistantMessage" }, ($, e, next) => {
+    const text = withoutSpokenNote(e.props.text);
+    return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } });
   });
 
   on("ui.render", { component: "AbovePrompt" }, ($, e, next) => {
