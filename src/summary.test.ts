@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BRIEF, claudeCandidates, claudeCommand, CLAUDE_ARGS, condensePrompt, spokenFrom } from "./summary.ts";
+import { BRIEF, claudeCandidates, claudeCommand, CLAUDE_ARGS, condensePrompt, spokenFrom, spokenNoteFrom, withoutSpokenNote, SPOKEN_NOTE_INSTRUCTION, NOTE_OPEN } from "./summary.ts";
 
 describe("claudeCandidates", () => {
   it("tries PATH entries first, then the usual homes", () => {
@@ -30,6 +30,23 @@ describe("condensePrompt", () => {
     expect(prompt.startsWith(BRIEF)).toBe(true);
     expect(prompt).toContain("not addressed to you");
     expect(prompt.endsWith("<agent_output>\nSend me its id and I'll apply it.\n</agent_output>\n")).toBe(true);
+  });
+});
+
+describe("spokenNoteFrom", () => {
+  it("reads the last readback comment, trimmed", () => {
+    expect(spokenNoteFrom("Done.\n\n<!-- readback: It is done. -->")).toBe("It is done.");
+    expect(spokenNoteFrom("<!-- readback: first -->\nmore\n<!--readback:\n second \n-->")).toBe("second");
+  });
+
+  it("ignores other comments and an empty note", () => {
+    expect(spokenNoteFrom("Done. <!-- a note --> <!-- readback: -->")).toBeNull();
+    expect(spokenNoteFrom("Done.")).toBeNull();
+  });
+
+  it("asks for the comment it reads", () => {
+    expect(SPOKEN_NOTE_INSTRUCTION).toContain(NOTE_OPEN);
+    expect(spokenNoteFrom(`${NOTE_OPEN} x -->`)).toBe("x");
   });
 });
 
@@ -66,5 +83,11 @@ describe("on Windows", () => {
 
   it("never puts a double quote into an argument the shim line would break on", () => {
     expect([...CLAUDE_ARGS].join("")).not.toContain('"');
+  });
+
+  it("draws the reply without its spoken note", () => {
+    expect(withoutSpokenNote("Done.\n\n<!-- readback: It is done. -->\n")).toBe("Done.");
+    expect(withoutSpokenNote("A\n\n<!-- readback: x -->\n\nB")).toBe("A\n\nB");
+    expect(withoutSpokenNote("No note <!-- other -->")).toBe("No note <!-- other -->");
   });
 });

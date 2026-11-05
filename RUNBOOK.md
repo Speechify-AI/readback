@@ -49,6 +49,215 @@ under Verified.
 | Render cache | `<globalStorage>/speechify.readback/cache/<model>/<voice>/<sha256>.{mp3,json}` |
 | API key | VS Code SecretStorage, key `readback.speechifyApiKey` |
 
+## Claude Code mod (2026-10-29)
+
+**0.9.0 is the first release with the Claude Code plugin; built and
+validated, not yet run by a person in a real session, and not tagged.** The
+marketplace entry pins `ref: v0.9.0`, which does not exist until release.
+Claude Code 2.1.312 (declarations written by 2.1.277), macOS.
+
+Verified on 2026-10-29:
+
+- `npm test` (23 files, 243 tests on 2026-10-29) and the three type-check
+  configs pass. `claude plugin validate .` passes; the warnings left are no
+  icon (`ICON_MISSING`) and `.DS_Store` (not committed).
+- A condense run (`claude -p`, the flags in `mod/condense.ts`) from inside
+  a Claude Code session with `CLAUDECODE=1` returned `<spoken>` in 2.9 s;
+  no override of that variable is needed.
+- A throwaway spike, live, the same day: sound through `$.audio.play`, stop,
+  the spoken word lit in step, digit hotkeys from an empty prompt, and
+  pause/resume by cutting the MP3. Sensitive `userConfig` is asked for at
+  install and editable in `/plugin`; it is not a row in `/config`.
+
+Pending, the manual check (none run yet):
+
+1. `claude --plugin-dir .` with a key: welcome toast once, `/readback on`
+   turns on, band appears; bare `/readback` prints the status.
+2. A long reply: an orange "⠋ condensing" where the clock goes, then the
+   spinner alone while the voice renders; after pressing 1 during
+   condensing, the summary starts when it lands, the word lit. 1 pauses and resumes at the sentence start; 3 plays the
+   full reply; 2 stops.
+3. `1` in an empty prompt plays when idle; a `1` typed after other text
+   reaches Claude.
+4. Two terminals: play in B pauses A within about 1 s. A's voice survives
+   B's play (`$.store` keys not clobbered).
+5. Replay of the same reply makes no network request.
+6. No key, bad key, and a key revoked mid-session: the notices, and
+   Readback off.
+7. The condensing child shows no welcome and no band (the loop guard).
+8. ~~Desktop app: does the band show?~~ The 2.1.316 declarations raise
+   `AbovePrompt` on terminal and desktop, and the app ran Readback on
+   2026-10-31 (see 13). Whether the band itself drew is not itemised.
+9. **MP3 bitrate of Speechify's renders**, from `mp3DurationMs` against the
+   byte length of one real render. It sets how long a paragraph fits in a
+   cache file: `$.fs` rejects files over 4 MiB and a render is stored as
+   base64 JSON, so seconds ~ 4,194,304 * 3/4 * 8 / bitrate in bits per
+   second, about 196 s at 128 kbps (a formula until measured). A longer
+   render still plays; it is only not cached.
+10. ~~The voice picker draws the whole catalogue in one `Select`~~ Seen
+    2026-10-31: the band refused the tree, "Select 'voice' options must be
+    1 to 64 entries", and the picker never showed. Now a search field and
+    the first 64 matches (see CLAUDE.md). Check: `/readback voice` shows
+    the field and the list, typing narrows it, Enter on a voice picks it
+    and the next render uses it.
+11. **Speed through SSML prosody: renders and plays faster (heard
+    2026-10-31, `rate="+100%"` on simba-3.5 accepted).** The highlight was
+    off: the first render at 2× (geffen_32, the Cape Town paragraph, in
+    `~/.readback/claude-code/renders`) showed every mark 29 characters
+    early with the first six words gone. Read against the paragraph, the
+    API's marks index the plain text with the tags stripped (" meets",
+    " the", "so", "flat-topped": a mark sometimes takes the space before
+    its word), not the SSML input; the 29 was our prefix being subtracted.
+    Fixed by using the marks as bare-text offsets. **Heard right on
+    2026-10-31, later:** plain text at 2× from the first word, and a reply
+    with `a && b` and `<div>` at 1.5× with the words after them still in
+    step, so an escaped `&amp;` counts as the one character it stands for.
+    `scripts/probe-ssml.mjs` stays for the next time the API's rule is in
+    doubt.
+12. Claude Code 2.1.316 rewrote `.claude-plugin/types/claude-code/index.d.ts`
+    on `--plugin-dir .` (the engine writes it when it loads a mod); the
+    tree typechecks against it unchanged. The same rewrite made
+    `AbovePrompt` "terminal and desktop surfaces only" (it was terminal
+    only), so the desktop app can draw the band. `isInteractive` is still
+    false under the SDK (see Open, and 13).
+13. **Desktop app through `session.attach`: working, 2026-10-31.** A
+    non-interactive session waits instead of turning off, and starts when
+    a client attaches with surface `desktop` (`startPlan`,
+    `startsOnAttach`). Shaun ran it in the Claude desktop app the same
+    evening and called it working well, so the attach fires there and
+    Readback plays; not itemised: whether the band drew and the hotkeys
+    armed, or whether it ran by command as in T3. A `claude -p` run still
+    gets nothing; a phone attaching starts nothing.
+14. **Both installed, one voice (2026-10-31, not yet seen).** With the
+    extension running and the plugin on, a turn in the VS Code integrated
+    terminal is read by the extension alone: the mod probes
+    `~/.readback/endpoints` at each `turn.complete` and skips the turn when
+    a listener answers, with one toast per session. Check: the toast, one
+    reading; close VS Code and the next reply comes from the mod. The probe
+    was tried by hand against a live listener (404 answers) and a dead
+    port (refused), not yet from inside the mod.
+    **Seen from inside the mod on 2026-11-01, the wrong way:** VS Code was
+    open on another project, its window answered on its port, the mod
+    yielded, and the extension dropped the turn as not its project's, so
+    nothing played. Since then the window publishes its workspace folders
+    in the endpoint file and the mod yields only to a related window
+    (`relatedToWorkspace` on both sides). Needs the extension rebuilt and
+    reinstalled from this branch: an older extension's file has no folder
+    lines and is still yielded to. Not yet seen after the change.
+15. **T3 Code, by command (2026-10-31, not yet seen).** Settings hooks do
+    fire in a T3 Code session: a capture listener registered in
+    `~/.readback/endpoints` received this session's PreToolUse payloads
+    with its `session_id` and `cwd`, so the extension reads T3 turns
+    whenever VS Code is open, and the mod yields to it (14). Without VS
+    Code the mod is the reader: `/readback` registered while waiting starts
+    it, `/readback on` and `off` are explicit and bare `/readback` prints the
+    status (no band shows it; it also wakes a new session, whose first
+    reply is lost to the wait, seen 18:38 the same day), `/readback play`, `pause`, `stop`, `full`
+    stand in for 1, 2 and 3, `/readback voice geffen` picks by word, nothing
+    is lit. **Heard in T3 Code on 2026-10-31:** `/readback` answered with
+    the words and `/readback play` said "Playing." and sounded; later the
+    status line, `voice geffen`, `speed 2x` and `auto on` (the next reply
+    played unasked, condensed as by hand); the first
+    turn after turning on went to the extension while VS Code was open, as
+    designed. Stop, MessageDisplay and UserPromptSubmit were
+    captured too. **Seen headless the same day:** `claude -p "/readback"`
+    answered "Readback is on. When a reply lands, type /readback play…",
+    so the command is registered while waiting, starts the mod, and the
+    key check ran, all under the SDK. Installed for the test from a dev
+    marketplace at `~/.readback-dev-marketplace`: a real copy of the
+    checkout at `readback/` (rsync without node_modules, 2 MB), source
+    `./readback`. It lived under `/tmp` first; macOS cleared that
+    overnight and the plugin failed to load as "cache-miss" (2026-11-01).
+    Removing a marketplace deletes the plugin's saved key with it, so a
+    move means configuring the key again. The same morning the first reply
+    of the restarted session went unheard, the sleeping rule's cost a
+    second time, so since 2026-11-01 a surfaceless session with on and
+    autoplay both stored starts itself (`startPlan`'s `wanted`). **Seen in
+    T3 on 2026-11-01:** a new thread spoke its first reply with nothing
+    typed. An absolute path is refused by the validator, and a
+    symlink loads but the engine then refuses the hooks module as "Path
+    escapes plugin directory", so the plugin's hooks silently never run
+    (debug log, 15:01). The engine reads a path-sourced plugin from the
+    marketplace folder, not the cache copy, so an edit needs a fresh rsync
+    and a session restart or `/reload-plugins`. The key goes in with
+    `claude plugin configure readback@readback-dev --values-stdin`. Still
+    to see in T3 itself: `/readback` answers with the words; with VS Code
+    closed, a long reply then `/readback play` sounds; `/readback stop`
+    stops it. With VS Code open the extension reads the turn and the mod
+    answers `/readback play` with "Nothing to play yet".
+
+16. **Autoplay queues behind another session; a reply never pauses its
+    own note (2026-11-05, not yet heard).** Found by reading, with Codex
+    as a second reviewer: autoplay at `turn.complete` was a press of 1, so
+    a reply landing while its progress note still played paused the note,
+    and one landing while the note rendered cancelled the render, and the
+    reply went unheard either way; across sessions the last reply to land
+    took the floor and the paused session stayed paused for good. Now
+    autoplay and `/readback again` call `Player.start` (the latest turn
+    from its start), autoplay waits while another session holds the floor
+    (`watchFloor`, the band says "waiting for another session to finish"),
+    a preempted session resumes when the floor is free ("another session
+    took over" meanwhile), and Stop keeps the turn's later notes quiet.
+    Check with two sessions on autoplay: B's reply landing during A's
+    reading waits, then plays about three seconds after A stops; a press
+    of 1 in B pauses A, which resumes after B; a note followed by a short
+    tool call then the reply: the note is cut, the reply plays.
+
+17. **The alert under the floor, with an abort (2026-11-05, not yet
+    heard).** It played through `$.audio.play` with no floor claim and no
+    signal: over another session's reading (the host plays clips
+    together), and nothing could stop it. Now it claims the floor while it
+    sounds and releases it after, Stop, a typed prompt and `/readback off`
+    abort it, and one whose call ended while it rendered never sounds.
+    Check: a prompt waiting in B while A reads pauses A for the sentence,
+    A resumes after; 2 during the alert cuts it.
+
+18. **A voice per project and the project name first (2026-11-05, not yet
+    heard).** `/readback voice X` and the picker now set this project's
+    voice (`voice:<cwd>` in the store), `voice default X` the fallback,
+    `voice reset` drops the project's; the voice is read once per run, so
+    a pick elsewhere waits for the next reply. Every reply and alert opens
+    with the folder name, as the extension's lead-in, cached after the
+    first render. Check: the lead sounds before the first paragraph and
+    the band's count does not include it; 3 starts at the full reply, not
+    the lead; two projects with two voices alternate; `/readback` names
+    the scope.
+
+Open:
+
+- **No cache pruning.** `~/.readback/claude-code/renders` only grows, and a
+  render over 4 MiB is never cached (the write fails and is swallowed, with
+  no log).
+- **Windows untested.** The condensing child is macOS-checked; without
+  `claude` the full reply is read.
+- **Progressive sentence rendering is the first follow-up.** A paragraph is
+  rendered whole before it plays.
+- **A reload or a key change in `/plugin` reruns `register` in a fresh
+  environment**, so a clip already sounding cannot be stopped by the new
+  one: 2 does nothing until it ends, and the floor claim expires after 3 s.
+- **The floor's heartbeat is read-then-write**, with no compare-and-set in
+  `$.store`: in a few-ms window a session's heartbeat can overwrite a newer
+  claim. The other session then pauses and the person presses 1 again.
+- A turn that lands while Readback is off is not remembered; turning on has
+  nothing to play until the next reply.
+- A `language` change mid-session takes effect next session unless a voice
+  is picked.
+- **SDK hosts without a surface (T3 Code) start on `/readback` only**
+  (see 15 above). A non-interactive session waits for a `session.attach`
+  that draws the band (the desktop app, 13) or the person's command; one
+  that gets neither is indistinguishable from a script's `claude -p`, and
+  starting it would condense every headless reply unheard. Sound needs no
+  surface (`$.audio.play` is the platform player); the highlight does, so
+  there is none there. Unverified: whether T3 Code passes a plugin command
+  through to Claude Code at all. The extension's hook does run there, since hooks are settings, so the
+  extension already covers SDK hosts; if one ever stops running settings
+  hooks, Heard's answer for Codex Desktop was to tail the session log
+  (`~/.codex/sessions/**/*.jsonl` with a byte offset per file,
+  `heard/codex_app.py` in <https://github.com/heardlabs/heard>); Claude
+  Code's equivalent is `~/.claude/projects/`.
+- `command.run` never calls `next` (the validator reads it as a gating hook
+  without a catch), so the command is registered only when Readback can run.
+
 ## Verified on 2026-10-24
 
 - **Claude Code 2.1.310 emits a planning message before parallel tool
@@ -316,6 +525,48 @@ the tier shape you want and I'll apply it in Atlas".
   1.144) because moving it means raising `engines.vscode` and dropping
   users on older VS Code for no API we need; bump it the day a newer API
   is wanted.
+
+## Verified on 2026-11-01
+
+- **Six of the seven peer items** from the morning's survey of open source
+  readers (claude-speak, claude-speaks, claude-code-tts, claude-voice,
+  claude_voice, Response-Narrator and others) landed in one change: a
+  typed prompt stops the mod's playback (`turn.start`); `/readback again`;
+  `speakable` rewrites and `spokenTable` pairs in `plainify` (both
+  products, shown text included); the reply's own spoken note
+  (`prompt.compose` section while on, `spokenNoteFrom` in both products,
+  the run as fallback); and the three alerts (`tool.check` ask, long Bash
+  `tool.call`, and idle after a reply, removed later that day: see below).
+  301 tests, typecheck and the validator
+  pass. **Seen headless the same day:** with the dev copy installed,
+  `claude -p "Explain in about 150 words how git rebase differs from git
+  merge."` ended its answer with `<!-- readback: I explained that merge
+  preserves both histories … Nothing is open. -->`, so the section is in
+  the prompt and the model follows it on the first try; and the status
+  line reads "alerts on". **The note was drawn raw in Claude Code's VS Code
+  view (2026-11-02)**, every reply ending in the visible comment; since
+  then an `AssistantMessage` render hook strips it on every surface, not
+  yet seen after the change. T3 Code hides it on its own. Not yet seen: a permission alert sounding (T3 runs
+  with permissions bypassed, so try it in a terminal with default
+  permissions); `/readback again` by ear; the resume after an alert.
+  **Progress notes (2026-11-02, not yet seen):** the mod reads a `turn.step`
+  whose result has text and tool calls as a note while autoplay is on, the
+  extension's floor and planning filter applied; check that a note sounds
+  before its tool call runs, that the reply is not read twice, and that a
+  note arriving mid-playback takes over.
+  **The long-command alert was heard, and removed (2026-11-02):** in the
+  desktop app a research session ran slow commands back to back and said
+  "finished after about 2 minutes" after each. Gone; the permission alert
+  is the only one left. **The permission alert was heard, wrongly:** in
+  the Claude desktop app in auto mode it said "waiting for your permission"
+  for calls the classifier approved, twice each. It had been keyed on the
+  `tool.check` verdict `ask`, which auto mode answers itself. Since then it
+  is keyed on the `Notification` of type `permission_prompt`, raised only
+  once a prompt has waited about six seconds for a person, the extension's
+  signal; the ask only names the tool. Not yet seen after the change. **The idle alert was heard, and removed:** in T3
+  Code it said "Claude finished a minute ago and is waiting for you" after
+  each long reply while Shaun was still reading it, on every turn. Gone
+  the same day; the permission alert alone remains.
 
 ## Open
 

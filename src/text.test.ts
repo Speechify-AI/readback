@@ -3,6 +3,8 @@ import {
   chunkRanges,
   entryLead,
   plainify,
+  speakable,
+  spokenTable,
   toParagraphs,
   truncate,
 } from "./text.ts";
@@ -93,10 +95,28 @@ describe("plainify", () => {
     expect(plainify("Look ![a chart](chart.png) here.")).toBe("Look  here.");
   });
 
-  it("drops a table with a note", () => {
-    const out = plainify("Before.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAfter.");
-    expect(out).toContain("A table, not read out.");
+  it("reads a short table as header and value pairs", () => {
+    const out = plainify("Before.\n\n| Name | Stars |\n| --- | ---: |\n| Readback | 12 |\n| Heard | 3 |\n\nAfter.");
+    expect(out).toBe("Before.\n\nName: Readback, Stars: 12.\nName: Heard, Stars: 3.\n\nAfter.");
+  });
+
+  it("notes a long table instead of reading it", () => {
+    const rows = Array.from({ length: 5 }, (_, i) => `| r${i} | ${i} |`).join("\n");
+    const out = plainify(`| a | b |\n| --- | --- |\n${rows}`);
+    expect(out).toBe("A table of 5 rows, not read out.");
     expect(out).not.toContain("| a |");
+  });
+
+  it("notes a run of pipe rows with no separator", () => {
+    expect(spokenTable("| a | b |\n| 1 | 2 |")).toBe("A table, not read out.");
+  });
+
+  it("skips empty cells and a headerless column", () => {
+    expect(spokenTable("| a |  |\n|---|---|\n| 1 | 2 |\n|  | 4 |")).toBe("a: 1, 2.\n4.");
+  });
+
+  it("drops an HTML comment, so a spoken note is never shown", () => {
+    expect(plainify("Done.\n\n<!-- readback: It is done. -->")).toBe("Done.");
   });
 
   it("turns a heading into its own sentence", () => {
@@ -126,6 +146,30 @@ describe("plainify", () => {
     const out = plainify(`${"Sentence here. ".repeat(200)}`, 200);
     expect(out.length).toBeLessThanOrEqual(220);
     expect(out.endsWith("and more.")).toBe(true);
+  });
+});
+
+describe("speakable", () => {
+  it("says a bare URL is a link", () => {
+    expect(speakable("See https://example.com/a?b=1 for more.")).toBe("See a link for more.");
+  });
+
+  it("reads a file and line reference as a line", () => {
+    expect(speakable("Fixed in src/app.ts:42 and hooks/readback.ts:318:5.")).toBe("Fixed in src/app.ts, line 42 and hooks/readback.ts, line 318.");
+    expect(speakable("At 10:30 we met.")).toBe("At 10:30 we met.");
+    expect(speakable("Write to a@b.io:22 now.")).toBe("Write to a@b.io:22 now.");
+  });
+
+  it("names a commit by its first four characters", () => {
+    expect(speakable("Pushed as ab2caa0 and b01e9e5f3c2d4e5f6a7b8c9d0e1f2a3b4c5d6e7f.")).toBe("Pushed as commit ab2c and commit b01e.");
+    expect(speakable("Call 1234567 or read deadbeef.")).toBe("Call 1234567 or read deadbeef.");
+    expect(speakable("Id 4d39efe5-c30a-4e89.")).toBe("Id 4d39efe5-c30a-4e89.");
+  });
+
+  it("reads a version, a home path and operators as words", () => {
+    expect(speakable("Tag v0.9.0 lives in ~/.readback.")).toBe("Tag version 0.9.0 lives in home/.readback.");
+    expect(speakable("Needs n >= 3 && m != 2, or x => y.")).toBe("Needs n greater than or equal to 3 and m is not 2, or x to y.");
+    expect(speakable("a||b")).toBe("a||b");
   });
 });
 

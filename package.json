@@ -2,7 +2,7 @@
   "name": "readback",
   "displayName": "Readback",
   "description": "Hear your AI coding agent's replies in a Speechify voice, with the words highlighted as they are spoken.",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "publisher": "speechify",
   "license": "MIT",
   "repository": {
@@ -174,8 +174,8 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.webview.json",
-    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.webview.json && tsc -p tsconfig.mod.json",
+    "test": "vitest run && node scripts/validate-plugin.mjs",
     "package": "npm run typecheck && npm test && npm run build && vsce package --no-dependencies"
   },
   "devDependencies": {

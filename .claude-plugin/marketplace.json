@@ -1,0 +1,12 @@
+{
+  "name": "readback",
+  "description": "Readback: hear Claude Code's replies in a Speechify voice, with each word lit as it is spoken.",
+  "owner": { "name": "Speechify" },
+  "plugins": [
+    {
+      "name": "readback",
+      "description": "Hear Claude's replies in a Speechify voice, with each word lit above the prompt as it is spoken.",
+      "source": { "source": "github", "repo": "Speechify-AI/readback", "ref": "v0.9.0" }
+    }
+  ]
+}

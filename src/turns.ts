@@ -13,7 +13,6 @@
  * nobody was listening, condensed into one briefing. It has no full section;
  * the replies it covers are still listed on their own.
  */
-import { randomUUID } from "node:crypto";
 import { clock, entryLead, plainify, toParagraphs } from "./text.ts";
 
 export interface Turn {
@@ -118,7 +117,7 @@ export function makeTurn(input: TurnInput): Turn | null {
   if (full.length === 0) return null;
   const lead = entryLead(input.project);
   return {
-    id: randomUUID(),
+    id: globalThis.crypto.randomUUID(),
     at: at.toISOString(),
     project: input.project,
     paragraphs: [lead, ...summary, ...full],
@@ -206,7 +205,7 @@ export function alertTurn(input: AlertInput): Turn {
   const text = input.tool
     ? `Claude is waiting for your permission to ${describeToolUse(input.tool)}${where}.`
     : `${input.message.trim().replace(/[.!]+$/, "") || "Claude is waiting for your permission"}${where}.`;
-  return { id: randomUUID(), at: at.toISOString(), project: input.project, paragraphs: [text], fullFrom: null };
+  return { id: globalThis.crypto.randomUUID(), at: at.toISOString(), project: input.project, paragraphs: [text], fullFrom: null };
 }
 
 /** How many replies one catch-up reads at most. Older unheard ones are counted in the lead, not read. */
@@ -265,7 +264,7 @@ export function catchUpTurn(input: CatchUpInput): Turn | null {
     : covered.flatMap((turn) => [turn.paragraphs[0], ...spokenParagraphs(turn)]);
   if (body.length === 0) return null;
   return {
-    id: randomUUID(),
+    id: globalThis.crypto.randomUUID(),
     at: at.toISOString(),
     project: null,
     paragraphs: [lead, ...body],

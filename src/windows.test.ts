@@ -27,6 +27,12 @@ describe("relatedToWorkspace", () => {
     expect(relatedToWorkspace("/Users/me/code", [], home)).toBe(false);
   });
 
+  it("reads a trailing slash and Windows separators as the same path", () => {
+    expect(relatedToWorkspace("/Users/me/code/customers/tools/readback/", folders, home)).toBe(true);
+    expect(relatedToWorkspace("C:\\code\\readback\\src", ["C:/code/readback"], "C:\\Users\\me")).toBe(true);
+    expect(relatedToWorkspace("C:\\code\\other", ["C:/code/readback"], "C:\\Users\\me")).toBe(false);
+  });
+
   it("rejects no cwd and no folders", () => {
     expect(relatedToWorkspace(null, folders, home)).toBe(false);
     expect(relatedToWorkspace("/x", [], home)).toBe(false);

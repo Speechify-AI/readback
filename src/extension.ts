@@ -36,7 +36,7 @@ import { LiveTurns, type LiveEvent } from "./live.ts";
 import { PlayerView } from "./playerView.ts";
 import type { CodexState, WebCommand } from "./protocol.ts";
 import { checkKey } from "./speechify.ts";
-import { CATCH_UP_BRIEF, condense, findClaude } from "./summary.ts";
+import { CATCH_UP_BRIEF, condense, findClaude, spokenNoteFrom } from "./summary.ts";
 import {
   alertTurn,
   CATCH_UP_MAX,
@@ -84,8 +84,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const prompted = new Map<string, number>();
   const live = new LiveTurns((event) => onLive(event, player, { openTurns, prompted }, log));
   try {
-    listener = await startListener(endpointsDir, (payload) => live.accept(payload));
+    // The folders go in the endpoint file so the Claude Code mod yields only
+    // to a window that will read the reply (`relatedToWorkspace`, both sides).
+    const folders = () => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+    listener = await startListener(endpointsDir, (payload) => live.accept(payload), folders());
     log.info(`listening on 127.0.0.1:${listener.port}, endpoint ${listener.endpointFile}`);
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => listener?.publish(folders())));
   } catch (err) {
     log.error(`listener failed to start: ${String(err)}`);
     void vscode.window.showErrorMessage("Readback could not start its listener. Claude Code turns will not be read.");
@@ -278,9 +282,17 @@ async function speak(
   let condensed: string | null = null;
   const wanted = settings.summarize === "claude" && worthCondensing(message.markdown, settings);
   if (settings.summarize === "claude" && !wanted) log.info("the reply is already short; reading it as it stands");
-  const claudePath = wanted ? findClaude() : null;
-  if (wanted && claudePath === null) {
+  // A reply that ends with its own spoken note (asked for by the Readback
+  // plugin's prompt section when it is on in the same session) is condensed
+  // already: no run, no wait.
+  const note = wanted ? spokenNoteFrom(message.markdown) : null;
+  const claudePath = wanted && note === null ? findClaude() : null;
+  if (wanted && note === null && claudePath === null) {
     log.warn("summarize is on but no claude binary was found; reading the full reply");
+  }
+  if (note !== null) {
+    condensed = note;
+    log.info("the reply carried its own spoken note; no condensing run");
   }
   if (claudePath) {
     player.status(`Condensing a reply from ${message.project ?? "the agent"}…`);
