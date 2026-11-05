@@ -7,8 +7,8 @@
  */
 import { defaultVoice, languageCode } from "../src/claudeLanguageShared.ts";
 import { TtsError, languageFor, modelFor, sortVoices, type KeyCheck, type TtsConfig, type Voice } from "../src/speechifyShared.ts";
-import { plainify, toParagraphs } from "../src/text.ts";
-import { decideMessage, PROGRESS_MIN_CHARS, replyParagraphs, worthCondensing, type TurnLimits } from "../src/turns.ts";
+import { entryLead, plainify, toParagraphs } from "../src/text.ts";
+import { decideMessage, PROGRESS_MIN_CHARS, projectOf, replyParagraphs, worthCondensing, type TurnLimits } from "../src/turns.ts";
 import { isPlanningNote } from "../src/liveShared.ts";
 import { spokenNoteFrom } from "../src/summaryShared.ts";
 import type { ReplyTurn, State } from "./player.ts";
@@ -35,7 +35,7 @@ export const OFF_HINT = "Readback is off. Type /readback on to turn it on.";
 export const EXTENSION_READING = "Readback's VS Code extension is reading this session, so the plugin stays quiet here.";
 export const OFF_NO_VOICE = "Readback is off. Type /readback on to turn it on, then /readback voice.";
 export const USAGE =
-  "/readback shows the status; /readback on and off turn it on or off; /readback play, stop, full and again control playback; /readback voice picks the voice; /readback speed 1.25 sets the speed; /readback auto on plays each reply as it lands; /readback alerts off silences the spoken alerts.";
+  "/readback shows the status; /readback on and off turn it on or off; /readback play, stop, full and again control playback; /readback voice picks this project's voice, /readback voice default the one for projects without; /readback speed 1.25 sets the speed; /readback auto on plays each reply as it lands; /readback alerts off silences the spoken alerts.";
 
 /** The speeds offered, the extension's steps. Played through SSML prosody (ssml.ts). */
 export const RATES: readonly number[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -43,14 +43,38 @@ export const RATES: readonly number[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
 export const SELECT_MAX = 64;
 export const PICK = "Pick a voice above the prompt.";
 /** `/readback voice` where nothing draws the picker. */
-export const PICK_NO_BAND = "Name a voice: /readback voice harper, or a language or tag, like /readback voice spanish.";
+export const PICK_NO_BAND = "Name a voice for this project: /readback voice harper, or a language or tag, like /readback voice spanish.";
+/** `/readback voice default` with no name. */
+export const PICK_DEFAULT = "Name the voice for projects without one of their own: /readback voice default harper.";
 
-/** What `/readback voice <query>` did: the first match is the voice now, or there was none. */
-export function voiceSetText(voices: readonly Voice[], query: string): { voice: Voice | null; text: string } {
+/**
+ * Which voice a `/readback voice` sets: this project's (the session's
+ * directory, as the extension saves the picker's choice for the open
+ * project), or the default for projects without one. `reset` drops this
+ * project's so the default speaks again.
+ */
+export type VoiceTarget = "project" | "default" | "reset";
+
+/** The store key of a project's own voice; the default is under `voice`. */
+export function projectVoiceKey(cwd: string): string {
+  return `voice:${cwd}`;
+}
+
+/** Where the voice speaking came from, for the status line. */
+export type VoiceScope = "project" | "default" | "language";
+
+/** What `/readback voice [default] <query>` did: the first match is the voice now, or there was none. */
+export function voiceSetText(voices: readonly Voice[], query: string, target: "project" | "default" = "project"): { voice: Voice | null; text: string } {
   const voice = filterVoices(voices, query)[0] ?? null;
   if (!voice) return { voice, text: `No voice matches "${query}".` };
   const others = filterVoices(voices, query).length - 1;
-  return { voice, text: `Voice: ${voice.name} (${voice.id}, ${voice.locale}).${others > 0 ? ` ${others} other${others === 1 ? "" : "s"} matched; add a word to narrow it.` : ""}` };
+  const what = target === "project" ? "Voice for this project" : "Default voice";
+  return { voice, text: `${what}: ${voice.name} (${voice.id}, ${voice.locale}).${others > 0 ? ` ${others} other${others === 1 ? "" : "s"} matched; add a word to narrow it.` : ""}` };
+}
+
+/** After `/readback voice reset`: the default speaks here again. */
+export function voiceResetText(fallback: StoredVoice): string {
+  return `This project's voice is dropped; the default (${fallback.id}) speaks here.`;
 }
 export const NO_VOICES = "Could not reach Speechify for the voice list. Try again.";
 
@@ -116,8 +140,8 @@ export type CommandPlan =
   | { kind: "off" }
   /** Bare `/readback`: what is on, which voice, which speed, what the player is doing. */
   | { kind: "status" }
-  /** `query` names a voice by word (`/readback voice harper`); empty opens the band's picker. */
-  | { kind: "voice"; query: string }
+  /** `query` names a voice by word (`/readback voice harper`); empty opens the band's picker. `target` says whose voice. */
+  | { kind: "voice"; query: string; target: VoiceTarget }
   | { kind: "speed"; rate: number }
   /** The band's buttons as words, for a session with no band. */
   | { kind: "toggle" }
@@ -201,13 +225,16 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
     if (value === "" || !RATES.includes(rate)) return { kind: "text", text: speedText(speed) };
     return { kind: "speed", rate };
   }
-  return enabled ? { kind: "voice", query: rest.join(" ") } : { kind: "text", text: OFF_NO_VOICE };
+  if (!enabled) return { kind: "text", text: OFF_NO_VOICE };
+  if (value === "reset") return { kind: "voice", query: "", target: "reset" };
+  if (value === "default") return { kind: "voice", query: rest.slice(1).join(" "), target: "default" };
+  return { kind: "voice", query: rest.join(" "), target: "project" };
 }
 
 /** The status line bare `/readback` prints. */
 export function statusText(
   enabled: boolean,
-  voice: StoredVoice,
+  voice: StoredVoice & { scope?: VoiceScope },
   speed: number,
   state: State,
   hasLatest: boolean,
@@ -218,7 +245,8 @@ export function statusText(
   if (!enabled) return OFF_HINT;
   const hint = floorHint(floor);
   const player = (hasLatest ? playbackText(state, true).replace(/\.$/, "").toLowerCase() : "nothing loaded") + (hint ? `, ${hint}` : "");
-  return `Readback is on. Voice ${voice.id}${voice.locale ? ` (${voice.locale})` : ""}, speed ${speedLabel(speed)}, autoplay ${auto ? "on" : "off"}, alerts ${alerts ? "on" : "off"}, ${player}.`;
+  const about = [voice.locale, voice.scope === "project" ? "this project's" : voice.scope === "default" ? "the default" : voice.scope === "language" ? "from Claude's language" : ""].filter(Boolean);
+  return `Readback is on. Voice ${voice.id}${about.length > 0 ? ` (${about.join(", ")})` : ""}, speed ${speedLabel(speed)}, autoplay ${auto ? "on" : "off"}, alerts ${alerts ? "on" : "off"}, ${player}.`;
 }
 
 /** The stored alerts flag; on unless stored false. */
@@ -294,11 +322,21 @@ export function keyCheckText(check: Extract<KeyCheck, { ok: false }>): string {
 export type TurnEvent = { answer: string; turnId: string; isAborted: boolean; reason: string; agentId?: string };
 
 /**
+ * The spoken cue before a reply: the project's folder name, as the
+ * extension's lead-in, so with several sessions speaking the ear knows
+ * which project this is. One render per project, cached after the first.
+ */
+export function leadFor(cwd: string | null): string {
+  return entryLead(projectOf(cwd));
+}
+
+/**
  * The main loop's finished answer as the latest turn, or null when it is not
  * one to read. Only a turn that ended normally is: one that died on an error
- * or a refusal can still carry the text written before it did.
+ * or a refusal can still carry the text written before it did. `lead` is
+ * spoken first (`leadFor`).
  */
-export function replyTurn(e: TurnEvent): ReplyTurn | null {
+export function replyTurn(e: TurnEvent, lead: string | null = null): ReplyTurn | null {
   if (e.agentId !== undefined || e.isAborted || e.reason !== "answer" || e.answer.trim() === "") return null;
   if (decideMessage(e.answer, null, LIMITS).kind === "skip") return null;
   const { full } = replyParagraphs({ markdown: e.answer, limits: LIMITS });
@@ -308,7 +346,7 @@ export function replyTurn(e: TurnEvent): ReplyTurn | null {
   // one is read as it stands, note or not.
   const condensing = worthCondensing(e.answer, LIMITS);
   const note = condensing ? summaryFrom(spokenNoteFrom(e.answer)) : null;
-  return { id: e.turnId, summary: note ?? [], full, condensing: condensing && note === null };
+  return { id: e.turnId, summary: note ?? [], full, condensing: condensing && note === null, lead, note: false };
 }
 
 export type StepEvent = { turnId: string; index: number; answer: string; toolUses: readonly unknown[]; agentId?: string };
@@ -326,7 +364,7 @@ export function noteTurn(e: StepEvent): ReplyTurn | null {
   const limits = { ...LIMITS, minChars: PROGRESS_MIN_CHARS };
   if (decideMessage(e.answer, null, limits).kind === "skip" || isPlanningNote(e.answer)) return null;
   const { full } = replyParagraphs({ markdown: e.answer, limits });
-  return full.length === 0 ? null : { id: `${e.turnId}:${e.index}`, summary: [], full, condensing: false };
+  return full.length === 0 ? null : { id: `${e.turnId}:${e.index}`, summary: [], full, condensing: false, lead: null, note: true };
 }
 
 /** The condensed reply's paragraphs, or null when condensing gave nothing. */

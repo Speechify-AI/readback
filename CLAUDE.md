@@ -176,6 +176,21 @@ and shares none of the extension's host code.
   band. The install dialog cannot be hooked, so the key is checked live when
   the person turns Readback on, and a 401 or 403 on a later render turns it
   off with a notice pointing at `/plugin`.
+- **A voice per project, a default for the rest, and the project's name
+  first.** `/readback voice harper` and the picker set the voice for this
+  project (the store key `voice:<cwd>`, `projectVoiceKey`), as the
+  extension saves the picker's choice for the open project; `/readback
+  voice default harper` sets the one under `voice` for projects without
+  their own; `/readback voice reset` drops this project's. Unset both, the
+  voice follows Claude's `language` as before. The status line says which
+  spoke (`VoiceScope`). **The voice is read once per run** (`voiceForRun`,
+  until the player is idle): a pick in another session used to change the
+  speaker between two paragraphs of one reply (2026-11-05). **Every reply
+  and alert opens with the project's folder name** (`leadFor`, the
+  extension's `entryLead`), one cached render per project, so with several
+  sessions speaking the ear knows which project this is; a progress note
+  carries no lead. The lead counts as the first paragraph of its run in
+  the band, and 3 skips it.
 - **1 and 3 are always armed, 2 while something is loaded**, by the
   person's choice (2026-10-29). A bare digit in an empty prompt goes to the
   band, so a message cannot start with 1 or 3 typed first; accepted.

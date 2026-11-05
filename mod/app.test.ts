@@ -14,6 +14,9 @@ import {
   speedSetText,
   statusText,
   voiceSetText,
+  voiceResetText,
+  projectVoiceKey,
+  leadFor,
   REFUSED,
   apiKeyFrom,
   autoText,
@@ -127,9 +130,12 @@ describe("/readback", () => {
   });
 
   it("voice only while on", () => {
-    expect(readbackCommand("voice", "k", true)).toEqual({ kind: "voice", query: "" });
-    expect(readbackCommand(" Voice ", "k", true)).toEqual({ kind: "voice", query: "" });
-    expect(readbackCommand("voice Harper en-US", "k", true)).toEqual({ kind: "voice", query: "harper en-us" });
+    expect(readbackCommand("voice", "k", true)).toEqual({ kind: "voice", query: "", target: "project" });
+    expect(readbackCommand(" Voice ", "k", true)).toEqual({ kind: "voice", query: "", target: "project" });
+    expect(readbackCommand("voice Harper en-US", "k", true)).toEqual({ kind: "voice", query: "harper en-us", target: "project" });
+    expect(readbackCommand("voice default harper", "k", true)).toEqual({ kind: "voice", query: "harper", target: "default" });
+    expect(readbackCommand("voice default", "k", true)).toEqual({ kind: "voice", query: "", target: "default" });
+    expect(readbackCommand("voice reset", "k", true)).toEqual({ kind: "voice", query: "", target: "reset" });
     const off = readbackCommand("voice", "k", false);
     expect(off.kind).toBe("text");
   });
@@ -233,7 +239,8 @@ describe("turns", () => {
   const e = { answer: LONG, turnId: "t1", isAborted: false, reason: "answer" };
 
   it("a main-loop answer becomes the latest turn", () => {
-    expect(replyTurn(e)).toEqual({ id: "t1", summary: [], full: [LONG], condensing: false });
+    expect(replyTurn(e)).toEqual({ id: "t1", summary: [], full: [LONG], condensing: false, lead: null, note: false });
+    expect(replyTurn(e, "readback.")).toMatchObject({ lead: "readback." });
   });
 
   it("subagent, aborted, failed, refused, empty and short turns are ignored", () => {
@@ -247,7 +254,7 @@ describe("turns", () => {
 
   it("a step that wrote text and then called tools is a progress note, read as it stands", () => {
     const step = { turnId: "t1", index: 0, answer: "Reading the listener and the project rule next.", toolUses: [{ name: "Read" }] };
-    expect(noteTurn(step)).toEqual({ id: "t1:0", summary: [], full: ["Reading the listener and the project rule next."], condensing: false });
+    expect(noteTurn(step)).toEqual({ id: "t1:0", summary: [], full: ["Reading the listener and the project rule next."], condensing: false, lead: null, note: true });
     expect(noteTurn({ ...step, toolUses: [] })).toBeNull();
     expect(noteTurn({ ...step, agentId: "a1" })).toBeNull();
     expect(noteTurn({ ...step, answer: "On it." })).toBeNull();
@@ -314,6 +321,12 @@ describe("voice", () => {
       async () => VOICES,
     );
     expect(await voice()).toEqual({ id: "harper_32", locale: "en-US" });
+  });
+
+  it("the lead is the project's folder name, as the extension's", () => {
+    expect(leadFor("/Users/me/Projects/readback")).toBe("readback.");
+    expect(leadFor("C:\\work\\app\\")).toBe("app.");
+    expect(leadFor(null)).toBe("Readback.");
   });
 
   it("a malformed stored voice is ignored", () => {
@@ -419,7 +432,10 @@ describe("the band", () => {
       { id: "aitana", name: "Aitana", locale: "es-MX", tags: ["Language:Spanish"], models: ["simba-3.0"], gender: "female", previewAudio: null },
       { id: "pablo", name: "Pablo", locale: "es-ES", tags: ["Language:Spanish"], models: ["simba-3.0"], gender: "male", previewAudio: null },
     ] as unknown as Parameters<typeof voiceSetText>[0];
-    expect(voiceSetText(voices, "harper")).toMatchObject({ voice: { id: "harper_32" }, text: "Voice: Harper (harper_32, en-US)." });
+    expect(voiceSetText(voices, "harper")).toMatchObject({ voice: { id: "harper_32" }, text: "Voice for this project: Harper (harper_32, en-US)." });
+    expect(voiceSetText(voices, "harper", "default").text).toBe("Default voice: Harper (harper_32, en-US).");
+    expect(voiceResetText({ id: "harper_32", locale: "en-US" })).toBe("This project's voice is dropped; the default (harper_32) speaks here.");
+    expect(projectVoiceKey("/w/one")).toBe("voice:/w/one");
     expect(voiceSetText(voices, "spanish").text).toMatch(/1 other matched/);
     expect(voiceSetText(voices, "klingon")).toEqual({ voice: null, text: 'No voice matches "klingon".' });
   });
@@ -430,6 +446,9 @@ describe("the band", () => {
       "Readback is on. Voice harper_32 (en-US), speed 1×, autoplay off, alerts on, nothing loaded.",
     );
     expect(statusText(true, { id: "aitana", locale: "" }, 1.5, "playing", true)).toBe("Readback is on. Voice aitana, speed 1.5×, autoplay off, alerts on, playing.");
+    expect(statusText(true, { id: "aitana", locale: "es-MX", scope: "project" }, 1, "idle", false)).toMatch(/^Readback is on\. Voice aitana \(es-MX, this project's\),/);
+    expect(statusText(true, { id: "harper_32", locale: "", scope: "default" }, 1, "idle", false)).toMatch(/Voice harper_32 \(the default\),/);
+    expect(statusText(true, { id: "lucia_32", locale: "es-ES", scope: "language" }, 1, "idle", false)).toMatch(/\(es-ES, from Claude's language\),/);
     expect(statusText(true, { id: "aitana", locale: "es-MX" }, 2, "paused", true, true, false)).toMatch(/autoplay on, alerts off, paused\.$/);
     expect(statusText(true, { id: "aitana", locale: "" }, 1, "paused", true, true, true, "preempted")).toMatch(/paused, another session took over\.$/);
     expect(statusText(true, { id: "aitana", locale: "" }, 1, "idle", true, true, true, "queued")).toMatch(/stopped, waiting for another session to finish\.$/);

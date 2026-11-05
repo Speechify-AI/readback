@@ -26,6 +26,7 @@ import {
   EXTENSION_READING,
   OFF,
   PICK,
+  PICK_DEFAULT,
   PICK_NO_BAND,
   WELCOME,
   alertsText,
@@ -39,6 +40,9 @@ import {
   homeFrom,
   isRefusal,
   keyCheckText,
+  leadFor,
+  projectVoiceKey,
+  voiceResetText,
   nextRate,
   onText,
   pickedVoice,
@@ -66,6 +70,7 @@ import {
   type FloorNote,
   type PressAction,
   type StoredVoice,
+  type VoiceScope,
   noteTurn,
 } from "../mod/app.ts";
 import { permissionText, permissionWorthSaying, promptWaiting } from "../mod/alerts.ts";
@@ -113,7 +118,12 @@ type App = {
   actions: BandActions;
   /** The voices this key renders on the model, fetched once. */
   catalogue(): Promise<Voice[]>;
-  currentVoice(): Promise<StoredVoice>;
+  /** The voice speaking next: this project's, else the default, else one from Claude's language. */
+  currentVoice(): Promise<StoredVoice & { scope: VoiceScope }>;
+  /** This session's directory, fixed for its life. */
+  cwd: string;
+  /** The spoken cue before a reply or alert: the project's name. */
+  lead: string;
   version(): Promise<string>;
   http: Http;
   setSpeed(rate: number): Promise<void>;
@@ -147,6 +157,7 @@ function build(
   $: EngineInterface,
   apiKey: string | null,
   session: string,
+  cwd: string,
   home: string,
   platform: string,
   enabled: boolean,
@@ -164,13 +175,16 @@ function build(
   };
   const cache = diskCache(files, `${home}/${CACHE_DIR}`);
   // Only a window on this session's project reads the reply; another's would not, and nor would we.
-  const extensionReading = async () =>
+  const extensionReading = () =>
     extensionListening(
       { list: (dir) => $.fs.list(dir), read: (path) => $.fs.read(path), fetch: (url) => $.http.fetch(url) },
       `${home}/${ENDPOINTS_DIR}`,
-      await $.session.cwd(),
+      cwd,
       home,
     );
+  // The spoken cue before every reply and alert: the project's name, one
+  // cached render per project, so the ear tells sessions apart.
+  const lead = leadFor(cwd);
 
   let versionRead: Promise<string> | null = null;
   const version = () =>
@@ -194,11 +208,23 @@ function build(
     async () => ((await $.settings.read()) as { language?: unknown }).language,
     catalogue,
   );
-  const currentVoice = async (): Promise<StoredVoice> => {
+  // This project's voice first (the extension saves the picker's choice per
+  // project too), then the default, then Claude's language.
+  const currentVoice = async (): Promise<StoredVoice & { scope: VoiceScope }> => {
+    const own = storedVoice(await $.store.get(projectVoiceKey(cwd)));
+    if (own) return { ...own, scope: "project" };
     const stored = storedVoice(await $.store.get("voice"));
-    if (stored) return stored;
-    return fallback();
+    if (stored) return { ...stored, scope: "default" };
+    return { ...(await fallback()), scope: "language" };
   };
+  // One voice per run: read when the first paragraph renders and kept until
+  // the player is idle, so a pick in another session does not change the
+  // speaker mid-reply (2026-11-05). The next run speaks in the new voice.
+  let runVoice: Promise<StoredVoice> | null = null;
+  const voiceForRun = () => (runVoice ??= currentVoice().then((v) => v, (err: unknown) => {
+    runVoice = null;
+    throw err;
+  }));
 
   const floor = new Floor(
     { get: (key) => $.store.get(key), set: (key, value) => $.store.set(key, value) },
@@ -293,13 +319,14 @@ function build(
   const player: Player = new Player({
     render: async (text) => {
       if (!apiKey) throw new Error("no key");
-      const cfg = ttsConfig(apiKey, await currentVoice());
+      const cfg = ttsConfig(apiKey, await voiceForRun());
       const v = await version();
       return renderParagraph(text, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v), state.speed);
     },
     play: (bytes, signal) => $.audio.play({ base64: base64Of(bytes), mime: "audio/mpeg" }, { signal }),
     now: () => $.clock.now(),
     onChange: () => {
+      if (player.view().state === "idle") runVoice = null;
       syncTimers();
       $.ui.invalidate("ui.render");
     },
@@ -370,7 +397,9 @@ function build(
     if (!apiKey || !state.enabled || !state.alerts) return;
     const cfg = ttsConfig(apiKey, await currentVoice());
     const v = await version();
-    const rendered = await renderParagraph(text, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v), state.speed);
+    const render = (t: string) => renderParagraph(t, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v), state.speed);
+    // The project's name first, as before a reply: the alert says whose prompt waits.
+    const clips = [await render(lead), await render(text)];
     if (!state.enabled || !state.alerts || !stillWanted()) return;
     stopAlert();
     const wasPlaying = player.view().state === "playing";
@@ -384,7 +413,10 @@ function build(
       floor.claim().catch(() => {});
     });
     try {
-      await $.audio.play({ base64: base64Of(rendered.audio), mime: "audio/mpeg" }, { signal: abort.signal });
+      for (const clip of clips) {
+        if (abort.signal.aborted) break;
+        await $.audio.play({ base64: base64Of(clip.audio), mime: "audio/mpeg" }, { signal: abort.signal });
+      }
     } finally {
       hold.cancel();
       if (alerting === abort) alerting = null;
@@ -400,6 +432,8 @@ function build(
     actions,
     catalogue,
     currentVoice,
+    cwd,
+    lead,
     version,
     http,
     setSpeed,
@@ -437,6 +471,7 @@ async function start($: EngineInterface, apiKey: string | null): Promise<void> {
     $,
     apiKey,
     await $.session.id(),
+    await $.session.cwd(),
     home,
     platform,
     enabled,
@@ -562,7 +597,7 @@ export const register: Register = (on, options) => {
     if (!app || !app.state.enabled) return next(e);
     const result = await next(e);
     if (e.agentId === undefined) app.state.notesMuted = false;
-    const turn = replyTurn(e);
+    const turn = replyTurn(e, app.lead);
     if (turn && (await app.extensionReading())) {
       app.state.yielded = true;
       if (!app.state.toldExtension) {
@@ -652,11 +687,16 @@ export const register: Register = (on, options) => {
           } catch {
             return { text: NO_VOICES };
           }
+          if (plan.target === "reset") {
+            await $.store.delete(projectVoiceKey(a.cwd));
+            return { text: voiceResetText(await a.currentVoice()) };
+          }
           if (plan.query !== "") {
-            const { voice, text } = voiceSetText(voices, plan.query);
-            if (voice) await $.store.set("voice", pickedVoice(voices, voice.id));
+            const { voice, text } = voiceSetText(voices, plan.query, plan.target);
+            if (voice) await $.store.set(plan.target === "project" ? projectVoiceKey(a.cwd) : "voice", pickedVoice(voices, voice.id));
             return { text };
           }
+          if (plan.target === "default") return { text: PICK_DEFAULT };
           if (!hasBand(await $.session.surfaces())) return { text: PICK_NO_BAND };
           a.state.pickerVoice = (await a.currentVoice()).id;
           a.state.pickerQuery = "";
@@ -696,7 +736,7 @@ export const register: Register = (on, options) => {
       return voicePicker(list, state.pickerVoice, state.pickerQuery, els, {
         pick: (id) => {
           close();
-          $.store.set("voice", pickedVoice(list, id)).catch(a.report);
+          $.store.set(projectVoiceKey(a.cwd), pickedVoice(list, id)).catch(a.report);
         },
         search: (query) => {
           state.pickerQuery = query;

@@ -319,6 +319,28 @@ describe("Player", () => {
     expect(f.plays.length).toBe(1);
   });
 
+  it("a lead plays first, counts as the run's first paragraph, and Full reply skips it", async () => {
+    const f = fake();
+    f.player.setLatest({ ...turn("a", SUMMARY, FULL), lead: "readback." });
+    await f.player.toggle();
+    expect(f.renders[0]).toBe("readback.");
+    expect(f.player.view()).toMatchObject({ kind: "summary", paragraph: 1, paragraphs: SUMMARY.length });
+    f.plays[0]!.finish();
+    await settle();
+    expect(f.player.view()).toMatchObject({ kind: "summary", paragraph: 1, paragraphs: SUMMARY.length });
+    expect(last(f.plays).bytes).toEqual(rendered(SUMMARY[0]!).audio);
+    await f.player.playFull();
+    expect(f.player.view()).toMatchObject({ kind: "full", paragraph: 1, paragraphs: FULL.length });
+    expect(last(f.plays).bytes).toEqual(rendered(FULL[0]!).audio);
+  });
+
+  it("a note shows as a note", async () => {
+    const f = fake();
+    f.player.setLatest({ ...turn("n", [], ["The note."]), note: true });
+    await f.player.toggle();
+    expect(f.player.view()).toMatchObject({ kind: "note", paragraph: 1, paragraphs: 1 });
+  });
+
   it("stop goes idle and unloads", async () => {
     const f = fake();
     f.player.setLatest(turn("a", SUMMARY, FULL));

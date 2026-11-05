@@ -23,8 +23,12 @@ import { Playlist, type Move } from "../src/webview/playlist.ts";
 import { sliceFromMs } from "./bytes.ts";
 import { sentenceSegments, type Segments } from "./sentence.ts";
 
-/** Paragraph lists from `replyParagraphs`; `condensing` while a summary may still come. */
-export type ReplyTurn = { id: string; summary: string[]; full: string[]; condensing: boolean };
+/**
+ * Paragraph lists from `replyParagraphs`; `condensing` while a summary may
+ * still come. `lead` is the spoken cue before them (the project's name, one
+ * cached render per project), none for a progress note, which `note` marks.
+ */
+export type ReplyTurn = { id: string; summary: string[]; full: string[]; condensing: boolean; lead?: string | null; note?: boolean };
 
 export type PlayerDeps = {
   render(text: string): Promise<Rendered>;
@@ -39,10 +43,11 @@ export type State = "idle" | "waiting" | "loading" | "playing" | "paused";
 
 export type View = {
   state: State;
-  kind: "summary" | "full" | null;
+  /** What the run is reading: the summary, the full reply, or a progress note. The lead counts as its run's first paragraph. */
+  kind: "summary" | "full" | "note" | null;
   /** 1-based paragraph within the run; 0 when there is none. */
   paragraph: number;
-  /** Paragraphs in the run (the summary, or the full reply). */
+  /** Paragraphs in the run (the summary, or the full reply), the lead not counted. */
   paragraphs: number;
   /** Position in the current paragraph. */
   positionMs: number;
@@ -53,7 +58,11 @@ export type View = {
 interface Loaded {
   id: string;
   paragraphs: string[];
+  /** Index of the full reply's first paragraph, after a lead and a summary; null with no summary. */
   fullFrom: number | null;
+  /** 1 when `paragraphs[0]` is the lead, else 0. */
+  lead: number;
+  note: boolean;
 }
 
 interface Track {
@@ -156,7 +165,7 @@ export class Player {
   async playFull(): Promise<void> {
     const turn = this.latest;
     if (!turn || turn.full.length === 0) return;
-    await this.load(turn, turn.summary.length);
+    await this.load(turn, (turn.lead ? 1 : 0) + turn.summary.length);
   }
 
   /**
@@ -186,15 +195,17 @@ export class Player {
     let paragraph = 0;
     let paragraphs = 0;
     if (turn && this.state !== "idle" && this.state !== "waiting") {
-      const fullFrom = turn.fullFrom ?? 0;
-      if (turn.fullFrom !== null && this.index < turn.fullFrom) {
+      // The lead is paragraph 1 of whatever run follows it.
+      const index = Math.max(this.index - turn.lead, 0);
+      const fullFrom = turn.fullFrom === null ? null : turn.fullFrom - turn.lead;
+      if (fullFrom !== null && index < fullFrom) {
         kind = "summary";
-        paragraph = this.index + 1;
-        paragraphs = turn.fullFrom;
+        paragraph = index + 1;
+        paragraphs = fullFrom;
       } else {
-        kind = "full";
-        paragraph = this.index - fullFrom + 1;
-        paragraphs = turn.paragraphs.length - fullFrom;
+        kind = turn.note ? "note" : "full";
+        paragraph = index - (fullFrom ?? 0) + 1;
+        paragraphs = turn.paragraphs.length - turn.lead - (fullFrom ?? 0);
       }
     }
     const showing = track !== null && (this.state === "playing" || this.state === "paused");
@@ -225,9 +236,10 @@ export class Player {
     this.unload(false);
     this.pauseOnLoad = false;
     const gen = this.gen;
-    const fullFrom = turn.summary.length > 0 ? turn.summary.length : null;
-    const paragraphs = [...turn.summary, ...turn.full];
-    this.loadedTurn = { id: turn.id, paragraphs, fullFrom };
+    const lead = turn.lead ? [turn.lead] : [];
+    const fullFrom = turn.summary.length > 0 ? lead.length + turn.summary.length : null;
+    const paragraphs = [...lead, ...turn.summary, ...turn.full];
+    this.loadedTurn = { id: turn.id, paragraphs, fullFrom, lead: lead.length, note: turn.note === true };
     this.playlist.clear();
     this.playlist.add({ id: turn.id, length: paragraphs.length, fullFrom });
     return this.enter(this.playlist.goTo(turn.id, index, true), gen);
@@ -397,5 +409,5 @@ function sentenceAtMs(sentences: readonly TimedRange[], ms: number): TimedRange 
 }
 
 function copy(turn: ReplyTurn): ReplyTurn {
-  return { id: turn.id, summary: [...turn.summary], full: [...turn.full], condensing: turn.condensing };
+  return { id: turn.id, summary: [...turn.summary], full: [...turn.full], condensing: turn.condensing, lead: turn.lead ?? null, note: turn.note === true };
 }

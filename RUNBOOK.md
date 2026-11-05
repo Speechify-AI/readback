@@ -212,6 +212,17 @@ Pending, the manual check (none run yet):
     Check: a prompt waiting in B while A reads pauses A for the sentence,
     A resumes after; 2 during the alert cuts it.
 
+18. **A voice per project and the project name first (2026-11-05, not yet
+    heard).** `/readback voice X` and the picker now set this project's
+    voice (`voice:<cwd>` in the store), `voice default X` the fallback,
+    `voice reset` drops the project's; the voice is read once per run, so
+    a pick elsewhere waits for the next reply. Every reply and alert opens
+    with the folder name, as the extension's lead-in, cached after the
+    first render. Check: the lead sounds before the first paragraph and
+    the band's count does not include it; 3 starts at the full reply, not
+    the lead; two projects with two voices alternate; `/readback` names
+    the scope.
+
 Open:
 
 - **No cache pruning.** `~/.readback/claude-code/renders` only grows, and a
