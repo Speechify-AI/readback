@@ -264,6 +264,9 @@ function build(
   const floorFree = async () => {
     if ((await floor.beat()) === "lost") return;
     const note = state.floor;
+    // A render preempted in flight lands paused; until it has, there is
+    // nothing to resume, so keep watching.
+    if (note === "preempted" && player.view().state === "loading") return;
     unwatch();
     // Queued: the latest turn from its start. Preempted: resume where the
     // pause left it, which a press of 1 does; nothing to resume means the
@@ -396,22 +399,35 @@ function build(
   };
   const alert = async (text: string, stillWanted: () => boolean) => {
     if (!apiKey || !state.enabled || !state.alerts) return;
+    // Abortable from the first moment, so a Stop during the render holds.
+    stopAlert();
+    const abort = new AbortController();
+    alerting = abort;
     const cfg = ttsConfig(apiKey, await currentVoice());
     const v = await version();
     const render = (t: string) => renderParagraph(t, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v), state.speed);
     // The project's name first, as before a reply: the alert says whose prompt waits.
     const clips = [await render(lead), await render(text)];
-    if (!state.enabled || !state.alerts || !stillWanted()) return;
-    stopAlert();
+    if (abort.signal.aborted || !state.enabled || !state.alerts || !stillWanted()) {
+      if (alerting === abort) alerting = null;
+      return;
+    }
     const wasPlaying = player.view().state === "playing";
     if (wasPlaying) await player.toggle();
-    const abort = new AbortController();
-    alerting = abort;
-    // Held by claim, not beat: the alert is urgent, and no heartbeat of ours
-    // runs while the player is paused.
+    // Taken once, then held by beat as a reading is: a press in another
+    // session takes it back, and the alert yields to it.
     await floor.claim();
+    let lost = false;
     const hold = $.clock.every(HEARTBEAT_MS, () => {
-      floor.claim().catch(() => {});
+      floor.beat().then(
+        (r) => {
+          if (r === "lost") {
+            lost = true;
+            abort.abort();
+          }
+        },
+        () => {},
+      );
     });
     try {
       for (const clip of clips) {
@@ -421,6 +437,11 @@ function build(
     } finally {
       hold.cancel();
       if (alerting === abort) alerting = null;
+    }
+    if (lost) {
+      // The other session speaks now; the reply paused for the alert resumes after it, as any preempted one.
+      if (wasPlaying) watchFloor("preempted");
+      return;
     }
     if (abort.signal.aborted) return;
     if (wasPlaying && player.view().state === "paused") await press("toggle");
