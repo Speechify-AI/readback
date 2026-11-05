@@ -142,6 +142,16 @@ export class Player {
     this.unload();
   }
 
+  /**
+   * The latest turn from its start, whatever is loaded: what autoplay and
+   * `/readback again` do. Not a press of 1, which acts on what is loaded
+   * (a reply landing on a paused note would resume the note, 2026-11-05).
+   */
+  async start(): Promise<void> {
+    if (this.pausing) await this.pausing;
+    await this.startLatest();
+  }
+
   /** Key 3: the latest turn's full reply from its first paragraph, whatever is loaded. */
   async playFull(): Promise<void> {
     const turn = this.latest;

@@ -156,12 +156,21 @@ and shares none of the extension's host code.
   turn waits for its summary, a turn yielded to the extension stays
   silent. Turning on runs `GET /v1/voices` and nothing else. Condensing
   runs at turn end on their Claude subscription, as in the extension.
+  **Autoplay and `/readback again` start the latest turn (`Player.start`),
+  never the Play button's toggle**: a reply landing on a paused or loading
+  note would resume or cancel the note and go unheard (2026-11-05).
 - **One speaker across sessions.** A claim record under `$.store`'s `floor`
   key (`mod/floor.ts`), refreshed every second and free after 3 s without a
-  heartbeat, so a crashed session never holds the floor. Pressing play
-  takes it; losing it pauses without releasing anything. A session waiting
-  on condensing holds the floor with nothing sounding, and another
-  session's play cancels that wait.
+  heartbeat, so a crashed session never holds the floor. A press takes it
+  at once; **autoplay waits its turn**: with another session speaking, the
+  turn is queued and a watch (`watchFloor`, once a second) starts it when
+  the floor is free. Losing the floor pauses without releasing anything,
+  and the same watch resumes the pause once the floor is free; a session
+  losing it while waiting on condensing queues again (`preemptedNote`). The
+  band and the status line say which (`floorHint`: "waiting for another
+  session to finish", "another session took over"); any press ends the
+  watch. Before this, the last reply to land took the floor and the other
+  session stayed paused with nobody to resume it (2026-11-05).
 - **The key lives only in the sensitive `userConfig` field
   `speechify_api_key`.** Never in `$.store`, a file, a log, a toast or the
   band. The install dialog cannot be hooked, so the key is checked live when
@@ -222,7 +231,9 @@ and shares none of the extension's host code.
   result says outright what the extension infers from MessageDisplay and
   PreToolUse timing, and `turn.complete`'s `answer` is the final text
   alone, so no note is read twice. With autoplay off nothing plays, as for
-  replies; a note yields to the extension like a reply does.
+  replies; a note yields to the extension like a reply does. **Stop mutes
+  the turn's later notes** (`notesMuted`, until the next prompt or the
+  reply): the person asked for quiet; the reply itself still plays.
 - **One alert, on by default, off by `/readback alerts off`**
   (`mod/alerts.ts`, stored under `alerts`): the engine's `Notification` of
   type `permission_prompt` (`classic.Notification`, raised once a prompt

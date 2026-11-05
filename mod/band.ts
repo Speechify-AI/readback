@@ -31,8 +31,12 @@ function meta(view: View): string {
   return parts.filter(Boolean).join(" · ");
 }
 
-/** `frame` turns the spinner; the caller advances it on its clock. `speed` is shown on its button. */
-export function band(view: View, els: Els, actions: BandActions, frame = 0, speed = 1): unknown {
+/**
+ * `frame` turns the spinner; the caller advances it on its clock. `speed` is
+ * shown on its button. `hint` is why the session is silent for the floor
+ * (`floorHint`), dim after the controls.
+ */
+export function band(view: View, els: Els, actions: BandActions, frame = 0, speed = 1, hint: string | null = null): unknown {
   const { Box, Text, Button } = els;
   const loaded = view.state !== "idle";
   // The label says what a press does: waiting or loading, it cancels.
@@ -61,6 +65,7 @@ export function band(view: View, els: Els, actions: BandActions, frame = 0, spee
   const spin = SPINNER[frame % SPINNER.length];
   if (view.state === "loading") controls.push(Text({ color: BUSY, children: spin }));
   if (view.state === "waiting") controls.push(Text({ color: BUSY, children: `${spin} condensing` }));
+  if (hint) controls.push(Text({ dimColor: true, children: hint }));
 
   const rows: unknown[] = [Box({ flexDirection: "row", gap: 1, children: controls })];
   if (view.sentence) {

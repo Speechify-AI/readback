@@ -288,6 +288,37 @@ describe("Player", () => {
     expect(f.plays).toEqual([]);
   });
 
+  it("start plays the latest turn from its start whatever is loaded: a reply landing on a paused note does not resume the note", async () => {
+    const f = fake();
+    f.player.setLatest(turn("note", [], ["The note."]));
+    await f.player.toggle();
+    await f.player.toggle(); // paused
+    f.player.setLatest(turn("reply", [], ["The reply."]));
+    await f.player.start();
+    await settle();
+    expect(f.player.view()).toMatchObject({ state: "playing", kind: "full" });
+    expect(last(f.renders)).toBe("The reply.");
+    expect(f.plays[0]!.signal.aborted).toBe(true);
+    expect(last(f.plays).bytes).toEqual(rendered("The reply.").audio);
+  });
+
+  it("start while a note is still loading plays the reply, not nothing", async () => {
+    const d = deferred<Rendered>();
+    const f = fake({ render: (text) => (text === "The note." ? d.promise : Promise.resolve(rendered(text))) });
+    f.player.setLatest(turn("note", [], ["The note."]));
+    void f.player.toggle(); // resolves only once the render lands, as the hook's detached press
+    await settle();
+    expect(f.player.view().state).toBe("loading");
+    f.player.setLatest(turn("reply", [], ["The reply."]));
+    await f.player.start();
+    await settle();
+    expect(f.player.view()).toMatchObject({ state: "playing" });
+    expect(last(f.plays).bytes).toEqual(rendered("The reply.").audio);
+    d.resolve(rendered("The note.")); // the stale render lands on a gone generation
+    await settle();
+    expect(f.plays.length).toBe(1);
+  });
+
   it("stop goes idle and unloads", async () => {
     const f = fake();
     f.player.setLatest(turn("a", SUMMARY, FULL));

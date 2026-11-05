@@ -20,6 +20,8 @@ import {
   bandMode,
   chooseVoice,
   claimsFloor,
+  floorHint,
+  preemptedNote,
   clocksWanted,
   filterVoices,
   nextRate,
@@ -348,6 +350,22 @@ describe("playback wiring", () => {
     expect(claimsFloor("loading", "toggle", true)).toBe(false);
     expect(claimsFloor("playing", "full", true)).toBe(true);
     expect(claimsFloor("idle", "full", false)).toBe(false);
+    expect(claimsFloor("paused", "start", true)).toBe(true);
+    expect(claimsFloor("playing", "start", true)).toBe(true);
+    expect(claimsFloor("idle", "start", false)).toBe(false);
+  });
+
+  it("a session losing the floor queues again when it was waiting on condensing, else it is preempted and will resume", () => {
+    expect(preemptedNote("waiting")).toBe("queued");
+    expect(preemptedNote("playing")).toBe("preempted");
+    expect(preemptedNote("loading")).toBe("preempted");
+    expect(preemptedNote("paused")).toBe("preempted");
+  });
+
+  it("the floor hint says why the session is silent", () => {
+    expect(floorHint(null)).toBeNull();
+    expect(floorHint("queued")).toBe("waiting for another session to finish");
+    expect(floorHint("preempted")).toBe("another session took over");
   });
 
   it("the clocks run while something is pending or playing", () => {
@@ -413,6 +431,8 @@ describe("the band", () => {
     );
     expect(statusText(true, { id: "aitana", locale: "" }, 1.5, "playing", true)).toBe("Readback is on. Voice aitana, speed 1.5×, autoplay off, alerts on, playing.");
     expect(statusText(true, { id: "aitana", locale: "es-MX" }, 2, "paused", true, true, false)).toMatch(/autoplay on, alerts off, paused\.$/);
+    expect(statusText(true, { id: "aitana", locale: "" }, 1, "paused", true, true, true, "preempted")).toMatch(/paused, another session took over\.$/);
+    expect(statusText(true, { id: "aitana", locale: "" }, 1, "idle", true, true, true, "queued")).toMatch(/stopped, waiting for another session to finish\.$/);
   });
 
   it("again replays the latest reply; alerts is a stored flag, on unless false", () => {

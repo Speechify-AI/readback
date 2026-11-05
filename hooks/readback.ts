@@ -58,9 +58,13 @@ import {
   storedVoice,
   summaryFrom,
   clocksWanted,
+  floorHint,
+  preemptedNote,
   ttsConfig,
   versionFrom,
   voiceSetText,
+  type FloorNote,
+  type PressAction,
   type StoredVoice,
   noteTurn,
 } from "../mod/app.ts";
@@ -97,6 +101,10 @@ type AppState = {
   toldExtension: boolean;
   /** The last reply went to the extension and nothing newer has been loaded. */
   yielded: boolean;
+  /** Silent for the floor: queued behind another session, or paused because one took over. */
+  floor: FloorNote | null;
+  /** Stop was pressed during this turn: its later notes stay silent; the reply still plays. */
+  notesMuted: boolean;
 };
 
 type App = {
@@ -113,12 +121,16 @@ type App = {
   report(err: unknown): void;
   /** Whether the VS Code extension's listener answers, so it reads this session and the mod must not. */
   extensionReading(): Promise<boolean>;
-  /** The band's Play/Pause/Resume and Full reply buttons, awaited. */
-  press(action: "toggle" | "full"): Promise<void>;
-  /** The latest reply from its start, whatever is loaded. */
-  again(): Promise<void>;
+  /** The band's Play/Pause/Resume and Full reply buttons, and a start, awaited; each takes the floor when it will sound. */
+  press(action: PressAction): Promise<void>;
+  /** Play the latest turn for the person: at once when the floor is free or ours, else queued until it is. */
+  autoplay(): Promise<void>;
+  /** The person moved on (a typed prompt): stop, and give up any wait for the floor. */
+  interrupt(): void;
   /** One sentence of Readback's own, rendered and played now; what was playing pauses and resumes after. */
   alert(text: string): Promise<void>;
+  /** Stop, and keep this turn's later notes silent. */
+  stop(): void;
   /** Stop the player, cancel its timers, give up the floor; never throws. */
   close(): Promise<void>;
 };
@@ -138,7 +150,7 @@ function build(
   auto: boolean,
   alerts: boolean,
 ): App {
-  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, auto, alerts, toldExtension: false, yielded: false };
+  const state: AppState = { enabled, notice: null, picking: false, pickerVoice: "", pickerQuery: "", voices: null, frame: 0, speed, auto, alerts, toldExtension: false, yielded: false, floor: null, notesMuted: false };
   const http: Http = (url, init) => $.http.fetch(url, init);
   const sleep: Sleep = (ms) => $.clock.sleep(ms);
   const run: Run = (argv, init) => $.process.run(argv, init);
@@ -190,24 +202,54 @@ function build(
     () => $.clock.now(),
   );
 
-  // Two clocks: the tick (the highlight while sound plays, the spinner while
-  // loading or condensing) and the heartbeat, which holds the floor.
+  // Three clocks: the tick (the highlight while sound plays, the spinner
+  // while loading or condensing), the heartbeat, which holds the floor, and
+  // the watch, which runs while this session is silent for the floor and
+  // starts or resumes it once the floor is free.
   let tick: { cancel(): void } | null = null;
   let heartbeat: { cancel(): void } | null = null;
+  let watch: { cancel(): void } | null = null;
   const stopTimers = () => {
     tick?.cancel();
     tick = null;
     heartbeat?.cancel();
     heartbeat = null;
+    unwatch();
+  };
+  /** No longer silent for the floor: the person pressed something, or the floor came free. */
+  const unwatch = () => {
+    watch?.cancel();
+    watch = null;
+    state.floor = null;
+  };
+  /** Silent for the floor, for `note`; the watch takes the floor back once it is free. */
+  const watchFloor = (note: FloorNote) => {
+    state.floor = note;
+    watch ??= $.clock.every(HEARTBEAT_MS, () => {
+      floorFree().catch(report);
+    });
+    $.ui.invalidate("ui.render");
+  };
+  const floorFree = async () => {
+    if ((await floor.beat()) === "lost") return;
+    const note = state.floor;
+    unwatch();
+    // Queued: the latest turn from its start. Preempted: resume where the
+    // pause left it, which a press of 1 does; nothing to resume means the
+    // person stopped it meanwhile, and the watch is over.
+    if (note === "queued") await press("start");
+    else if (player.view().state === "paused") await press("toggle");
+    else $.ui.invalidate("ui.render");
   };
   const beat = async () => {
     if ((await floor.beat()) === "lost") {
       // Pausing and unloading announce themselves through onChange; a render
       // still in flight does not, so resync here: its spinner keeps turning
       // until it lands paused, and the clocks stop then.
+      const note = preemptedNote(player.view().state);
       player.preempt();
       syncTimers();
-      $.ui.invalidate("ui.render");
+      watchFloor(note);
     }
   };
   const syncTimers = () => {
@@ -260,27 +302,49 @@ function build(
     onError: report,
   });
 
-  const press = async (action: "toggle" | "full") => {
+  const press = async (action: PressAction) => {
+    unwatch();
     if (claimsFloor(player.view().state, action, player.hasLatest, player.resuming)) await floor.claim();
     if (action === "toggle") await player.toggle();
-    else await player.playFull();
+    else if (action === "full") await player.playFull();
+    else await player.start();
+  };
+  // Autoplay is play pressed for the person, with one difference: it waits
+  // its turn. Another session speaking is not interrupted (its reply would
+  // stay paused with nobody to resume it, 2026-11-05); the watch starts this
+  // one once the floor is free. Our own floor is taken over at once, so a
+  // reply follows the note it was written after.
+  const autoplay = async () => {
+    if ((await floor.beat()) === "lost") {
+      watchFloor("queued");
+      return;
+    }
+    await press("start");
+  };
+  const interrupt = () => {
+    unwatch();
+    state.notesMuted = false;
+    player.stop();
   };
   /** A new rate is a new render: what was loaded is dropped, and 1 plays the turn again at the new speed. */
   const setSpeed = async (rate: number) => {
     state.speed = rate;
+    unwatch();
     player.stop();
     await $.store.set("speed", rate);
     $.ui.invalidate("ui.render");
   };
+  // Stop is the person asking for quiet: the turn's later notes stay silent.
+  const stop = () => {
+    unwatch();
+    state.notesMuted = true;
+    player.stop();
+  };
   const actions: BandActions = {
     toggle: () => void press("toggle").catch(report),
-    stop: () => player.stop(),
+    stop,
     full: () => void press("full").catch(report),
     speed: () => void setSpeed(nextRate(state.speed)).catch(report),
-  };
-  const again = async () => {
-    player.stop();
-    await press("toggle");
   };
 
   // An alert is one paragraph rendered as any other (so a repeated sentence
@@ -311,7 +375,9 @@ function build(
     report,
     extensionReading,
     press,
-    again,
+    autoplay,
+    interrupt,
+    stop,
     alert,
     close: async () => {
       try {
@@ -398,7 +464,7 @@ export const register: Register = (on, options) => {
   // The person typed the next prompt: what is playing stops, as the
   // extension stops on UserPromptSubmit.
   on("turn.start", ($, e, next) => {
-    if (app && e.agentId === undefined && stopsOnTurnStart(e)) app.player.stop();
+    if (app && e.agentId === undefined && stopsOnTurnStart(e)) app.interrupt();
     return next(e);
   });
 
@@ -442,16 +508,16 @@ export const register: Register = (on, options) => {
 
   // Text the model wrote before calling tools is a progress note: read the
   // moment the step ends while autoplay is on, as the extension reads its
-  // MessageDisplay notes. It takes over from whatever was playing.
+  // MessageDisplay notes. It takes over from whatever this session was
+  // playing; after a Stop this turn, the notes stay silent.
   on("turn.step", async function* ($, e, next) {
     const result = yield* next(e);
     const a = app;
-    if (a?.state.enabled && a.state.auto) {
+    if (a?.state.enabled && a.state.auto && !a.state.notesMuted) {
       const note = noteTurn({ ...result, agentId: e.agentId });
       if (note && !(await a.extensionReading())) {
-        a.player.stop();
         a.player.setLatest(note);
-        a.press("toggle").catch(a.report);
+        a.autoplay().catch(a.report);
       }
     }
     return result;
@@ -460,6 +526,7 @@ export const register: Register = (on, options) => {
   on("turn.complete", async ($, e, next) => {
     if (!app || !app.state.enabled) return next(e);
     const result = await next(e);
+    if (e.agentId === undefined) app.state.notesMuted = false;
     const turn = replyTurn(e);
     if (turn && (await app.extensionReading())) {
       app.state.yielded = true;
@@ -479,9 +546,9 @@ export const register: Register = (on, options) => {
           () => a.player.summaryReady(turn.id, null),
         );
       }
-      // Autoplay is play pressed for the person: the floor is claimed and a
+      // Autoplay: the latest turn from its start, once the floor is free; a
       // condensing turn waits for its summary as it would by hand.
-      if (a.state.auto) a.press("toggle").catch(a.report);
+      if (a.state.auto) a.autoplay().catch(a.report);
     }
     return result;
   });
@@ -502,7 +569,7 @@ export const register: Register = (on, options) => {
           return { text: plan.text };
         case "status":
           return {
-            text: statusText(a.state.enabled, await a.currentVoice(), a.state.speed, a.player.view().state, a.player.hasLatest, a.state.auto, a.state.alerts),
+            text: statusText(a.state.enabled, await a.currentVoice(), a.state.speed, a.player.view().state, a.player.hasLatest, a.state.auto, a.state.alerts, a.state.floor),
           };
         case "auto":
           if (plan.on !== null) {
@@ -517,7 +584,7 @@ export const register: Register = (on, options) => {
           }
           return { text: alertsText(a.state.alerts) };
         case "again":
-          await a.again();
+          await a.press("start");
           return { text: playbackText(a.player.view().state, a.player.hasLatest, a.state.yielded) };
         case "off":
           a.state.enabled = false;
@@ -541,7 +608,7 @@ export const register: Register = (on, options) => {
           await a.press(plan.kind);
           return { text: playbackText(a.player.view().state, a.player.hasLatest, a.state.yielded) };
         case "stop":
-          a.player.stop();
+          a.stop();
           return { text: playbackText(a.player.view().state, a.player.hasLatest, a.state.yielded) };
         case "voice": {
           let voices: Voice[];
@@ -603,7 +670,7 @@ export const register: Register = (on, options) => {
         cancel: close,
       }) as ReturnType<typeof next>;
     }
-    return band(a.player.view(), els, a.actions, a.state.frame, a.state.speed) as ReturnType<typeof next>;
+    return band(a.player.view(), els, a.actions, a.state.frame, a.state.speed, floorHint(state.floor)) as ReturnType<typeof next>;
   });
 
   on("session.end", async ($, e, next) => {

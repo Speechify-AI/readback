@@ -186,6 +186,23 @@ Pending, the manual check (none run yet):
     stops it. With VS Code open the extension reads the turn and the mod
     answers `/readback play` with "Nothing to play yet".
 
+16. **Autoplay queues behind another session; a reply never pauses its
+    own note (2026-11-05, not yet heard).** Found by reading, with Codex
+    as a second reviewer: autoplay at `turn.complete` was a press of 1, so
+    a reply landing while its progress note still played paused the note,
+    and one landing while the note rendered cancelled the render, and the
+    reply went unheard either way; across sessions the last reply to land
+    took the floor and the paused session stayed paused for good. Now
+    autoplay and `/readback again` call `Player.start` (the latest turn
+    from its start), autoplay waits while another session holds the floor
+    (`watchFloor`, the band says "waiting for another session to finish"),
+    a preempted session resumes when the floor is free ("another session
+    took over" meanwhile), and Stop keeps the turn's later notes quiet.
+    Check with two sessions on autoplay: B's reply landing during A's
+    reading waits, then plays about three seconds after A stops; a press
+    of 1 in B pauses A, which resumes after B; a note followed by a short
+    tool call then the reply: the note is cut, the reply plays.
+
 Open:
 
 - **No cache pruning.** `~/.readback/claude-code/renders` only grows, and a

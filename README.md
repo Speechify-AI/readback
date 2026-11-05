@@ -71,6 +71,7 @@ workspace; change it any time in `/plugin`.
 - Typing the next prompt stops whatever is playing, as in the extension.
 - With autoplay on, the notes Claude writes between tool calls are read as
   they land, as the extension reads them; the finished reply follows.
+  Stop (2) during a turn keeps its later notes quiet; the reply still plays.
 - One alert is spoken, on by default: a permission prompt that has waited
   a few seconds for you ("Claude is waiting for your permission to run npm
   install"). `/readback alerts off` silences it. It is one short render
@@ -94,8 +95,10 @@ workspace; change it any time in `/plugin`.
   full reply is one press of 3 away either way. Condensing needs the
   `claude` CLI and has been checked on macOS only; on Windows a reply
   without a note is read in full.
-- Several Claude Code sessions share one speaker: pressing play in one
-  pauses another.
+- Several Claude Code sessions share one speaker. Pressing play in one
+  pauses another, which resumes once the first is done. A reply that lands
+  while another session is speaking waits its turn instead of cutting in;
+  the band says "waiting for another session to finish" meanwhile.
 - Renders are cached under `~/.readback/claude-code/renders`, so replaying
   costs nothing.
 

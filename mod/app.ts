@@ -213,9 +213,11 @@ export function statusText(
   hasLatest: boolean,
   auto = false,
   alerts = true,
+  floor: FloorNote | null = null,
 ): string {
   if (!enabled) return OFF_HINT;
-  const player = hasLatest ? playbackText(state, true).replace(/\.$/, "").toLowerCase() : "nothing loaded";
+  const hint = floorHint(floor);
+  const player = (hasLatest ? playbackText(state, true).replace(/\.$/, "").toLowerCase() : "nothing loaded") + (hint ? `, ${hint}` : "");
   return `Readback is on. Voice ${voice.id}${voice.locale ? ` (${voice.locale})` : ""}, speed ${speedLabel(speed)}, autoplay ${auto ? "on" : "off"}, alerts ${alerts ? "on" : "off"}, ${player}.`;
 }
 
@@ -393,12 +395,13 @@ export function ttsConfig(apiKey: string, voice: StoredVoice): TtsConfig {
 }
 
 /**
- * Whether a press of 1 (toggle) or 3 (full) will start sound, and so takes
- * the floor. A press while a resume waits on the clock stays paused and
- * takes nothing.
+ * Whether a press of 1 (toggle), 3 (full) or a start (autoplay, `/readback
+ * again`) will start sound, and so takes the floor. A press while a resume
+ * waits on the clock stays paused and takes nothing.
  */
-export function claimsFloor(state: State, action: "toggle" | "full", hasLatest: boolean, resuming = false): boolean {
-  if (action === "full") return hasLatest;
+export type PressAction = "toggle" | "full" | "start";
+export function claimsFloor(state: State, action: PressAction, hasLatest: boolean, resuming = false): boolean {
+  if (action === "full" || action === "start") return hasLatest;
   return (state === "idle" && hasLatest) || (state === "paused" && !resuming);
 }
 
@@ -419,6 +422,30 @@ export function errorText(err: unknown): string {
   if (isRefusal(err)) return REFUSED;
   if (err instanceof TtsError) return `Readback could not render that: Speechify answered ${err.status}.`;
   return `Readback could not play that: ${err instanceof Error ? err.message : String(err)}`;
+}
+
+/**
+ * Why this session is silent for the floor: `queued`, autoplay waiting for
+ * another session to finish before it starts; `preempted`, another session
+ * took the floor and this one paused, to resume when it is free again.
+ */
+export type FloorNote = "queued" | "preempted";
+
+/** The band's word for a floor note, dim after the controls; the status line's too. */
+export function floorHint(note: FloorNote | null): string | null {
+  switch (note) {
+    case "queued":
+      return "waiting for another session to finish";
+    case "preempted":
+      return "another session took over";
+    case null:
+      return null;
+  }
+}
+
+/** The floor note a session takes when it loses the floor in `state`: a wait on condensing queues again, sound pauses. */
+export function preemptedNote(state: State): FloorNote {
+  return state === "waiting" ? "queued" : "preempted";
 }
 
 export type BandMode = "pass" | "band" | "picker" | "notice";

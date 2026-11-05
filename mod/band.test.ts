@@ -109,6 +109,14 @@ describe("band", () => {
     expect(pressed).toBe(1);
   });
 
+  it("a floor hint is dim text after the controls, and absent without one", () => {
+    const b = band(idle, els, actions, 0, 1, "waiting for another session to finish") as El;
+    const texts = row1(b).props.children.filter((c: El) => c.type === "Text" && c.props.dimColor) as El[];
+    expect(texts.map(txt)).toEqual(["waiting for another session to finish"]);
+    const plain = band(idle, els, actions) as El;
+    expect(row1(plain).props.children.filter((c: El) => c.type === "Text" && c.props.dimColor)).toEqual([]);
+  });
+
   it("no stop button when nothing is loaded", () => {
     const b = band(idle, els, actions) as El;
     expect(buttons(b).some((x) => x.props.key === "stop")).toBe(false);
