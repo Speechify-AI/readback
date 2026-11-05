@@ -143,8 +143,8 @@ export type CommandPlan =
   /** `query` names a voice by word (`/readback voice harper`); empty opens the band's picker. `target` says whose voice. */
   | { kind: "voice"; query: string; target: VoiceTarget }
   | { kind: "speed"; rate: number }
-  /** The band's buttons as words, for a session with no band. */
-  | { kind: "toggle" }
+  /** The band's buttons as words, for a session with no band; each word does one thing (`playbackAction`). */
+  | { kind: "playback"; word: PlaybackWord }
   | { kind: "stop" }
   | { kind: "full" }
   /** `/readback auto on|off`; `auto` alone asks. */
@@ -154,13 +154,32 @@ export type CommandPlan =
   /** `/readback alerts on|off`: a waiting permission prompt. */
   | { kind: "alerts"; on: boolean | null };
 
-const PLAYBACK_WORDS: Record<string, "toggle" | "stop" | "full"> = {
-  play: "toggle",
-  pause: "toggle",
-  resume: "toggle",
+export type PlaybackWord = "play" | "pause" | "resume";
+const PLAYBACK_WORDS: Record<string, PlaybackWord | "stop" | "full"> = {
+  play: "play",
+  pause: "pause",
+  resume: "resume",
   stop: "stop",
   full: "full",
 };
+
+/**
+ * What a playback word does in the player's `state`, or nothing: unlike the
+ * band's one button, whose changing label says what a press does, a typed
+ * word must mean one thing. `pause` while idle used to start playback and
+ * `play` while playing used to pause it (2026-11-05). `play` starts the
+ * latest turn when idle and resumes when paused.
+ */
+export function playbackAction(word: PlaybackWord, state: State): PressAction | null {
+  switch (word) {
+    case "play":
+      return state === "idle" ? "start" : state === "paused" ? "toggle" : null;
+    case "pause":
+      return state === "playing" ? "toggle" : null;
+    case "resume":
+      return state === "paused" ? "toggle" : null;
+  }
+}
 
 /** The surfaces that draw the band (`AbovePrompt`), per Claude Code's declarations. */
 export function hasBand(surfaces: readonly string[]): boolean {
@@ -219,7 +238,10 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
   if (word === "auto") return { kind: "auto", on: value === "on" ? true : value === "off" ? false : null };
   if (word === "alerts") return { kind: "alerts", on: value === "on" ? true : value === "off" ? false : null };
   if (word === "again" || word === "replay") return enabled ? { kind: "again" } : { kind: "text", text: OFF_HINT };
-  if (playback) return enabled ? { kind: playback } : { kind: "text", text: OFF_HINT };
+  if (playback) {
+    if (!enabled) return { kind: "text", text: OFF_HINT };
+    return playback === "stop" || playback === "full" ? { kind: playback } : { kind: "playback", word: playback };
+  }
   if (word === "speed") {
     const rate = Number(value.replace(/[x×]$/, ""));
     if (value === "" || !RATES.includes(rate)) return { kind: "text", text: speedText(speed) };
@@ -256,8 +278,8 @@ export function storedAlerts(v: unknown): boolean {
 
 export function alertsText(on: boolean): string {
   return on
-    ? "Alerts are on: a permission prompt waiting for you is spoken. /readback alerts off silences it."
-    : "Alerts are off. /readback alerts on speaks a permission prompt waiting for you.";
+    ? "Alerts are on: a permission prompt waiting for you is spoken. /readback alerts off silences it. Sessions already open keep their own setting."
+    : "Alerts are off. /readback alerts on speaks a permission prompt waiting for you. Sessions already open keep their own setting.";
 }
 
 /**
@@ -276,8 +298,8 @@ export function storedAuto(v: unknown): boolean {
 
 export function autoText(on: boolean): string {
   return on
-    ? "Autoplay is on: each reply plays as it lands, and a new session starts without waiting for /readback. /readback auto off turns it off."
-    : "Autoplay is off: /readback play plays the last reply. /readback auto on plays each reply as it lands.";
+    ? "Autoplay is on: each reply plays as it lands, and a new session starts without waiting for /readback. /readback auto off turns it off. Sessions already open keep their own setting."
+    : "Autoplay is off: /readback play plays the last reply. /readback auto on plays each reply as it lands. Sessions already open keep their own setting.";
 }
 
 /** The stored speed, or 1 when none or not one offered. */

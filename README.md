@@ -58,8 +58,9 @@ workspace; change it any time in `/plugin`.
   Turning on checks the key against the live API. Nothing plays or bills
   until you press play. On or off is read when a session starts, so turning
   it off in one terminal leaves sessions already open on until they restart.
-- `/readback play`, `pause`, `stop` and `full` do what the band's buttons
-  do, for a host that draws no band (T3 Code and other SDK hosts). There a
+- `/readback play`, `pause`, `resume`, `stop` and `full` do what the
+  band's buttons do, for a host that draws no band (T3 Code and other SDK
+  hosts); each word does what it says and nothing else. There a
   new session sleeps until `/readback` is typed once, since nothing tells
   it from a script's headless run, so its first reply is not heard. With
   `auto on` it starts at once instead, and so does any headless `claude -p`

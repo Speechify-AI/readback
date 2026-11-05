@@ -47,6 +47,7 @@ import {
   onText,
   pickedVoice,
   platformFrom,
+  playbackAction,
   playbackText,
   readbackCommand,
   replyTurn,
@@ -673,7 +674,11 @@ export const register: Register = (on, options) => {
           $.ui.invalidate("ui.render");
           return { text: onText(hasBand(await $.session.surfaces())) };
         }
-        case "toggle":
+        case "playback": {
+          const action = playbackAction(plan.word, a.player.view().state);
+          if (action) await a.press(action);
+          return { text: playbackText(a.player.view().state, a.player.hasLatest, a.state.yielded) };
+        }
         case "full":
           await a.press(plan.kind);
           return { text: playbackText(a.player.view().state, a.player.hasLatest, a.state.yielded) };

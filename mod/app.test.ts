@@ -23,6 +23,7 @@ import {
   bandMode,
   chooseVoice,
   claimsFloor,
+  playbackAction,
   floorHint,
   preemptedNote,
   clocksWanted,
@@ -169,9 +170,9 @@ describe("/readback", () => {
   });
 
   it("play, pause, resume, stop and full are the band's buttons as words, on only", () => {
-    expect(readbackCommand("play", "k", true)).toEqual({ kind: "toggle" });
-    expect(readbackCommand("Pause", "k", true)).toEqual({ kind: "toggle" });
-    expect(readbackCommand("resume", "k", true)).toEqual({ kind: "toggle" });
+    expect(readbackCommand("play", "k", true)).toEqual({ kind: "playback", word: "play" });
+    expect(readbackCommand("Pause", "k", true)).toEqual({ kind: "playback", word: "pause" });
+    expect(readbackCommand("resume", "k", true)).toEqual({ kind: "playback", word: "resume" });
     expect(readbackCommand("stop", "k", true)).toEqual({ kind: "stop" });
     expect(readbackCommand("full", "k", true)).toEqual({ kind: "full" });
     expect(readbackCommand("play", "k", false)).toEqual({ kind: "text", text: OFF_HINT });
@@ -366,6 +367,19 @@ describe("playback wiring", () => {
     expect(claimsFloor("paused", "start", true)).toBe(true);
     expect(claimsFloor("playing", "start", true)).toBe(true);
     expect(claimsFloor("idle", "start", false)).toBe(false);
+  });
+
+  it("each playback word means one thing: play starts or resumes, pause pauses, resume resumes, else nothing", () => {
+    expect(playbackAction("play", "idle")).toBe("start");
+    expect(playbackAction("play", "paused")).toBe("toggle");
+    expect(playbackAction("play", "playing")).toBeNull();
+    expect(playbackAction("play", "loading")).toBeNull();
+    expect(playbackAction("pause", "playing")).toBe("toggle");
+    expect(playbackAction("pause", "idle")).toBeNull();
+    expect(playbackAction("pause", "paused")).toBeNull();
+    expect(playbackAction("resume", "paused")).toBe("toggle");
+    expect(playbackAction("resume", "idle")).toBeNull();
+    expect(playbackAction("resume", "playing")).toBeNull();
   });
 
   it("a session losing the floor queues again when it was waiting on condensing, else it is preempted and will resume", () => {

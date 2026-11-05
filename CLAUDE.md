@@ -229,8 +229,9 @@ and shares none of the extension's host code.
   command. With on and autoplay both stored it does not wait at all
   (`startPlan`'s third argument): the person asked twice to hear each
   reply, and accepted (2026-11-01) that a headless `-p` run then speaks
-  too. There the band's buttons are words, `/readback play|pause|stop|
-  full`, the voice is named (`/readback voice harper`, the first match of
+  too. There the band's buttons are words, `/readback play|pause|resume|stop|
+  full`, each meaning one thing (`playbackAction`: `pause` while idle used
+  to start playback, being a toggle, 2026-11-05), the voice is named (`/readback voice harper`, the first match of
   the picker's own filter, `voiceSetText`), the on text says so (`onText`,
   `hasBand`), and nothing is lit. Bare `/readback` prints the status
   (`statusText`); `on` and `off` are explicit words, since no band shows
