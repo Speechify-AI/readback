@@ -244,9 +244,14 @@ and shares none of the extension's host code.
   with nobody waiting; spoken on every ask it said "waiting for your
   permission" through an auto-approved run in the desktop app, in
   duplicate (2026-11-01). It is one paragraph rendered like any other
-  (cached) and played outside the player; a reply playing pauses for it and
-  resumes. It yields to the extension like a reply does, since the
-  extension speaks prompts too. **No idle alert and no long-command
+  (cached) and played outside the player, **under the floor**: the host
+  does not queue clips, so without a claim it spoke over another session's
+  reading (2026-11-05); a reply playing here pauses for it and resumes, one
+  elsewhere is preempted and resumes from its watch when the alert
+  releases the floor. It plays with an abort signal: Stop, a typed prompt
+  and off cut it, and one rendered after the call ended never sounds. It
+  yields to the extension like a reply does, since the extension speaks
+  prompts too. **No idle alert and no long-command
   alert**: one that spoke a minute after each unanswered reply, and one
   that spoke when a Bash call ran past half a minute, were tried and
   removed within a day (2026-11-01, 2026-11-02). A long reply is still

@@ -203,6 +203,15 @@ Pending, the manual check (none run yet):
     of 1 in B pauses A, which resumes after B; a note followed by a short
     tool call then the reply: the note is cut, the reply plays.
 
+17. **The alert under the floor, with an abort (2026-11-05, not yet
+    heard).** It played through `$.audio.play` with no floor claim and no
+    signal: over another session's reading (the host plays clips
+    together), and nothing could stop it. Now it claims the floor while it
+    sounds and releases it after, Stop, a typed prompt and `/readback off`
+    abort it, and one whose call ended while it rendered never sounds.
+    Check: a prompt waiting in B while A reads pauses A for the sentence,
+    A resumes after; 2 during the alert cuts it.
+
 Open:
 
 - **No cache pruning.** `~/.readback/claude-code/renders` only grows, and a

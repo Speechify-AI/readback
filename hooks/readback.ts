@@ -127,8 +127,12 @@ type App = {
   autoplay(): Promise<void>;
   /** The person moved on (a typed prompt): stop, and give up any wait for the floor. */
   interrupt(): void;
-  /** One sentence of Readback's own, rendered and played now; what was playing pauses and resumes after. */
-  alert(text: string): Promise<void>;
+  /**
+   * One sentence of Readback's own, rendered and played now under the floor:
+   * what was playing, here or in another session, pauses and resumes after.
+   * `stillWanted` is asked once rendered, before it sounds.
+   */
+  alert(text: string, stillWanted: () => boolean): Promise<void>;
   /** Stop, and keep this turn's later notes silent. */
   stop(): void;
   /** Stop the player, cancel its timers, give up the floor; never throws. */
@@ -323,6 +327,7 @@ function build(
   };
   const interrupt = () => {
     unwatch();
+    stopAlert();
     state.notesMuted = false;
     player.stop();
   };
@@ -337,6 +342,7 @@ function build(
   // Stop is the person asking for quiet: the turn's later notes stay silent.
   const stop = () => {
     unwatch();
+    stopAlert();
     state.notesMuted = true;
     player.stop();
   };
@@ -349,17 +355,43 @@ function build(
 
   // An alert is one paragraph rendered as any other (so a repeated sentence
   // is a cached render) and played outside the player: it is not a turn, and
-  // the latest reply stays what it was. A reply playing pauses for it and
-  // resumes after, unless the person pressed something meanwhile.
-  const alert = async (text: string) => {
+  // the latest reply stays what it was. It takes the floor while it sounds
+  // (clips are not queued by the host, so without that it spoke over
+  // another session's reading, 2026-11-05): a reply playing here pauses for
+  // it and resumes after; one playing elsewhere is preempted and its watch
+  // resumes it once the floor is released. Stop, a typed prompt and off
+  // abort it; one rendered after the prompt was answered never sounds.
+  let alerting: AbortController | null = null;
+  const stopAlert = () => {
+    alerting?.abort();
+    alerting = null;
+  };
+  const alert = async (text: string, stillWanted: () => boolean) => {
     if (!apiKey || !state.enabled || !state.alerts) return;
     const cfg = ttsConfig(apiKey, await currentVoice());
     const v = await version();
     const rendered = await renderParagraph(text, cfg, cache, (input, c) => synthesize(input, c, http, sleep, v), state.speed);
+    if (!state.enabled || !state.alerts || !stillWanted()) return;
+    stopAlert();
     const wasPlaying = player.view().state === "playing";
     if (wasPlaying) await player.toggle();
-    await $.audio.play({ base64: base64Of(rendered.audio), mime: "audio/mpeg" });
-    if (wasPlaying && player.view().state === "paused") await player.toggle();
+    const abort = new AbortController();
+    alerting = abort;
+    // Held by claim, not beat: the alert is urgent, and no heartbeat of ours
+    // runs while the player is paused.
+    await floor.claim();
+    const hold = $.clock.every(HEARTBEAT_MS, () => {
+      floor.claim().catch(() => {});
+    });
+    try {
+      await $.audio.play({ base64: base64Of(rendered.audio), mime: "audio/mpeg" }, { signal: abort.signal });
+    } finally {
+      hold.cancel();
+      if (alerting === abort) alerting = null;
+    }
+    if (abort.signal.aborted) return;
+    if (wasPlaying && player.view().state === "paused") await press("toggle");
+    else await floor.release();
   };
 
   return {
@@ -381,6 +413,7 @@ function build(
     alert,
     close: async () => {
       try {
+        stopAlert();
         player.stop();
         stopTimers();
         await floor.release();
@@ -434,6 +467,7 @@ export const register: Register = (on, options) => {
     const old = app;
     app = null;
     waiting = false;
+    asked.clear();
     await old?.close();
     // On and autoplay both stored: the person has asked to hear each reply,
     // so a surfaceless session does not wait for /readback.
@@ -490,10 +524,11 @@ export const register: Register = (on, options) => {
     const result = await next(e);
     const a = app;
     if (a?.state.enabled && a.state.alerts && promptWaiting(e)) {
-      const pending = [...asked.values()].filter((p) => !p.said).pop();
+      const pending = [...asked.entries()].filter(([, p]) => !p.said).pop();
       if (pending) {
-        pending.said = true;
-        if (!(await a.extensionReading())) a.alert(permissionText(pending.tool, pending.input)).catch(a.report);
+        const [id, p] = pending;
+        p.said = true;
+        if (!(await a.extensionReading())) a.alert(permissionText(p.tool, p.input), () => asked.has(id)).catch(a.report);
       }
     }
     return result;
