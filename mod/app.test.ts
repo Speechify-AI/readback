@@ -15,6 +15,9 @@ import {
   statusText,
   voiceSetText,
   voiceResetText,
+  randomVoice,
+  voiceKeys,
+  voiceRandomText,
   projectVoiceKey,
   leadFor,
   REFUSED,
@@ -137,6 +140,9 @@ describe("/readback", () => {
     expect(readbackCommand("voice default harper", "k", true)).toEqual({ kind: "voice", query: "harper", target: "default" });
     expect(readbackCommand("voice default", "k", true)).toEqual({ kind: "voice", query: "", target: "default" });
     expect(readbackCommand("voice reset", "k", true)).toEqual({ kind: "voice", query: "", target: "reset" });
+    expect(readbackCommand("voice random", "k", true)).toEqual({ kind: "voice", query: "", target: "project", random: true });
+    expect(readbackCommand("voice default random", "k", true)).toEqual({ kind: "voice", query: "", target: "default", random: true });
+    expect(readbackCommand("voice random narrator", "k", true)).toEqual({ kind: "voice", query: "random narrator", target: "project" });
     const off = readbackCommand("voice", "k", false);
     expect(off.kind).toBe("text");
   });
@@ -452,6 +458,27 @@ describe("the band", () => {
     expect(projectVoiceKey("/w/one")).toBe("voice:/w/one");
     expect(voiceSetText(voices, "spanish").text).toMatch(/1 other matched/);
     expect(voiceSetText(voices, "klingon")).toEqual({ voice: null, text: 'No voice matches "klingon".' });
+  });
+
+  it("/readback voice random draws a free stock voice in the language, featured first", () => {
+    const v = (id: string, locale: string, featured = false, cloned = false): Voice => ({ id, name: id, locale, tags: [], cloned, featured, gender: "unspecified", preview: null });
+    const voices = [v("harper_32", "en-US", true), v("geffen_32", "en-US", true), v("john", "en-GB"), v("mine", "en-US", false, true), v("aitana", "es-MX")];
+    // Both featured English voices in use: the stock British one is left.
+    expect(randomVoice(voices, "en-US", ["harper_32", "geffen_32"], () => 0)?.id).toBe("john");
+    // One featured free: it wins over the stock one whatever the draw.
+    expect(randomVoice(voices, "en-GB", ["harper_32"], () => 0.99)?.id).toBe("geffen_32");
+    // The draw indexes the pool; 1 is clamped to the last.
+    expect(randomVoice(voices, "en-US", [], () => 0)?.id).toBe("harper_32");
+    expect(randomVoice(voices, "en-US", [], () => 1)?.id).toBe("geffen_32");
+    // Clones never; another language never; nothing free is null.
+    expect(randomVoice(voices, "en-US", ["harper_32", "geffen_32", "john"], () => 0)).toBeNull();
+    expect(randomVoice(voices, "es-MX", [], () => 0)?.id).toBe("aitana");
+    expect(randomVoice(voices, "", ["harper_32", "geffen_32"], () => 0.5)?.id).toBe("aitana");
+    expect(voiceKeys(["voice", "voice:/w/one", "speed", "voices", "floor"])).toEqual(["voice", "voice:/w/one"]);
+    expect(voiceRandomText(voices[2]!, "project", "en-US")).toBe("Voice for this project, drawn at random: john (john, en-GB). Run it again for another.");
+    expect(voiceRandomText(voices[0]!, "default", "en-US")).toMatch(/^Default voice, drawn at random: harper_32/);
+    expect(voiceRandomText(null, "project", "en-US")).toBe("No voice in en-US is free: every one is in use.");
+    expect(voiceRandomText(null, "project", "")).toBe("No voice is free: every one is in use.");
   });
 
   it("bare /readback is a status line", () => {

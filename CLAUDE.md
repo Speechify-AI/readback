@@ -181,8 +181,12 @@ and shares none of the extension's host code.
   project (the store key `voice:<cwd>`, `projectVoiceKey`), as the
   extension saves the picker's choice for the open project; `/readback
   voice default harper` sets the one under `voice` for projects without
-  their own; `/readback voice reset` drops this project's. Unset both, the
-  voice follows Claude's `language` as before. The status line says which
+  their own; `/readback voice reset` drops this project's; `/readback voice
+  random` (`randomVoice`) draws a stock voice in the current voice's
+  language that neither the default nor any project uses, featured while
+  one is free, so a new project gets a speaker the ear does not know yet
+  (2026-11-06). Unset both, the voice follows Claude's `language` as
+  before. The status line says which
   spoke (`VoiceScope`). **The voice is read once per run** (`voiceForRun`,
   until the player is idle): a pick in another session used to change the
   speaker between two paragraphs of one reply (2026-11-05). **Every reply

@@ -43,7 +43,7 @@ export const RATES: readonly number[] = [0.75, 1, 1.25, 1.5, 1.75, 2];
 export const SELECT_MAX = 64;
 export const PICK = "Pick a voice above the prompt.";
 /** `/readback voice` where nothing draws the picker. */
-export const PICK_NO_BAND = "Name a voice for this project: /readback voice harper, or a language or tag, like /readback voice spanish.";
+export const PICK_NO_BAND = "Name a voice for this project: /readback voice harper, or a language or tag, like /readback voice spanish; /readback voice random draws one you have not used.";
 /** `/readback voice default` with no name. */
 export const PICK_DEFAULT = "Name the voice for projects without one of their own: /readback voice default harper.";
 
@@ -70,6 +70,35 @@ export function voiceSetText(voices: readonly Voice[], query: string, target: "p
   const others = filterVoices(voices, query).length - 1;
   const what = target === "project" ? "Voice for this project" : "Default voice";
   return { voice, text: `${what}: ${voice.name} (${voice.id}, ${voice.locale}).${others > 0 ? ` ${others} other${others === 1 ? "" : "s"} matched; add a word to narrow it.` : ""}` };
+}
+
+/**
+ * `/readback voice random`: a stock voice in `locale`'s language that no
+ * project and not the default uses (`inUse`, their ids), drawn with
+ * `random` (0 to 1), from the featured ones while any is free. Clones are
+ * left out: a draw should land on a shared narrator. An empty locale
+ * means any language.
+ */
+export function randomVoice(voices: readonly Voice[], locale: string, inUse: readonly string[], random: () => number = Math.random): Voice | null {
+  const lang = languageOf(locale);
+  const free = voices.filter((v) => !v.cloned && !inUse.includes(v.id) && (lang === "" || languageOf(v.locale) === lang));
+  const pool = free.some((v) => v.featured) ? free.filter((v) => v.featured) : free;
+  if (pool.length === 0) return null;
+  return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))] ?? null;
+}
+
+const languageOf = (locale: string): string => locale.split(/[-_]/)[0]?.toLowerCase() ?? "";
+
+/** The store keys that hold a voice: the default and every project's. */
+export function voiceKeys(keys: readonly string[]): string[] {
+  return keys.filter((k) => k === "voice" || k.startsWith("voice:"));
+}
+
+/** What `/readback voice [default] random` did. */
+export function voiceRandomText(voice: Voice | null, target: "project" | "default", locale: string): string {
+  if (!voice) return `No voice${locale ? ` in ${locale}` : ""} is free: every one is in use.`;
+  const what = target === "project" ? "Voice for this project" : "Default voice";
+  return `${what}, drawn at random: ${voice.name} (${voice.id}, ${voice.locale}). Run it again for another.`;
 }
 
 /** After `/readback voice reset`: the default speaks here again. */
@@ -141,7 +170,7 @@ export type CommandPlan =
   /** Bare `/readback`: what is on, which voice, which speed, what the player is doing. */
   | { kind: "status" }
   /** `query` names a voice by word (`/readback voice harper`); empty opens the band's picker. `target` says whose voice. */
-  | { kind: "voice"; query: string; target: VoiceTarget }
+  | { kind: "voice"; query: string; target: VoiceTarget; random?: true }
   | { kind: "speed"; rate: number }
   /** The band's buttons as words, for a session with no band; each word does one thing (`playbackAction`). */
   | { kind: "playback"; word: PlaybackWord }
@@ -249,8 +278,10 @@ export function readbackCommand(args: string, key: string | null, enabled: boole
   }
   if (!enabled) return { kind: "text", text: OFF_NO_VOICE };
   if (value === "reset") return { kind: "voice", query: "", target: "reset" };
-  if (value === "default") return { kind: "voice", query: rest.slice(1).join(" "), target: "default" };
-  return { kind: "voice", query: rest.join(" "), target: "project" };
+  const target = value === "default" ? "default" : "project";
+  const words = target === "default" ? rest.slice(1) : rest;
+  if (words.length === 1 && words[0] === "random") return { kind: "voice", query: "", target, random: true };
+  return { kind: "voice", query: words.join(" "), target };
 }
 
 /** The status line bare `/readback` prints. */

@@ -82,8 +82,10 @@ workspace; change it any time in `/plugin`.
   to narrow. `/readback voice harper` (a name, language or tag) picks the
   first match by word, where no band draws. The choice is this project's;
   `/readback voice default harper` sets the voice for projects without
-  one, and `/readback voice reset` drops this project's. A voice per
-  project tells sessions apart by ear.
+  one, and `/readback voice reset` drops this project's. `/readback voice
+  random` draws a voice in your language that no project uses yet,
+  featured first; run it again for another. A voice per project tells
+  sessions apart by ear.
 - Each reply opens with the project's folder name, as in the extension,
   so you know which session is speaking.
 - `/readback speed 1.25` sets the speed (0.75 to 2), and the band's speed
