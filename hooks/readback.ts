@@ -46,6 +46,7 @@ import {
   nextRate,
   onText,
   pickedVoice,
+  randomVoice,
   platformFrom,
   playbackAction,
   playbackText,
@@ -68,6 +69,8 @@ import {
   ttsConfig,
   versionFrom,
   voiceSetText,
+  voiceKeys,
+  voiceRandomText,
   type FloorNote,
   type PressAction,
   type StoredVoice,
@@ -717,9 +720,23 @@ export const register: Register = (on, options) => {
             await $.store.delete(projectVoiceKey(a.cwd));
             return { text: voiceResetText(await a.currentVoice()) };
           }
+          const key = plan.target === "project" ? projectVoiceKey(a.cwd) : "voice";
+          if (plan.random) {
+            // In use: the default and every project's, this one included,
+            // so a draw never lands on the voice speaking now.
+            const current = await a.currentVoice();
+            const inUse = [current.id];
+            for (const k of voiceKeys(await $.store.keys())) {
+              const v = storedVoice(await $.store.get(k));
+              if (v) inUse.push(v.id);
+            }
+            const voice = randomVoice(voices, current.locale, inUse);
+            if (voice) await $.store.set(key, pickedVoice(voices, voice.id));
+            return { text: voiceRandomText(voice, plan.target, current.locale) };
+          }
           if (plan.query !== "") {
             const { voice, text } = voiceSetText(voices, plan.query, plan.target);
-            if (voice) await $.store.set(plan.target === "project" ? projectVoiceKey(a.cwd) : "voice", pickedVoice(voices, voice.id));
+            if (voice) await $.store.set(key, pickedVoice(voices, voice.id));
             return { text };
           }
           if (plan.target === "default") return { text: PICK_DEFAULT };
