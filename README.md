@@ -44,9 +44,8 @@ place.
 /plugin install readback@readback
 ```
 
-On Claude Code 2.1.275 or later the one-step form
-`/plugin install readback --marketplace Speechify-AI/readback` should also
-work; it has not been tried.
+From a shell, `claude plugin install readback --marketplace
+Speechify-AI/readback` adds the marketplace and installs in one step.
 
 The install dialog asks for your Speechify API key. Create one for free at
 <https://platform.speechify.ai/api-keys?utm_source=github&utm_medium=readme&utm_campaign=readback>.

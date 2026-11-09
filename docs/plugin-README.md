@@ -34,9 +34,31 @@ The same reader is also a VS Code extension; the source of both is at
   for each window listed there. It reads Claude Code's `language` setting
   to pick a default voice. Your choices (on or off, voice, speed, autoplay,
   alerts) stay in the plugin's own store, and the key only in Claude Code's
-  sensitive plugin settings.
+  sensitive plugin settings. Readback writes no file outside that cache.
+- **Programs it starts.** Only `claude`, for the condensing run above.
 
 Readback collects no analytics and sends nothing anywhere else.
+
+## Hooks
+
+Readback is a mod: one hooks module, `hooks/readback.ts`. What each hook
+does:
+
+- `session.start`, `session.attach`, `session.end`: start Readback when a
+  person is at the prompt, and stop its player when the session ends.
+- `turn.start`: a prompt you type stops whatever is playing.
+- `prompt.compose`: while Readback is on, adds the spoken-note section to
+  the system prompt. It removes and changes nothing else.
+- `turn.step`, `turn.complete`: read the text Claude wrote, to speak a
+  progress note or the finished reply. They change nothing.
+- `tool.call`: notes which tool call is running, so a permission alert can
+  name it. It changes no call and decides no permission.
+- `classic.Notification`: when Claude Code reports that a permission prompt
+  has waited, speaks one sentence naming the tool.
+- `command.run` for `/readback`: answers the command; no other command.
+- `ui.render` for `AssistantMessage`: hides the spoken note in the
+  transcript; the stored message keeps it. For `AbovePrompt`: draws the
+  band with the controls and the sentence being spoken.
 
 ## License
 
