@@ -73,6 +73,14 @@ confirm that the mod leaves a permission decision with the user"), and a
 committed `.DS_Store`. The alert now remembers each main-loop call from
 `tool.call` instead (`waitingCall`) and `.DS_Store` is out of git. Not yet
 checked live: a real permission prompt speaking through the new path.
+**Submitted to Claude's plugin directory on 2026-11-09** through
+<https://claude.ai/directory/manage>, waiting for the security scan. Data
+handling as recommended: reads and stores (reply text can carry names, and
+the render cache keeps the spoken words), sends to a service listed in the
+README (Speechify), retention "longer" unless Speechify's API team confirms
+TTS input is not kept (the privacy policy sets no period), not for under
+18s. Each later plugin version needs **Publish** pressed in the portal
+until a reviewer turns on auto-publish.
 Claude Code 2.1.312 (declarations written by 2.1.277), macOS.
 
 Verified on 2026-10-29:
