@@ -81,6 +81,18 @@ README (Speechify), retention "longer" unless Speechify's API team confirms
 TTS input is not kept (the privacy policy sets no period), not for under
 18s. Each later plugin version needs **Publish** pressed in the portal
 until a reviewer turns on auto-publish.
+**The scan refused it (2026-11-09), and the branch is not the main reason.**
+It scanned `main`, the repo root (its findings name `package-lock.json`,
+`CLAUDE.md` and the types file, none of them on `plugin`), so the tracked
+branch must change to `plugin` in the submission's Settings. But two of its
+three refusals hold on any branch: the directory accepts **mods only from
+Verified organizations**, and **scripts and any file that is not Markdown,
+text, JSON, YAML or an allowed image only from Verified organizations**
+(our `.ts` files). The third, the lockfile install, is the one the `plugin`
+branch already fixes. No public doc says how an organization becomes
+Verified; `directory@anthropic.com` is the contact. Until then the
+plugin's own marketplace (`/plugin marketplace add Speechify-AI/readback`)
+is the way to install it.
 Claude Code 2.1.312 (declarations written by 2.1.277), macOS.
 
 Verified on 2026-10-29:
