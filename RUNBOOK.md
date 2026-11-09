@@ -54,7 +54,18 @@ under Verified.
 **0.9.0 is the first release with the Claude Code plugin, tagged and
 released on 2026-11-05** (`v0.9.0` on the merge of `vamsee/claude-code-mod`,
 the VSIX on the GitHub release and uploaded to the VS Code Marketplace by
-hand the same day). The marketplace entry pins `ref: v0.9.0`.
+hand the same day). **0.10.0, tagged 2026-11-09**, adds `/readback voice
+random` and the plugin's listing icon (`.claude-plugin/icon.png`, 1024 px,
+the extension's logo redrawn from `media/icon.svg`); the extension itself
+is unchanged. From 0.10.0 the plugin ships from the `plugin` branch, a
+tree of 29 files (248 KB) built by `scripts/plugin-tree.mjs`, and the
+marketplace entry pins `ref: readback--v0.10.0`. Before that, the repo root
+was the plugin, and Claude Code's dependency install put the extension's
+dev tools into every installed copy: 164 MB of `node_modules` (vitest,
+vsce, TypeScript, esbuild) in `~/.claude/plugins/cache/readback-dev/readback/0.9.0`,
+written a second after the copy. The tree passes `claude plugin validate
+--profile directory` with nothing to report, and `claude -p "/readback"
+--plugin-dir <tree>` loaded the mod and answered with the status.
 Claude Code 2.1.312 (declarations written by 2.1.277), macOS.
 
 Verified on 2026-10-29:
