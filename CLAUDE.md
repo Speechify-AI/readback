@@ -258,8 +258,12 @@ and shares none of the extension's host code.
   (`mod/alerts.ts`, stored under `alerts`): the engine's `Notification` of
   type `permission_prompt` (`classic.Notification`, raised once a prompt
   has waited about six seconds for a person, the extension's signal too),
-  naming the tool from the main loop's last `tool.check` that answered
-  `ask`, once per ask. **Not the `ask` verdict itself**:
+  naming a main-loop call still running, remembered from `tool.call`'s
+  start to its end (`waitingCall`: the latest not yet said, the tool the
+  notification's message names first), once per call. **No `tool.check`
+  hook**: the plugin directory blocks one that does more than return
+  `next(e)` or a fixed verdict, so the `ask` verdict is not read (it was
+  until 2026-11-09). **Not the `ask` verdict as the word either**:
   that goes to the mode's decider, and in auto mode a classifier answers it
   with nobody waiting; spoken on every ask it said "waiting for your
   permission" through an auto-approved run in the desktop app, in

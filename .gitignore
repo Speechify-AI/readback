@@ -5,3 +5,4 @@ dist/
 media/codicons/
 .vscode/
 media/player.js
+.DS_Store

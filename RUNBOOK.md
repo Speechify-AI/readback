@@ -66,6 +66,13 @@ vsce, TypeScript, esbuild) in `~/.claude/plugins/cache/readback-dev/readback/0.9
 written a second after the copy. The tree passes `claude plugin validate
 --profile directory` with nothing to report, and `claude -p "/readback"
 --plugin-dir <tree>` loaded the mod and answered with the status.
+**0.10.1, the same day**, answers the directory portal's first validation
+(run on `main`, the repo root, not the `plugin` branch): it blocked the
+`tool.check` hook, which read the verdict before returning it ("couldn't
+confirm that the mod leaves a permission decision with the user"), and a
+committed `.DS_Store`. The alert now remembers each main-loop call from
+`tool.call` instead (`waitingCall`) and `.DS_Store` is out of git. Not yet
+checked live: a real permission prompt speaking through the new path.
 Claude Code 2.1.312 (declarations written by 2.1.277), macOS.
 
 Verified on 2026-10-29:
