@@ -299,6 +299,20 @@ and shares none of the extension's host code.
   `package.json`; `src/shared.test.ts` enforces it.
 - **A `command.run` hook answers and never calls `next`**: the validator
   lists one that does as a gating hook without a catch.
+- **The plugin ships from its own tree, never from the repo root.**
+  Claude Code runs an npm install in an installed plugin whose root holds
+  `package.json` beside a lockfile: from the root, every install pulled the
+  extension's dev tools (164 MB) into the cache, and the plugin directory
+  holds such a plugin for a reviewer (2026-11-09). `scripts/plugin-tree.mjs`
+  takes the manifest, the icon, `hooks/hooks.json`, every file the hooks
+  module imports, the license and a README built from
+  `docs/plugin-README.md`, and nothing else. `--commit` commits that tree to
+  the `plugin` branch and tags it `readback--v<version>`; the marketplace
+  entry pins that tag and the directory submission tracks the branch.
+  `npm test` builds the tree and validates it with `--profile directory`.
+  Whatever the README says the plugin sends, runs or stores must stay true:
+  the directory's security scan rejects a first submission that does
+  something its README does not say.
 - **No `claude plugin test`.** With the repo root as the plugin root it
   runs every `*.test.ts` in the repo and the vitest suites fail there; it
   also raises no `session.start` and has no `$.fs`. Logic lives in `mod/`
@@ -330,7 +344,9 @@ and shares none of the extension's host code.
 - `media/player.js` — the bundled page script, built from `src/webview/` by esbuild, not committed
 - `media/player.css` — the webview's stylesheet
 - `media/codicons/` — copied from `@vscode/codicons` by the build, not committed
-- `.claude-plugin/plugin.json`, `marketplace.json` — the plugin manifest (with the sensitive key field) and the marketplace entry pinned to the release tag
+- `.claude-plugin/plugin.json`, `marketplace.json`, `icon.png` — the plugin manifest (with the sensitive key field), the marketplace entry pinned to the plugin's release tag, and the directory listing icon
+- `docs/plugin-README.md` — the plugin tree's README: its own intro and what leaves the machine, with the README's Claude Code section spliced in
+- `scripts/plugin-tree.mjs` — builds the plugin tree; `--commit` puts it on the `plugin` branch and tags it
 - `hooks/readback.ts` — the mod's wiring: session, turn, command, band; decides nothing itself
 - `mod/app.ts` — the wiring's decisions as pure helpers (command text, key check text, reply to turn, voice choice)
 - `mod/player.ts`, `mod/floor.ts`, `mod/band.ts` — the player state machine, the cross-session speaker claim, the band drawing
@@ -344,4 +360,5 @@ and shares none of the extension's host code.
 - `npm run typecheck` (three configs: `tsconfig.json` for the host, `tsconfig.webview.json` with the DOM lib for `src/webview/`, `tsconfig.mod.json` for `mod/` and `hooks/`) / `npm test` / `npm run build`
 - `npm test` is vitest, then `claude plugin validate .` through `scripts/validate-plugin.mjs` when `claude` is on PATH (skipped otherwise, and runs on Windows too); the validator is the only check of `hooks/readback.ts` against Claude Code's declarations
 - `npm run package` — runs all three then `vsce package`
+- Release: bump `package.json` and `plugin.json`, set the marketplace `ref` to `readback--v<version>`, commit, then `node scripts/plugin-tree.mjs --commit`, tag `v<version>` on main, and push main, `plugin` and both tags
 - `code --install-extension readback-<version>.vsix` to try it here
