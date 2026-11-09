@@ -15,16 +15,33 @@ export function permissionText(tool: string, input: unknown): string {
 }
 
 /**
- * Which `tool.check` verdicts name a prompt that may wait: a real call (not
- * a plugin's query) of the main loop whose verdict is `ask`. Not a word yet:
- * in auto mode a classifier answers the ask and nobody waits, so the ask only
- * remembers the tool for the sentence. The word comes from the engine's
- * `Notification` of type `permission_prompt`, raised once the prompt has
- * waited about six seconds for a person (`promptWaiting`), as the extension
- * hears it too.
+ * Which `tool.call`s a waiting prompt may be about: a real call (not a
+ * plugin's query) of the main loop. `tool.call` wraps the permission check,
+ * the prompt and the run, so a call is remembered from its start to its end
+ * and nothing is said yet. The word comes from the engine's `Notification`
+ * of type `permission_prompt`, raised once a prompt has waited about six
+ * seconds for a person (`promptWaiting`), as the extension hears it too.
+ *
+ * Until 2026-11-09 the mod read the verdict at `tool.check` and remembered
+ * only an `ask`; the plugin directory blocks a `tool.check` hook unless it
+ * plainly returns `next(e)` or a fixed verdict, so it reads no verdict now.
  */
-export function permissionWorthSaying(e: { tool_use_id?: string; agentId?: string }, decision: string): boolean {
-  return e.tool_use_id !== undefined && e.agentId === undefined && decision === "ask";
+export function mainLoopCall(e: { tool_use_id?: string; agentId?: string }): boolean {
+  return e.tool_use_id !== undefined && e.agentId === undefined;
+}
+
+export type PendingCall = { tool: string; input: unknown; said: boolean };
+
+/**
+ * The call a waiting prompt is about, among the calls still running in
+ * order of start: the latest not yet said whose tool the notification's
+ * message names ("Claude needs your permission to use Bash"), else the
+ * latest not yet said. A call allowed without asking is in the list too,
+ * so with two of the same tool in flight the latest is a guess.
+ */
+export function waitingCall<K>(calls: readonly (readonly [K, PendingCall])[], message: string): readonly [K, PendingCall] | undefined {
+  const open = calls.filter(([, p]) => !p.said);
+  return open.filter(([, p]) => message.includes(p.tool)).pop() ?? open.at(-1);
 }
 
 /** The main loop's permission prompt has waited long enough that a person is being asked. */

@@ -11,7 +11,7 @@
  *
  * Besides replies it speaks one alert (`mod/alerts.ts`): a permission
  * prompt that has waited for the person (`classic.Notification` of type
- * `permission_prompt`, the tool named by the `tool.check` that asked).
+ * `permission_prompt`, naming a main-loop call still running at `tool.call`).
  * A typed prompt stops what is playing. While Readback is on,
  * `prompt.compose` adds the spoken-note section, so the model condenses its
  * own long replies and no `claude -p` run is needed for them.
@@ -77,7 +77,7 @@ import {
   type VoiceScope,
   noteTurn,
 } from "../mod/app.ts";
-import { permissionText, permissionWorthSaying, promptWaiting } from "../mod/alerts.ts";
+import { mainLoopCall, permissionText, promptWaiting, waitingCall, type PendingCall } from "../mod/alerts.ts";
 import { band, noticeBand, voicePicker, type BandActions, type Els } from "../mod/band.ts";
 import { base64Of } from "../mod/bytes.ts";
 import { CACHE_DIR, diskCache, renderParagraph, type Files } from "../mod/cache.ts";
@@ -511,10 +511,11 @@ async function start($: EngineInterface, apiKey: string | null): Promise<void> {
 }
 
 /**
- * The main loop's calls whose verdict was `ask`, by id, until each ends: the
- * tool to name when the prompt is reported waiting, `said` once it has been.
+ * The main loop's calls, by id, from `tool.call`'s start to its end: the tool
+ * to name when a prompt is reported waiting (`waitingCall`), `said` once it
+ * has been.
  */
-const asked = new Map<string, { tool: string; input: unknown; said: boolean }>();
+const asked = new Map<string, PendingCall>();
 
 export const register: Register = (on, options) => {
   const apiKey = apiKeyFrom(options);
@@ -570,21 +571,12 @@ export const register: Register = (on, options) => {
     return { sections: [...result.sections, { id: "readback:spoken-note", text: SPOKEN_NOTE_INSTRUCTION, scope: "session" as const }] };
   });
 
-  // The engine will ask the person: say so, unless the extension is reading
-  // this session (it speaks the prompt itself, once it has waited).
-  // An ask is remembered, not spoken: in auto mode a classifier answers it.
-  on("tool.check", async ($, e, next) => {
-    const result = await next(e);
-    if (permissionWorthSaying(e, result.decision)) asked.set(e.tool_use_id!, { tool: e.tool, input: e.input, said: false });
-    return result;
-  });
-
   // The prompt has waited about six seconds for a person: say so, once.
   on("classic.Notification", async ($, e, next) => {
     const result = await next(e);
     const a = app;
     if (a?.state.enabled && a.state.alerts && promptWaiting(e)) {
-      const pending = [...asked.entries()].filter(([, p]) => !p.said).pop();
+      const pending = waitingCall([...asked.entries()], e.message);
       if (pending) {
         const [id, p] = pending;
         p.said = true;
@@ -594,8 +586,11 @@ export const register: Register = (on, options) => {
     return result;
   });
 
-  // The call ended, answered or not: its ask is no longer pending.
+  // A call is remembered from its start, before its permission check and any
+  // prompt, until it ends, answered or not. Nothing is said here: the word
+  // comes from the Notification above, once a prompt has waited for a person.
   on("tool.call", async ($, e, next) => {
+    if (mainLoopCall(e)) asked.set(e.tool_use_id!, { tool: e.tool, input: e.input, said: false });
     const result = await next(e);
     asked.delete(e.tool_use_id);
     return result;
