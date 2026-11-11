@@ -2,7 +2,19 @@
 
 Live state and what has been verified. Conventions live in `CLAUDE.md`.
 
-## Status (2026-10-24)
+## Status (2026-11-11)
+
+**0.10.2 is the current release**, tagged `v0.10.2` and
+`readback--v0.10.2` and released on GitHub on 2026-11-11. It changes the
+extension: a VS Code window with no folder open writes a `-` marker in its
+endpoint file, so the plugin stops passing replies to a window that reads
+none of them. **The VS Code Marketplace has 0.10.0** (uploaded
+2026-11-09); 0.10.2 is not uploaded yet. The Claude Code plugin ships from
+the `plugin` branch and its marketplace entry pins `readback--v0.10.2`;
+Claude's plugin directory refused the 2026-11-09 submission (see Claude
+Code mod below). Default model `simba-3.5`, default voice `harper_32`.
+
+### Status on 2026-10-24 (kept for history)
 
 **0.8.2 packaged and installed in VS Code on 2026-10-24, not yet
 reloaded, run or uploaded; Cursor still has 0.7.2: Claude Code 2.1.310's
@@ -38,12 +50,14 @@ arrived, rendered and were appended; the finished reply was condensed and
 appended after them. What did not happen was sound: see the autoplay note
 under Verified.
 
+### Reference
+
 | Thing | Value |
 | --- | --- |
 | Repo | <https://github.com/Speechify-AI/readback> (moved out of the internal monorepo 2026-09-10) |
 | License | MIT |
 | Marketplace publisher | `speechify`, created 2026-09-10 under shaun.trennery@gmail.com (Microsoft account); <https://marketplace.visualstudio.com/manage/publishers/speechify>. Domain `speechify.com` saved but not verified; no second member yet. |
-| Model / default voice | `simba-3.2` / `harper_32` |
+| Model / default voice | `simba-3.5` / `harper_32` (`simba-3.5` since 0.8.0) |
 | Hook script | `~/.readback/hook.sh` (`hook.ps1` on Windows), written on activation, registered under `Stop`, `MessageDisplay`, `PreToolUse`, `Notification` and `UserPromptSubmit` in `~/.claude/settings.json`; under `Stop` only in `~/.codex/hooks.json` when the Codex hook is installed |
 | Endpoint files | `~/.readback/endpoints/<pid>` holding `port token` |
 | Render cache | `<globalStorage>/speechify.readback/cache/<model>/<voice>/<sha256>.{mp3,json}` |
@@ -59,7 +73,8 @@ random` and the plugin's listing icon (`.claude-plugin/icon.png`, 1024 px,
 the extension's logo redrawn from `media/icon.svg`); the extension itself
 is unchanged. From 0.10.0 the plugin ships from the `plugin` branch, a
 tree of 29 files (248 KB) built by `scripts/plugin-tree.mjs`, and the
-marketplace entry pins `ref: readback--v0.10.0`. Before that, the repo root
+marketplace entry pins the latest `readback--v*` tag (`readback--v0.10.2`
+on 2026-11-11). Before that, the repo root
 was the plugin, and Claude Code's dependency install put the extension's
 dev tools into every installed copy: 164 MB of `node_modules` (vitest,
 vsce, TypeScript, esbuild) in `~/.claude/plugins/cache/readback-dev/readback/0.9.0`,
@@ -704,7 +719,8 @@ the tier shape you want and I'll apply it in Atlas".
   by hand through the manage page on 2026-09-10 (listing:
   <https://marketplace.visualstudio.com/items?itemName=speechify.readback>);
   0.3.3, 0.4.0 and 0.4.1 the same way on 2026-09-10 and 2026-09-11,
-  0.5.0 on 2026-09-22, 0.7.0 on 2026-10-08, and 0.9.0 on 2026-11-05.
+  0.5.0 on 2026-09-22, 0.7.0 on 2026-10-08, 0.8.2 on 2026-10-24, 0.9.0 on
+  2026-11-05 and 0.10.0 on 2026-11-09. 0.10.2 is not uploaded yet.
   No access token exists yet, so `vsce publish` and CI cannot release;
   nothing is on Open VSX (checked 2026-09-22), so Cursor, Windsurf and
   VSCodium users cannot install it from their marketplaces.
