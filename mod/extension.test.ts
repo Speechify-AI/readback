@@ -40,6 +40,15 @@ describe("the extension's endpoints", () => {
     expect(endpointFolders("4000 a\n/w/one\n/w/two\n")).toEqual(["/w/one", "/w/two"]);
     expect(endpointFolders("4000 a\n")).toBeNull();
     expect(endpointFolders("4000 a")).toBeNull();
+    expect(endpointFolders("4000 a\n-\n")).toEqual([]);
+  });
+
+  it("yields to a window with no folder open only a reply from home", async () => {
+    const project = deps({ "100": "4000 a\n-\n" }, [4000]);
+    expect(await extensionListening(project, dir, cwd, "/h")).toBe(false);
+    expect(project.probed).toEqual([]);
+    const home = deps({ "100": "4000 a\n-\n" }, [4000]);
+    expect(await extensionListening(home, dir, "/h", "/h")).toBe(true);
   });
 
   it("is listening when one window answers, a 404 included", async () => {
@@ -48,7 +57,7 @@ describe("the extension's endpoints", () => {
     expect(d.probed).toEqual([4000, 4001]);
   });
 
-  it("yields only to a window whose project this is; one with no folders is read as everything", async () => {
+  it("yields only to a window whose project this is; one that names none is an older extension, yielded to", async () => {
     const other = deps({ "100": "4000 a\n/h/code/other\n" }, [4000]);
     expect(await extensionListening(other, dir, cwd, "/h")).toBe(false);
     expect(other.probed).toEqual([]);

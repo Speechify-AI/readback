@@ -1,6 +1,6 @@
 {
   "name": "readback",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Hear Claude's replies in a Speechify voice, with each word lit above the prompt as it is spoken.",
   "author": { "name": "Speechify" },
   "license": "MIT",

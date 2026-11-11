@@ -183,6 +183,14 @@ Pending, the manual check (none run yet):
     (`relatedToWorkspace` on both sides). Needs the extension rebuilt and
     reinstalled from this branch: an older extension's file has no folder
     lines and is still yielded to. Not yet seen after the change.
+    **Seen on 2026-11-11, the same way again:** an empty VS Code window
+    (0.10.0) wrote a file with no folder lines, the mod took it for an
+    older extension and yielded every T3 Code reply, and the window read
+    none of them, since it reads only turns from home. Now a window with
+    no folder open writes `-` under the first line (`NO_FOLDERS_LINE`). The
+    mod applies the project rule to it, and a mod from before the marker
+    reads `-` as a folder no project is inside, so it reads the reply
+    itself. Needs the extension released; not yet seen after the change.
 15. **T3 Code, by command (2026-10-31, not yet seen).** Settings hooks do
     fire in a T3 Code session: a capture listener registered in
     `~/.readback/endpoints` received this session's PreToolUse payloads

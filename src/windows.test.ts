@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relatedToWorkspace } from "./windows.ts";
+import { NO_FOLDERS_LINE, relatedToWorkspace } from "./windows.ts";
 
 describe("relatedToWorkspace", () => {
   const home = "/Users/me";
@@ -31,6 +31,11 @@ describe("relatedToWorkspace", () => {
     expect(relatedToWorkspace("/Users/me/code/customers/tools/readback/", folders, home)).toBe(true);
     expect(relatedToWorkspace("C:\\code\\readback\\src", ["C:/code/readback"], "C:\\Users\\me")).toBe(true);
     expect(relatedToWorkspace("C:\\code\\other", ["C:/code/readback"], "C:\\Users\\me")).toBe(false);
+  });
+
+  it("never relates a project to the no-folders marker, as a mod from before it reads it", () => {
+    expect(relatedToWorkspace("/Users/me/code/readback", [NO_FOLDERS_LINE], home)).toBe(false);
+    expect(relatedToWorkspace("C:\\code\\readback", [NO_FOLDERS_LINE], "C:\\Users\\me")).toBe(false);
   });
 
   it("rejects no cwd and no folders", () => {

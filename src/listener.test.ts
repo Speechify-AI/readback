@@ -2,12 +2,20 @@ import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { startListener, type Listener } from "./listener.ts";
+import { endpointText, startListener, type Listener } from "./listener.ts";
 
 let listener: Listener | null = null;
 afterEach(() => {
   listener?.close();
   listener = null;
+});
+
+describe("endpointText", () => {
+  it("writes the folders under the first line, or the marker when none is open", () => {
+    expect(endpointText(4000, "tok", ["/w/one", "/w/two"])).toBe("4000 tok\n/w/one\n/w/two\n");
+    expect(endpointText(4000, "tok", [])).toBe("4000 tok\n-\n");
+    expect(endpointText(4000, "tok", ["", "  "])).toBe("4000 tok\n-\n");
+  });
 });
 
 describe("startListener", () => {
@@ -23,6 +31,8 @@ describe("startListener", () => {
     expect(folders).toEqual(["/w/one", "/w/two"]);
     listener.publish(["/w/three"]);
     expect(readFileSync(listener.endpointFile, "utf8")).toBe(`${port} ${token}\n/w/three\n`);
+    listener.publish([]);
+    expect(readFileSync(listener.endpointFile, "utf8")).toBe(`${port} ${token}\n-\n`);
 
     const url = `http://127.0.0.1:${listener.port}/turn`;
     const ok = await fetch(url, {

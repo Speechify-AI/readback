@@ -95,8 +95,12 @@ this repo.
   `node:path`, since the mod applies it too). No focused-window fallback: a
   panel full of another project's replies is worse than silence. The
   window publishes its folders under the `port token` line of its endpoint
-  file (`endpointText`, rewritten as they change); the hook reads the
-  first line only.
+  file (`endpointText`, rewritten as they change), or `NO_FOLDERS_LINE`
+  (`-`) when none is open; the hook reads the first line only. A file with
+  no line under the first is an extension older than the folder lines, and
+  the mod yields to it. An empty window wrote exactly that before the
+  marker, and the mod yielded every T3 reply to a window that read none
+  of them (2026-11-11).
 - **Condensing runs on the person's own Claude subscription, never on a key
   we hold.** `claude -p --model sonnet` with `--setting-sources ""` (no hooks
   load into that run) and `READBACK_HOOK=1` in its environment (the hook
@@ -288,7 +292,8 @@ and shares none of the extension's host code.
   So at each `turn.complete` the mod probes those files (`mod/extension.ts`)
   and, when a listener whose folders are related to the session's cwd
   answers (a 404 counts; a refused port is a window that crashed; no
-  folder lines is an older extension, read as everything), lets the turn
+  line under the first is an older extension, project unknown, so yielded
+  to; `-` is a window with no folder open), lets the turn
   go by with one toast per session. A window on another project would not
   read the reply, so the mod does not yield to it: with VS Code open on
   something else, a T3 Code reply went unheard by both (2026-11-01). The

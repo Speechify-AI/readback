@@ -8,10 +8,12 @@
  * the session's directory; a window on another project stays silent, and so
  * would the mod, which is how a reply went unheard (2026-11-01). A file
  * whose port refuses the connection is a window that crashed (the hook
- * removes such a file on its next run). A file with no folder lines comes
- * from an older extension and counts as reading everything, as before.
+ * removes such a file on its next run). A window with no folder open writes
+ * `NO_FOLDERS_LINE` and reads only turns from home, by the same rule. A
+ * file with no folder lines at all comes from an extension older than
+ * them: which project it has open is unknown, so the mod yields, as before.
  */
-import { relatedToWorkspace } from "../src/windows.ts";
+import { NO_FOLDERS_LINE, relatedToWorkspace } from "../src/windows.ts";
 
 /** Under `$HOME`; the caller joins it. The extension fixes this path. */
 export const ENDPOINTS_DIR = ".readback/endpoints";
@@ -31,10 +33,11 @@ export function endpointPort(text: string): number | null {
   return port > 0 && port < 65536 ? port : null;
 }
 
-/** The workspace folders under the first line; null when the file has none to tell (an older extension). */
+/** The workspace folders under the first line, empty for a window with none open; null when the file does not say (an older extension). */
 export function endpointFolders(text: string): string[] | null {
   const lines = text.split("\n").slice(1).map((l) => l.trim()).filter((l) => l !== "");
-  return lines.length === 0 ? null : lines;
+  if (lines.length === 0) return null;
+  return lines.filter((l) => l !== NO_FOLDERS_LINE);
 }
 
 /** True when a window of the extension that would read a reply from `cwd` answers on its listener. */

@@ -6,9 +6,10 @@
  * per window under the endpoints directory, which is how the hook finds
  * every window; the file is removed on deactivate and by the hook itself
  * when the connection is refused. Under that first line, one workspace
- * folder per line (`publish` rewrites them as they change): the hook reads
- * the first line only, and the Claude Code mod reads the folders to tell
- * whether this window will read a reply before it yields the reply to it.
+ * folder per line (`publish` rewrites them as they change), or
+ * `NO_FOLDERS_LINE` when none is open: the hook reads the first line only,
+ * and the Claude Code mod reads the folders to tell whether this window
+ * will read a reply before it yields the reply to it.
  *
  * The listener does not decide anything. It checks the token, parses the
  * body, and hands the object to `onPayload`. Which window should speak is
@@ -18,6 +19,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
+import { NO_FOLDERS_LINE } from "./windows.ts";
 
 export interface Listener {
   port: number;
@@ -29,7 +31,8 @@ export interface Listener {
 }
 
 export function endpointText(port: number, token: string, folders: readonly string[]): string {
-  return [`${port} ${token}`, ...folders.filter((f) => f.trim() !== "")].join("\n") + "\n";
+  const named = folders.filter((f) => f.trim() !== "");
+  return [`${port} ${token}`, ...(named.length === 0 ? [NO_FOLDERS_LINE] : named)].join("\n") + "\n";
 }
 
 const MAX_BODY_BYTES = 2_000_000;

@@ -29,6 +29,16 @@ function within(inner: string, outer: string): boolean {
   return a === b || a.startsWith(b === "/" ? b : `${b}/`);
 }
 
+/**
+ * The line an endpoint file holds under `port token` when the window has no
+ * folder open. Without it, such a file looked like one from an extension
+ * older than the folder lines, and the mod yielded every reply to a window
+ * that reads only turns from home (2026-11-11). Not a path, so a mod that
+ * predates it reads it as a folder no project is inside, and reads the
+ * reply itself.
+ */
+export const NO_FOLDERS_LINE = "-";
+
 export function relatedToWorkspace(cwd: string | null, folders: readonly string[], home: string): boolean {
   if (cwd === null || cwd === "") return false;
   // Home, or anything above it, contains every project.
