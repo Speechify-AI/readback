@@ -6,7 +6,7 @@
  * keeps the hash and the cache around it and re-exports these types.
  */
 import { mergeMp3, mp3DurationMs, stripId3 } from "./audio.ts";
-import { fillGaps, type Mark } from "./marks.ts";
+import { fillGaps, toCodeUnits, type Mark } from "./marks.ts";
 import type { TtsConfig, TtsResult } from "./speechifyShared.ts";
 import { chunkRanges, PARAGRAPH_LIMIT } from "./text.ts";
 
@@ -37,8 +37,10 @@ export async function renderChunks(text: string, cfg: TtsConfig, synth: Synth, l
   const marks: Mark[] = [];
   let timeOffsetMs = 0;
   for (const range of chunkRanges(text, limit)) {
-    const result = await synth(text.slice(range.start, range.end), cfg);
-    for (const mark of result.marks) {
+    const chunk = text.slice(range.start, range.end);
+    const result = await synth(chunk, cfg);
+    // The API counts code points; the rebase and the player count UTF-16 units.
+    for (const mark of toCodeUnits(result.marks, chunk)) {
       marks.push({
         start: mark.start + range.start,
         end: mark.end + range.start,
