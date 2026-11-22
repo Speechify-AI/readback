@@ -13,6 +13,13 @@ const fakeSynth = async (input: string): Promise<TtsResult> => {
   return { audio: new Uint8Array(100).fill(0xff), charsBilled: input.length, durationMs: input.length * 10, marks };
 };
 
+/** The fake above, but counting offsets in code points as the live API does. */
+const codePointSynth = async (input: string): Promise<TtsResult> => {
+  const result = await fakeSynth(input);
+  const points = (units: number) => [...input.slice(0, units)].length;
+  return { ...result, marks: result.marks.map((m) => ({ ...m, start: points(m.start), end: points(m.end) })) };
+};
+
 const memoryCache = (): RenderCache & { store: Map<string, Rendered> } => {
   const store = new Map<string, Rendered>();
   return {
@@ -46,6 +53,25 @@ describe("renderParagraph", () => {
     }
     expect(out.marks[out.marks.length - 1]!.end).toBe(long.length);
     expect(text).toBeTruthy();
+  });
+
+  it("converts the API's code point offsets, so an emoji does not shift the words after it", async () => {
+    const text = "All 42 tests pass 🎉 and the build is green.";
+    const out = await renderParagraph(text, cfg, noCache, codePointSynth);
+    const words = out.marks.map((m) => text.slice(m.start, m.end));
+    expect(words).toEqual(["All", "42", "tests", "pass", "🎉", "and", "the", "build", "is", "green."]);
+  });
+
+  it("converts each chunk against its own text when the emoji sits in an earlier chunk", async () => {
+    const long = `${"word ".repeat(380)}🎉 done. ${"tail ".repeat(200)}last.`;
+    const calls: string[] = [];
+    const out = await renderParagraph(long, cfg, noCache, async (input) => {
+      calls.push(input);
+      return codePointSynth(input);
+    });
+    expect(calls.length).toBeGreaterThan(1);
+    for (const m of out.marks) expect(long.slice(m.start, m.end)).toMatch(/^(word|🎉|done\.|tail|last\.)$/);
+    expect(out.marks[out.marks.length - 1]!.end).toBe(long.length);
   });
 
   it("is a cache hit the second time and never synthesizes again", async () => {

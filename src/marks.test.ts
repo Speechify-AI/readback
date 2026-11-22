@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillGaps, flattenMarks, markAtTime, sentenceRanges, timeSentences } from "./marks.ts";
+import { fillGaps, flattenMarks, markAtTime, sentenceRanges, timeSentences, toCodeUnits } from "./marks.ts";
 
 /** Shape the live API returns: a "sentence" node holding "word" chunks. */
 const word = (start: number, end: number, startMs: number, endMs: number) => ({
@@ -185,5 +185,33 @@ describe("timeSentences", () => {
     for (let i = 1; i < timed.length; i++) {
       expect(timed[i]!.startMs).toBeGreaterThanOrEqual(timed[i - 1]!.endMs);
     }
+  });
+});
+
+describe("toCodeUnits", () => {
+  // The live case, 2026-10-01 (Obsidian plugin): offsets as the API returned them, in code points.
+  const text = "A café 😀 with déjà vu.";
+  const fromApi = [
+    { start: 0, end: 1, startMs: 0, endMs: 100 },
+    { start: 2, end: 6, startMs: 100, endMs: 400 },
+    { start: 9, end: 13, startMs: 500, endMs: 700 },
+    { start: 14, end: 18, startMs: 700, endMs: 1000 },
+    { start: 19, end: 22, startMs: 1000, endMs: 1300 },
+  ];
+
+  it("shifts every mark after a character outside the BMP", () => {
+    const marks = toCodeUnits(fromApi, text);
+    expect(marks.map((m) => text.slice(m.start, m.end))).toEqual(["A", "café", "with", "déjà", "vu."]);
+    expect(marks.map((m) => m.startMs)).toEqual(fromApi.map((m) => m.startMs));
+  });
+
+  it("leaves text without such characters alone", () => {
+    const plain = "A café with déjà vu.";
+    const marks = [{ start: 2, end: 6, startMs: 0, endMs: 1 }];
+    expect(toCodeUnits(marks, plain)).toEqual(marks);
+  });
+
+  it("clamps an offset past the end of the text", () => {
+    expect(toCodeUnits([{ start: 0, end: 99, startMs: 0, endMs: 1 }], "😀 hi")[0]!.end).toBe(5);
   });
 });

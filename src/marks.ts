@@ -14,6 +14,9 @@
  *    got no mark at all, an 8-character hole in an otherwise covered string.
  *  - The top-level "sentence" node is not a sentence. A three-sentence
  *    paragraph came back as a single sentence chunk holding every word.
+ *  - The offsets count Unicode code points, not UTF-16 units (measured for
+ *    the Obsidian plugin 2026-10-01, see `toCodeUnits`). The probe above had
+ *    no emoji in it, so slicing held there.
  *
  * So: never index marks by token position, never trust the sentence layer.
  * Offsets are the anchor, and `fillGaps` closes the holes so the highlight
@@ -65,6 +68,29 @@ export function flattenMarks(raw: unknown): Mark[] {
   visit(raw);
   out.sort((a, b) => a.start - b.start || a.startMs - b.startMs);
   return out;
+}
+
+/**
+ * Mark offsets as JavaScript counts them.
+ *
+ * The API counts offsets in Unicode code points; a JavaScript string counts
+ * UTF-16 code units. The two agree until the first character outside the
+ * Basic Multilingual Plane (an emoji), which is one code point and two units.
+ * Measured 2026-10-01 for the Obsidian plugin (simba-3.2 / harper_32), copied
+ * from there: accents, curly quotes and CJK sliced correctly, and every mark
+ * after a single "😀" sliced one character early ("with" came back as
+ * " wit"), with `billable_characters_count` equal to the code point count.
+ * `text` is the plain string the marks index, never SSML.
+ */
+export function toCodeUnits(marks: readonly Mark[], text: string): Mark[] {
+  if (!/[\uD800-\uDBFF]/.test(text)) return [...marks];
+  const unitAt: number[] = [];
+  let unit = 0;
+  for (const character of text) {
+    unitAt.push(unit);
+    unit += character.length;
+  }
+  return marks.map((m) => ({ ...m, start: unitAt[m.start] ?? unit, end: unitAt[m.end] ?? unit }));
 }
 
 /**

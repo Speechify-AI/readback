@@ -615,6 +615,24 @@ the tier shape you want and I'll apply it in Atlas".
   each long reply while Shaun was still reading it, on every turn. Gone
   the same day; the permission alert alone remains.
 
+## Verified on 2026-11-22
+
+- **Mark offsets count code points, bare and in SSML.** Reported by Jeetu
+  SK; the Obsidian plugin had measured it on 2026-10-01 and its runbook
+  listed Readback as carrying the bug. `scripts/probe-ssml.mjs` (now with a
+  code point column) on simba-3.5 / harper_32, with "All 42 tests pass 🎉
+  & the build is green, café “déjà” vu.": every mark after the emoji
+  sliced one UTF-16 unit early ("the" as " th"), and every one matched by
+  code point, bare and inside prosody alike. The SSML marks index the
+  plain text with the tags stripped, `&amp;` counted as one, as found on
+  2026-10-31. Accents and curly quotes are one unit each and changed
+  nothing; the emoji got no mark of its own. `toCodeUnits` (copied from
+  the Obsidian plugin) now converts each chunk's marks against that
+  chunk's plain text in `renderChunks`, which covers the extension, the
+  mod and the speed path. 325 tests, typecheck and the validator pass.
+  Renders already cached keep their old marks; only paragraphs with an
+  emoji are affected. In 0.10.3; not yet seen in the player.
+
 ## Open
 
 - **A turn from home, by ear.** Shaun saw every window take the updates

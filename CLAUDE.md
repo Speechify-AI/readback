@@ -23,6 +23,10 @@ this repo.
 - **Highlighting is anchored on character offsets, never token positions,
   and gaps are absorbed forward.** Copied whole from Soundbites, evidence and
   all: `src/marks.ts` and its tests carry the measured API behaviour.
+  The API counts those offsets in code points, bare and in SSML; a string
+  counts UTF-16 units. `renderChunks` runs each chunk's marks through
+  `toCodeUnits` against that chunk's plain text, or one emoji shifts every
+  later highlight (measured 2026-11-22).
 - **`/v1/audio/speech`, not `/v1/audio/stream`.** Only speech returns
   `speech_marks`. Its 2,000-character cap makes the paragraph the unit of
   rendering; longer paragraphs are chunked and the marks rebased by audio

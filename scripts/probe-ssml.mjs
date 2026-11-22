@@ -1,11 +1,14 @@
 // Asks Speechify for the same paragraph bare and wrapped in SSML prosody and
 // prints each speech mark with the characters it points at in both strings,
 // so the offset rule for SSML input can be read off. Bills a few hundred
-// characters. Run: SPEECHIFY_API_KEY=... node scripts/probe-ssml.mjs
+// characters. Run: SPEECHIFY_API_KEY=... node scripts/probe-ssml.mjs ["text"]
+// `cp=` slices the text by code point, which is what the offsets count once
+// the text holds an emoji; `text=` slices it by UTF-16 unit.
 const key = process.env.SPEECHIFY_API_KEY;
 if (!key) throw new Error("SPEECHIFY_API_KEY not set");
 const text = process.argv[2] ?? "Tom & Jerry <3 cats, so the city's streets tilt toward a flat-topped backdrop.";
 const ssml = `<speak><prosody rate="+50%">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</prosody></speak>`;
+const points = [...text];
 const flatten = (node, out = []) => {
   if (Array.isArray(node)) node.forEach((n) => flatten(n, out));
   else if (node && typeof node === "object") {
@@ -24,5 +27,5 @@ for (const [label, input] of [["bare", text], ["ssml", ssml]]) {
   if (!res.ok) { console.log(label, res.status, JSON.stringify(json).slice(0, 300)); continue; }
   const words = flatten(json.speech_marks);
   console.log(`== ${label}: input ${input.length} chars, ${words.length} word marks, top-level start/end ${json.speech_marks.start}/${json.speech_marks.end}`);
-  for (const w of words) console.log(`${String(w.start).padStart(4)}-${String(w.end).padEnd(4)} value=${JSON.stringify(w.value)} input=${JSON.stringify(input.slice(w.start, w.end))} text=${JSON.stringify(text.slice(w.start, w.end))}`);
+  for (const w of words) console.log(`${String(w.start).padStart(4)}-${String(w.end).padEnd(4)} value=${JSON.stringify(w.value)} input=${JSON.stringify(input.slice(w.start, w.end))} text=${JSON.stringify(text.slice(w.start, w.end))} cp=${JSON.stringify(points.slice(w.start, w.end).join(""))}`);
 }

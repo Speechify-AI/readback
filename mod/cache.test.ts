@@ -81,6 +81,21 @@ describe("renderParagraph with a disk cache", () => {
     for (const m of r.marks) expect(words.slice(m.start, m.end)).toMatch(/^\S+$/);
   });
 
+  it("at speed, marks counted in code points land on the words after an emoji", async () => {
+    const text = "All 42 tests pass 🎉 & the build is green.";
+    const calls: string[] = [];
+    const units = fakeSynth(calls);
+    const codePoints = async (input: string): Promise<TtsResult> => {
+      const r = await units(input);
+      const spoken = input.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+      const points = (u: number) => [...spoken.slice(0, u)].length;
+      return { ...r, marks: r.marks.map((m) => ({ ...m, start: points(m.start), end: points(m.end) })) };
+    };
+    const r = await renderParagraph(text, cfg, diskCache(memoryFiles(), "/c"), codePoints, 1.25);
+    expect(calls[0]).toContain("&amp;");
+    expect(r.marks.map((m) => text.slice(m.start, m.end))).toEqual(["All", "42", "tests", "pass", "🎉", "&", "the", "build", "is", "green."]);
+  });
+
   it("a corrupt cache file is a miss", async () => {
     const files = memoryFiles();
     const cache = diskCache(files, "/c");
